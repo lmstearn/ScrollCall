@@ -1,9 +1,10 @@
-// Gdiplus 
 #include "ScrollBitmap.h"
 RECT RectCl::rectOut1 = {};
 RECT RectCl::rectOut2 = {};
 RECT RectCl::rectOut3 = {};
 HWND RectCl::ownerHwnd = 0;
+RECT RectCl::rectOwnerHwnd = {};
+
 
 #define MAX_LOADSTRING 255
 #define FOURTHREEVID					12
@@ -12,8 +13,8 @@ HWND RectCl::ownerHwnd = 0;
 #define ULTRAWIDEVID					21
 #define DESIGNSCRX						1360
 #define DESIGNSCRY						768
-using namespace Gdiplus;
-using namespace Gdiplus::DllExports;
+
+
 
 // Global Variables:
 RECT rcWindow;
@@ -25,9 +26,9 @@ wchar_t* szFile = nullptr;
 float scrAspect = 0, scaleX = 1, scaleY = 1,  resX = 0, resY = 0;
 int tmp = 0, wd = 0, ht = 0;
 HWND hWndButton = 0, hWndOpt1 =0, hWndOpt2 =0;
-ULONG_PTR gdiplusToken;
 BOOL optChk = TRUE;
 RECT rectB, rectO1, rectO2;
+
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -38,7 +39,9 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 float DoSysInfo(HWND hWnd, bool progLoad);
 wchar_t* FileOpener(HWND hWnd);
 void message(const wchar_t* format, ...);
-
+BOOL bitmapFromPixels(Bitmap& myBitmap, const std::vector<std::vector<unsigned>>resultPixels, int width, int height);
+char* VecToArr(std::vector<std::vector<unsigned>> vec);
+void PrintWindow(HWND hWnd, HBITMAP& hBmp);
 
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -149,7 +152,8 @@ HDC hdc;
 PAINTSTRUCT ps;
 
 // These variables are required by BitBlt. 
-static HDC hdcWinCl;            // window DC 
+static HDC hdcWin;            // DC for window
+static HDC hdcWinCl;            // client area of DC for window
 static  HDC hdcMem;            // Mem DC 
 static HDC hdcScreen;           // DC for entire screen 
 static HDC hdcScreenCompat;     // memory DC for screen 
@@ -192,8 +196,8 @@ static UINT SMOOTHSCROLL_SPEED;
     si.cbSize = 0;
     SMOOTHSCROLL_SPEED = 0X00000002;
     ulScrollLines = 0;
-    Gdiplus::GdiplusStartupInput gdiplusStartupInput;
-    Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+    
+    GdiplusInit gdiplusinit;
 
     GetWdHt(hWnd);
 
@@ -302,6 +306,8 @@ static UINT SMOOTHSCROLL_SPEED;
     xNewSize = LOWORD(lParam);
     yNewSize = HIWORD(lParam);
 
+   //Get updated rect for the form
+    RECT recthWndtmp = RectCl().RectCl(0, hWnd, 0);
 
     GetWdHt(hWnd);
     RECT rectBtmp = RectCl().RectCl(hWndButton, hWnd, 1);
@@ -354,208 +360,214 @@ static UINT SMOOTHSCROLL_SPEED;
     }
     case WM_PAINT:
     {
-    PAINTSTRUCT ps;
-    hdc = BeginPaint(hWnd, &ps);
+        if (wParam == 0)
+        {
+            PAINTSTRUCT ps;
+            hdc = BeginPaint(hWnd, &ps);
 
 
-    // If scrolling has occurred, use the following call to 
-    // BitBlt to paint the invalid rectangle. 
-    // 
-    // The coordinates of this rectangle are specified in the 
-    // RECT structure to which prect points. 
-    // 
-    // Note that it is necessary to increment the seventh 
-    // argument (prect->left) by xCurrentScroll and the 
-    // eighth argument (prect->top) by yCurrentScroll in 
-    // order to map the correct pixels from the source bitmap. 
-    if (fScroll)
-    {
-
-    PRECT prect;
-    prect = &ps.rcPaint;
-    BitBlt(ps.hdc,
-        prect->left + (isScreenshot ? 0 : (((fScroll == 1) && (xCurrentScroll > wd)) ? 0: wd * scaleX)),
-        prect->top,
-        //prect->left + ( (isScreenshot) ? 0 : wd * scaleX), prect->top,
-        (prect->right - prect->left),
-        (prect->bottom - prect->top),
-        isScreenshot ? hdcScreenCompat: hdcMem,
-        prect->left + xCurrentScroll,
-        prect->top + yCurrentScroll,
-        SRCCOPY);
-
-    if (fScroll == -1 && xCurrentScroll < scaleX * wd)
-    {
-
-            if (yCurrentScroll > RectCl().RectCl(3).bottom)
+            // If scrolling has occurred, use the following call to 
+            // BitBlt to paint the invalid rectangle. 
+            // 
+            // The coordinates of this rectangle are specified in the 
+            // RECT structure to which prect points. 
+            // 
+            // Note that it is necessary to increment the seventh 
+            // argument (prect->left) by xCurrentScroll and the 
+            // eighth argument (prect->top) by yCurrentScroll in 
+            // order to map the correct pixels from the source bitmap. 
+            if (fScroll)
             {
-            RECT rect;
-            rect.top = (yCurrentScroll - yOldScroll > 0)? RectCl().RectCl(3).bottom: 0;
-            rect.bottom = RectCl().RectCl(0).bottom;
-            rect.left = prect->left;
-            rect.right = prect->left + (scaleX * wd) - xCurrentScroll;
-            FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
-            //UpdateWindow(hWnd);
-            }
-            else
-            {
-                int y = RectCl().RectCl(3).top;
-                int y3T = max(RectCl().RectCl(3).top, yCurrentScroll);
-                int y2B = max(RectCl().RectCl(2).bottom, yCurrentScroll);
-                int y2T = max(RectCl().RectCl(2).top, yCurrentScroll);
-                int y1B = max(RectCl().RectCl(1).bottom, yCurrentScroll);
-                if (yCurrentScroll > RectCl().RectCl(3).top)
+
+                PRECT prect;
+                prect = &ps.rcPaint;
+                BitBlt(ps.hdc,
+                    prect->left + (isScreenshot ? 0 : (((fScroll == 1) && (xCurrentScroll > wd)) ? 0 : wd * scaleX)),
+                    prect->top,
+                    //prect->left + ( (isScreenshot) ? 0 : wd * scaleX), prect->top,
+                    (prect->right - prect->left),
+                    (prect->bottom - prect->top),
+                    isScreenshot ? hdcScreenCompat : hdcMem,
+                    prect->left + xCurrentScroll,
+                    prect->top + yCurrentScroll,
+                    SRCCOPY);
+
+                if (fScroll == -1 && xCurrentScroll < scaleX * wd)
                 {
-                    if (yOldScroll < y3T)
+
+                    if (yCurrentScroll > RectCl().RectCl(3).bottom)
                     {
                         RECT rect;
-                        rect.top = RectCl().RectCl(3).bottom;
+                        rect.top = (yCurrentScroll - yOldScroll > 0) ? RectCl().RectCl(3).bottom : 0;
                         rect.bottom = RectCl().RectCl(0).bottom;
                         rect.left = prect->left;
                         rect.right = prect->left + (scaleX * wd) - xCurrentScroll;
                         FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
-                        if (yOldScroll < y2T)
+                        //UpdateWindow(hWnd);
+                    }
+                    else
+                    {
+                        int y = RectCl().RectCl(3).top;
+                        int y3T = max(RectCl().RectCl(3).top, yCurrentScroll);
+                        int y2B = max(RectCl().RectCl(2).bottom, yCurrentScroll);
+                        int y2T = max(RectCl().RectCl(2).top, yCurrentScroll);
+                        int y1B = max(RectCl().RectCl(1).bottom, yCurrentScroll);
+                        if (yCurrentScroll > RectCl().RectCl(3).top)
                         {
-                            RECT rect;
-                            rect.top = RectCl().RectCl(2).bottom;
-                            rect.bottom = RectCl().RectCl(3).top;
-                            rect.left = prect->left;
-                            rect.right = prect->left + (scaleX * wd) - xCurrentScroll;
-                            FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
+                            if (yOldScroll < y3T)
+                            {
+                                RECT rect;
+                                rect.top = RectCl().RectCl(3).bottom;
+                                rect.bottom = RectCl().RectCl(0).bottom;
+                                rect.left = prect->left;
+                                rect.right = prect->left + (scaleX * wd) - xCurrentScroll;
+                                FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
+                                if (yOldScroll < y2T)
+                                {
+                                    RECT rect;
+                                    rect.top = RectCl().RectCl(2).bottom;
+                                    rect.bottom = RectCl().RectCl(3).top;
+                                    rect.left = prect->left;
+                                    rect.right = prect->left + (scaleX * wd) - xCurrentScroll;
+                                    FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
+                                }
+                            }
                         }
+                        else // yCurrentScroll <= RectCl().RectCl(3).top)
+                        {
+                            if (yOldScroll < y3T)
+                            {
+                                RECT rect;
+                                rect.top = RectCl().RectCl(3).bottom;
+                                rect.bottom = RectCl().RectCl(0).bottom;
+                                rect.left = prect->left;
+                                rect.right = prect->left + (scaleX * wd) - xCurrentScroll;
+                                FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
+                                if (yOldScroll < y2T)
+                                {
+                                    RECT rect;
+                                    rect.top = RectCl().RectCl(2).bottom;
+                                    rect.bottom = RectCl().RectCl(3).top;
+                                    rect.left = prect->left;
+                                    rect.right = prect->left + (scaleX * wd) - xCurrentScroll;
+                                    FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
+                                }
+                            }
+                            else
+                            {
+                                RECT rect;
+                                rect.top = yOldScroll;
+                                rect.bottom = y3T;
+                                rect.left = prect->left;
+                                rect.right = prect->left + (scaleX * wd) - xCurrentScroll;
+                                FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
+                            }
+                        }
+
                     }
                 }
-                else // yCurrentScroll <= RectCl().RectCl(3).top)
-                {
-                    if (yOldScroll < y3T)
+
+                /*
+
+
+                if (fScroll == 1)
                     {
-                        RECT rect;
-                        rect.top = RectCl().RectCl(3).bottom;
-                        rect.bottom = RectCl().RectCl(0).bottom;
-                        rect.left = prect->left;
-                        rect.right = prect->left + (scaleX * wd) - xCurrentScroll;
-                        FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
-                        if (yOldScroll < y2T)
+                        if (xOldScroll - xCurrentScroll > 0)
                         {
-                            RECT rect;
-                            rect.top = RectCl().RectCl(2).bottom;
-                            rect.bottom = RectCl().RectCl(3).top;
-                            rect.left = prect->left;
-                            rect.right = prect->left + (scaleX * wd) - xCurrentScroll;
-                            FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
+                            if (xCurrentScroll > wd)
+                            BitBlt(ps.hdc,
+                                prect->left, prect->top,
+                                (prect->right - prect->left),
+                                (prect->bottom - prect->top),
+                                hdcScreenCompat,
+                                prect->left + xCurrentScroll,
+                                prect->top + yCurrentScroll,
+                                SRCCOPY);
+                            else
+                            BitBlt(ps.hdc,
+                                wd - xCurrentScroll + prect->left, prect->top,
+                                (wd - xCurrentScroll + prect->right - prect->left),
+                                (prect->bottom - prect->top),
+                                hdcScreenCompat,
+                                prect->left + xCurrentScroll,
+                                prect->top + yCurrentScroll,
+                                SRCCOPY);
+                        }
+                        else
+                        {
+                            BitBlt(ps.hdc,
+                                prect->left, prect->top,
+                                (prect->right - prect->left),
+                                (prect->bottom - prect->top),
+                                hdcScreenCompat,
+                                prect->left + xCurrentScroll,
+                                prect->top + yCurrentScroll,
+                                SRCCOPY);
                         }
                     }
                     else
                     {
-                        RECT rect;
-                        rect.top = yOldScroll;
-                        rect.bottom = y3T;
-                        rect.left = prect->left;
-                        rect.right = prect->left + (scaleX * wd) - xCurrentScroll;
-                        FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
+                        if (xCurrentScroll > wd)
+                        BitBlt(ps.hdc,
+                        prect->left, prect->top,
+                        (prect->right - prect->left),
+                        (prect->bottom - prect->top),
+                        hdcScreenCompat,
+                        prect->left + xCurrentScroll,
+                        prect->top + yCurrentScroll,
+                        SRCCOPY);
+                    else
+                    {
+                        BitBlt(ps.hdc,
+                            wd - xCurrentScroll + prect->left, prect->top,
+                            (xCurrentScroll - wd + prect->right - prect->left),
+                            (prect->bottom - prect->top),
+                            hdcScreenCompat,
+                            prect->left + xCurrentScroll,
+                            prect->top + yCurrentScroll,
+                            SRCCOPY);
                     }
+
+                    }*/
+                    /* If the window has been resized and the user has
+                   // captured the screen, use the following call to
+                   // BitBlt to paint the window's client area.
+                       x
+                       The x - coordinate, in logical units, of the upper - left corner of the destination rectangle.
+                       y
+                       The y - coordinate, in logical units, of the upper - left corner of the destination rectangle.
+                       cx
+                       The width, in logical units, of the source and destination rectangles.
+                       cy
+                       The height, in logical units, of the source and the destination rectangles.
+                       hdcSrc
+                       A handle to the source device context.
+                       x1
+                       The x - coordinate, in logical units, of the upper - left corner of the source rectangle.
+                       y1
+                       The y - coordinate, in logical units, of the upper - left corner of the source rectangle.
+                       */
+
+                if (fSize)
+                {
+                    BitBlt(ps.hdc,
+                        0, 0,
+                        bmp.bmWidth, bmp.bmHeight,
+                        hdcScreenCompat,
+                        xCurrentScroll, yCurrentScroll,
+                        SRCCOPY);
+
+                    fSize = FALSE;
                 }
 
+                fScroll = 0;
             }
-    }
 
-    /*
-
-
-    if (fScroll == 1)
-        {
-            if (xOldScroll - xCurrentScroll > 0)
-            {
-                if (xCurrentScroll > wd)
-                BitBlt(ps.hdc,
-                    prect->left, prect->top,
-                    (prect->right - prect->left),
-                    (prect->bottom - prect->top),
-                    hdcScreenCompat,
-                    prect->left + xCurrentScroll,
-                    prect->top + yCurrentScroll,
-                    SRCCOPY);
-                else
-                BitBlt(ps.hdc,
-                    wd - xCurrentScroll + prect->left, prect->top,
-                    (wd - xCurrentScroll + prect->right - prect->left),
-                    (prect->bottom - prect->top),
-                    hdcScreenCompat,
-                    prect->left + xCurrentScroll,
-                    prect->top + yCurrentScroll,
-                    SRCCOPY);
-            }
-            else
-            {
-                BitBlt(ps.hdc,
-                    prect->left, prect->top,
-                    (prect->right - prect->left),
-                    (prect->bottom - prect->top),
-                    hdcScreenCompat,
-                    prect->left + xCurrentScroll,
-                    prect->top + yCurrentScroll,
-                    SRCCOPY);
-            }
+            EndPaint(hWnd, &ps);
         }
         else
-        {
-            if (xCurrentScroll > wd)
-            BitBlt(ps.hdc,
-            prect->left, prect->top,
-            (prect->right - prect->left),
-            (prect->bottom - prect->top),
-            hdcScreenCompat,
-            prect->left + xCurrentScroll,
-            prect->top + yCurrentScroll,
-            SRCCOPY);
-        else
-        {
-            BitBlt(ps.hdc,
-                wd - xCurrentScroll + prect->left, prect->top,
-                (xCurrentScroll - wd + prect->right - prect->left),
-                (prect->bottom - prect->top),
-                hdcScreenCompat,
-                prect->left + xCurrentScroll,
-                prect->top + yCurrentScroll,
-                SRCCOPY);
-        }
+        RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_INTERNALPAINT);
 
-        }*/
-        /* If the window has been resized and the user has
-       // captured the screen, use the following call to
-       // BitBlt to paint the window's client area.
-           x
-           The x - coordinate, in logical units, of the upper - left corner of the destination rectangle.
-           y
-           The y - coordinate, in logical units, of the upper - left corner of the destination rectangle.
-           cx
-           The width, in logical units, of the source and destination rectangles.
-           cy
-           The height, in logical units, of the source and the destination rectangles.
-           hdcSrc
-           A handle to the source device context.
-           x1
-           The x - coordinate, in logical units, of the upper - left corner of the source rectangle.
-           y1
-           The y - coordinate, in logical units, of the upper - left corner of the source rectangle.
-           */
-
-    if (fSize)
-    {
-        BitBlt(ps.hdc,
-            0, 0,
-            bmp.bmWidth, bmp.bmHeight,
-            hdcScreenCompat,
-            xCurrentScroll, yCurrentScroll,
-            SRCCOPY);
-
-        fSize = FALSE;
-    }
-
-    fScroll = 0;
-    }
-
-    EndPaint(hWnd, &ps);
     return 0;
     break;
     }
@@ -768,9 +780,22 @@ static UINT SMOOTHSCROLL_SPEED;
             Color clr;
             szFile = (wchar_t*)calloc(MAX_LOADSTRING, sizeof(wchar_t));
             wcscpy_s(szFile, MAX_LOADSTRING, FileOpener(hWnd));
+
+
+
+
+
+
+                //CLSID pngClsid;
+               // GetEncoderClsid(L"image/png", &pngClsid);
             if (szFile[0] != L'*')
             {
+
                 hdcWinCl = GetDC(hWnd);
+                int wd = RectCl().RectCl(1).right - RectCl().RectCl(1).left;
+                int ht = RectCl().RectCl(0).bottom - RectCl().RectCl(0).top;
+                const std::vector<std::vector<unsigned>>resultPixels;
+               
                 GpStatus gps = GdipCreateBitmapFromFile(szFile, &pgpbm);
                 if (gps == Ok)
                 {
@@ -779,25 +804,70 @@ static UINT SMOOTHSCROLL_SPEED;
 
                     gps = GdipGetImageWidth(pgpbm, &bmpWidth);
                     gps = GdipGetImageHeight(pgpbm, &bmpHeight);
- 
+                    //HBITMAP hBmpCopy = (HBITMAP)CopyImage(hBitmap, IMAGE_BITMAP, 0, 0, LR_DEFAULTSIZE);
+                    //GpStatus WINGDIPAPI GdipDrawImageI(GpGraphics* graphics, GpImage* image, INT x, INT y);
+
+                    hdcWin = GetWindowDC(hWnd);
+                    BITMAP bm = { 0 };
+                    HGDIOBJ hBmpObj = GetCurrentObject(hdcWin, OBJ_BITMAP); //hBmp =>handle to bitmap (HBITMAP)
+                    if (hBmpObj && GetObject(hBmpObj, sizeof(BITMAP), &bm)) //bm => BITMAP structure
+                    {
+                        //bm.biBitCount = 32;
+                        bmpHeight = bm.bmHeight;
+                        bmpWidth = bm.bmWidth;
+                        RECT rect;
+                        rect.left = 0;
+                        rect.top = 0;
+                        rect.bottom = bmpHeight;
+                        rect.right = bmpWidth;
+                        //FillRect(hdcWinCl, &rect, (HBRUSH)(COLOR_WINDOW + 1));
+                    }
+                    // black = (bits == 0);   alpha=255 => 0xFF000000
                     hdcMem = CreateCompatibleDC(hdcWinCl);
-
                     SelectObject(hdcMem, hBitmap);
-                    if (!BitBlt(hdcWinCl, wd* scaleX, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
-                    MessageBoxExW(hWnd, L"Bad BitBlt from hdcMem!", 0, 0, 0);
-                    // Now to "translate" the memory DC co-ords
-                    HDC hdcMemtmp = CreateCompatibleDC(hdcWinCl);
-                    SelectObject(hdcMemtmp, hBitmap);
 
-                    if (!BitBlt(hdcMem, wd * scaleX, 0, bmpWidth, bmpHeight, hdcMemtmp, 0, 0, SRCCOPY))
-                    MessageBoxExW(hWnd, L"Bad BitBlt from hdcMemtmp!", 0, 0, 0);
-                    DeleteDC(hdcMemtmp);
+
+
+ 
+                HDC hdcMemTmp;
+                hdcMemTmp = CreateCompatibleDC(hdcWinCl);
+                HBITMAP hBmp = NULL;
+                hdc = GetDC(hWnd);
+                hBmp = CreateCompatibleBitmap(hdc,wd, ht);
+
+                PrintWindow(hWnd, hBmp);
+                SelectObject(hdcMemTmp, hBmp);
+               
+                //HPALETTE hpal;
+                //GdipCreateBitmapFromHBITMAP(hBmp, hpal, &pgpbm);
+                //Bitmap ctlBitmap(wd,  ht, PixelFormat32bppARGB);
+                //bitmapFromPixels(ctlBitmap, resultPixels, wd, ht);
+
+
+
+                    if (!BitBlt(hdcMem, 0, 0, wd * scaleX, bmpHeight, hdcMemTmp, 0, 0, SRCCOPY))
+                    MessageBoxExW(hWnd, L"Bad BitBlt from hdcMem!", 0, 0, 0);
+
+                    if (!BitBlt(hdcWinCl, wd * scaleX, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
+                    MessageBoxExW(hWnd, L"Bad BitBlt from hdcMemTmp!", 0, 0, 0);
+
+                   // if (!BitBlt(hdcWinCl, wd* scaleX, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
+                    //MessageBoxExW(hWnd, L"Bad BitBlt from hdcMem!", 0, 0, 0);
+                    // Now to "translate" the memory DC co-ords
+                    //HDC hdcMemTmp = CreateCompatibleDC(hdcWinCl);
+                    //SelectObject(hdcMemTmp, hBitmap);
+
+                    //if (!BitBlt(hdcMem, wd * scaleX, 0, bmpWidth, bmpHeight, hdcMemTmp, 0, 0, SRCCOPY))
+                    //MessageBoxExW(hWnd, L"Bad BitBlt from hdcMemtmp!", 0, 0, 0);
+                    DeleteDC(hdcMemTmp);
                     //SelectObject(hdcMem, hBitmap);
   
                     ReleaseDC(hWnd, hdcWinCl);
-
+                    ReleaseDC(hWnd, hdcWin);
                     if (hBitmap)
                         DeleteObject(hBitmap);
+                    if (hBmp)
+                        DeleteObject(hBmp);
 
                     if (pgpbm)
                         gps = GdipDisposeImage(pgpbm);
@@ -820,7 +890,6 @@ static UINT SMOOTHSCROLL_SPEED;
         {
             si.cbSize = 0;
             DeleteDC(hdcMem);
-            GdiplusShutdown(gdiplusToken);
             DestroyWindow(hWnd);
             return 0;
             break;
@@ -844,8 +913,7 @@ static UINT SMOOTHSCROLL_SPEED;
     bmp.bmHeight * scaleY, hdcScreen, 0, 0, SRCCOPY);
  
 
- 
-    HDC hdcWin = GetWindowDC(hWnd);
+    hdcWin = GetWindowDC(hWnd);
     BITMAP bm = { 0 };
     HGDIOBJ hBmp = GetCurrentObject(hdcWin, OBJ_BITMAP);
         if (hBmp && GetObject(hBmp, sizeof(BITMAP), &bm))
@@ -877,7 +945,6 @@ static UINT SMOOTHSCROLL_SPEED;
     {
         si.cbSize = 0;
         DeleteDC(hdcMem);
-        GdiplusShutdown(gdiplusToken);
         PostQuitMessage(0);
         return 0;
         break;
@@ -889,7 +956,6 @@ static UINT SMOOTHSCROLL_SPEED;
     {
         si.cbSize = 0;
         DeleteDC(hdcMem);
-        GdiplusShutdown(gdiplusToken);
         PostQuitMessage(0);
         return 0;
         break;
@@ -1048,4 +1114,135 @@ vswprintf_s(buf, len, format, args);
 MessageBoxW(0, buf, L"debug", 0);
 //OutputDebugStringA(buf);
 free(buf);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//https://stackoverflow.com/a/39654760/2128797
+std::vector<std::vector<unsigned>> getPixels(Gdiplus::Bitmap bitmap, int& width, int& height) {
+    
+
+    //Pass up the width and height, as these are useful for accessing pixels in the vector o' vectors.
+    width = bitmap.GetWidth();
+    height = bitmap.GetHeight();
+
+    auto* bitmapData = new Gdiplus::BitmapData;
+
+    //Lock the whole bitmap so we can read pixel data easily.
+    Gdiplus::Rect rect(0, 0, width, height);
+    bitmap.LockBits(&rect, Gdiplus::ImageLockModeRead, PixelFormat32bppARGB, bitmapData);
+
+    //Get the individual pixels from the locked area.
+    auto* pixels = static_cast<unsigned*>(bitmapData->Scan0);
+
+    //Vector of vectors; each vector is a column.
+    std::vector<std::vector<unsigned>> resultPixels(width, std::vector<unsigned>(height));
+
+    const int stride = abs(bitmapData->Stride);
+    for (int x = 0; x < width; x++) {
+        for (int y = 0; y < height; y++) {
+            //Get the pixel colour from the pixels array which we got earlier.
+            const unsigned pxColor = pixels[y * stride / 4 + x];
+
+            //Get each individual colour component. Bitmap colours are in reverse order.
+            const unsigned red = (pxColor & 0xFF0000) >> 16;
+            const unsigned green = (pxColor & 0xFF00) >> 8;
+            const unsigned blue = pxColor & 0xFF;
+
+            //Combine the values in a more typical RGB format (as opposed to the bitmap way).
+            const int rgbValue = RGB(red, green, blue);
+
+            //Assign this RGB value to the pixel location in the vector o' vectors.
+            resultPixels[x][y] = rgbValue;
+        }
+    }
+
+    //Unlock the bits that we locked before.
+    bitmap.UnlockBits(bitmapData);
+    return resultPixels;
+}
+BOOL bitmapFromPixels(Bitmap &myBitmap, const std::vector<std::vector<unsigned>>resultPixels, int width, int height)
+{
+
+    //int bmpArray[MAX_ARRAY_LENGTH] = {};
+
+    //Pass up the width and height, as these are useful for accessing pixels in the vector o' vectors.
+    //width = bitmap.GetWidth();
+    //height = bitmap.GetHeight();
+    //HBITMAP hBmp = CreateBitmap(width, height, nPlanes, nBitCount, const VOID * lpBits);
+    // Convert to single array
+    // bmpArray = VecToArr(resultPixels);
+
+
+   // auto* bitmapData = new Gdiplus::BitmapData;
+
+
+    BitmapData bitmapData;
+    bitmapData.Width = width,
+    bitmapData.Height = height,
+    bitmapData.Stride = 4 * bitmapData.Width;
+    bitmapData.PixelFormat = PixelFormat32bppARGB;
+    bitmapData.Scan0 = (VOID*)VecToArr(resultPixels);
+    bitmapData.Reserved = NULL;
+
+  
+    Gdiplus::Rect rect(0, 0, width, height);
+    myBitmap.LockBits(&rect, Gdiplus::ImageLockModeWrite | ImageLockModeUserInputBuf, PixelFormat32bppARGB, &bitmapData);
+    myBitmap.UnlockBits(&bitmapData);
+
+    //Get the individual pixels from the locked area.
+    //auto* pixels = static_cast<unsigned*>(bitmapData->Scan0);
+
+    //Vector of vectors; each vector is a column.
+
+   return TRUE;
+}
+
+char* VecToArr(std::vector<std::vector<unsigned>> vec)
+{
+    std::size_t totalsize = 0;
+    // if totalsize > MAX_ARRAY_LENGTH
+
+    for (int i = 0; i < vec.size(); i++) 
+        totalsize += vec[i].size();
+
+    int* newarr = new int[totalsize];
+    char* bytes = new char[totalsize];
+    int* newarr_ptr_copy = newarr;
+
+    for (int i = 0; i < vec.size(); i++)
+    {
+        std::copy(vec[i].begin(), vec[i].end(), newarr_ptr_copy);
+        newarr_ptr_copy += vec[i].size();
+
+    }
+    for (int i = 0; i < totalsize; i++)
+        //std::copy(static_cast<const char*>(static_cast<const void*>(&newarr[i])),
+        //static_cast<const char*>(static_cast<const void*>(&newarr[i])) + sizeof newarr[i],
+        //bytes);
+        bytes[i] = (char)newarr[i];
+
+    
+    return bytes;
+}
+void PrintWindow(HWND hWnd, HBITMAP& hBmp)
+{
+    HDC hDCMem = CreateCompatibleDC(NULL);
+
+    HGDIOBJ hOld = SelectObject(hDCMem, hBmp);
+    SendMessage(hWnd, WM_PRINT, (WPARAM)hDCMem, PRF_CHILDREN | PRF_CLIENT | PRF_ERASEBKGND | PRF_NONCLIENT | PRF_OWNED);
+    Sleep(50);
+    SelectObject(hDCMem, hOld);
+    DeleteObject(hDCMem);
 }
