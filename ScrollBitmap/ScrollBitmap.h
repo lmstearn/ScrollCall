@@ -64,25 +64,34 @@ typedef struct tagRectCl {
     // long right;
     // long bottom;
     static RECT rectOut1;
-    static  RECT rectOut2;
+    static RECT rectOut2;
     static RECT rectOut3;
     static HWND ownerHwnd;
     static RECT rectOwnerHwnd;
-     //RECT RectCl() {};
+    //RECT RectCl() {};
+    int ClMenuandTitle(HWND ownHwnd)
+        {
+            RECT rectIn = {};
+            RECT rectInCl = {};
+            GetWindowRect(ownerHwnd, &rectIn);
+            GetClientRect(ownerHwnd, &rectInCl);
+            return (rectIn.bottom - rectIn.top) - (rectInCl.bottom - rectInCl.top) - GetSystemMetrics(SM_CYMENU);
+        }
+
     RECT RectCl(int ctrlIndex)
     {
         switch (ctrlIndex)
         {
-        case 0:
-              return rectOwnerHwnd;
-          case 1:
-            return rectOut1;
-        case 2:
-            return rectOut2;
-        case 3:
-            return rectOut3;
-        default:
-            return {};
+            case 0:
+                return rectOwnerHwnd;
+            case 1:
+                return rectOut1;
+            case 2:
+                return rectOut2;
+            case 3:
+                return rectOut3;
+            default:
+                return {};
         }
     };
     RECT RectCl(HWND hwndCtrl, HWND& ownHwnd, int ctrlIndex)

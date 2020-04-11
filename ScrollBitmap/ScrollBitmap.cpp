@@ -93,7 +93,7 @@ WNDCLASSEXW wcex;
 
 wcex.cbSize = sizeof(WNDCLASSEX);
 
-wcex.style          = CS_HREDRAW | CS_VREDRAW;
+wcex.style          = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
 wcex.lpfnWndProc    = MyBitmapWindowProc;
 wcex.cbClsExtra     = 0;
 wcex.cbWndExtra     = 0;
@@ -192,7 +192,6 @@ static UINT SMOOTHSCROLL_SPEED;
     case WM_CREATE:
     {
     // Start Gdiplus
-    si.cbSize = 0;
     si.cbSize = 0;
     SMOOTHSCROLL_SPEED = 0X00000002;
     ulScrollLines = 0;
@@ -553,7 +552,7 @@ static UINT SMOOTHSCROLL_SPEED;
                     BitBlt(ps.hdc,
                         0, 0,
                         bmp.bmWidth, bmp.bmHeight,
-                        hdcScreenCompat,
+                        isScreenshot ? hdcScreenCompat : hdcMem,
                         xCurrentScroll, yCurrentScroll,
                         SRCCOPY);
 
@@ -574,14 +573,14 @@ static UINT SMOOTHSCROLL_SPEED;
 
     case WM_HSCROLL:
     {
-    int xDelta;     // xDelta = new_pos - current_pos  
-    int xNewPos;    // new position 
-    int yDelta = 0;
     si.cbSize = sizeof(si);
     si.fMask = SIF_TRACKPOS;
     GetScrollInfo(hWnd, SB_HORZ, &si);
     xTrackPos = si.nTrackPos;
-
+    int xDelta;     // xDelta = new_pos - current_pos  
+    int xNewPos;    // new position 
+    int yDelta = 0;
+    SetWindowOrgEx(hdcMem, wd, 0, NULL);
         switch (LOWORD(wParam))
         {
         // User clicked the scroll bar shaft left of the scroll box. 
@@ -660,11 +659,18 @@ static UINT SMOOTHSCROLL_SPEED;
     GetScrollInfo(hWnd, SB_VERT, &si);
     yTrackPos = si.nTrackPos;
     int xDelta = 0;
-    int yDelta;     // yDelta = new_pos - current_pos 
-    int yNewPos;    // new position 
+    int yDelta;     // yDelta = new_pos - current_pos
+    int yNewPos;    // new position
+    SetWindowOrgEx(hdcMem, 0, 0, NULL);
 
     switch (LOWORD(wParam))
     {
+    case SB_BOTTOM:         //Scrolls to the lower right.
+    yNewPos = si.nMax;
+    break;
+    case SB_TOP:         //Scrolls to the lower right.
+        yNewPos = si.nMin;
+        break;
     // User clicked the scroll bar shaft above the scroll box. 
     case SB_PAGEUP:
     yNewPos = yCurrentScroll - 50;
@@ -813,8 +819,8 @@ static UINT SMOOTHSCROLL_SPEED;
                     if (hBmpObj && GetObject(hBmpObj, sizeof(BITMAP), &bm)) //bm => BITMAP structure
                     {
                         //bm.biBitCount = 32;
-                        bmpHeight = bm.bmHeight;
-                        bmpWidth = bm.bmWidth;
+                        bmpHeight = scaleX * bm.bmHeight;
+                        bmpWidth = scaleY * bm.bmWidth;
                         RECT rect;
                         rect.left = 0;
                         rect.top = 0;
@@ -829,24 +835,6 @@ static UINT SMOOTHSCROLL_SPEED;
 
 
  
-                HDC hdcMemTmp;
-                hdcMemTmp = CreateCompatibleDC(hdcWinCl);
-                HBITMAP hBmp = NULL;
-                hdc = GetDC(hWnd);
-                hBmp = CreateCompatibleBitmap(hdc,wd, ht);
-
-                PrintWindow(hWnd, hBmp);
-                SelectObject(hdcMemTmp, hBmp);
-               
-                //HPALETTE hpal;
-                //GdipCreateBitmapFromHBITMAP(hBmp, hpal, &pgpbm);
-                //Bitmap ctlBitmap(wd,  ht, PixelFormat32bppARGB);
-                //bitmapFromPixels(ctlBitmap, resultPixels, wd, ht);
-
-
-
-                    if (!BitBlt(hdcMem, 0, 0, wd * scaleX, bmpHeight, hdcMemTmp, 0, 0, SRCCOPY))
-                    MessageBoxExW(hWnd, L"Bad BitBlt from hdcMem!", 0, 0, 0);
 
                     if (!BitBlt(hdcWinCl, wd * scaleX, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
                     MessageBoxExW(hWnd, L"Bad BitBlt from hdcMemTmp!", 0, 0, 0);
@@ -859,15 +847,13 @@ static UINT SMOOTHSCROLL_SPEED;
 
                     //if (!BitBlt(hdcMem, wd * scaleX, 0, bmpWidth, bmpHeight, hdcMemTmp, 0, 0, SRCCOPY))
                     //MessageBoxExW(hWnd, L"Bad BitBlt from hdcMemtmp!", 0, 0, 0);
-                    DeleteDC(hdcMemTmp);
+
                     //SelectObject(hdcMem, hBitmap);
   
                     ReleaseDC(hWnd, hdcWinCl);
                     ReleaseDC(hWnd, hdcWin);
                     if (hBitmap)
                         DeleteObject(hBitmap);
-                    if (hBmp)
-                        DeleteObject(hBmp);
 
                     if (pgpbm)
                         gps = GdipDisposeImage(pgpbm);
@@ -890,6 +876,7 @@ static UINT SMOOTHSCROLL_SPEED;
         {
             si.cbSize = 0;
             DeleteDC(hdcMem);
+            DeleteObject(hbmpCompat);
             DestroyWindow(hWnd);
             return 0;
             break;
@@ -898,6 +885,36 @@ static UINT SMOOTHSCROLL_SPEED;
             return DefWindowProc(hWnd, uMsg, wParam, lParam);
         }
         return 0;
+        break;
+    }
+    case WM_LBUTTONDBLCLK:
+    {
+        hdcWinCl = GetDC(hWnd);
+        hdcMem = CreateCompatibleDC(hdcWinCl);
+        HBITMAP hBmp = NULL;
+        bmpWidth = scaleX * (RectCl().width(0) - wd);
+        bmpHeight = scaleY * (RectCl().height(0));
+
+
+        hBmp = CreateCompatibleBitmap(hdcWinCl, bmpWidth, bmpHeight);
+
+        PrintWindow(hWnd, hBmp);
+        SelectObject(hdcMem, hBmp);
+
+
+        if (!BitBlt(hdcWinCl, wd * scaleX, RectCl().ClMenuandTitle(hWnd), bmpWidth, bmpHeight, hdcMem, 0, RectCl().ClMenuandTitle(hWnd), SRCCOPY))
+            MessageBoxExW(hWnd, L"Bad BitBlt from hdcMem!", 0, 0, 0);
+
+
+        if (hBmp)
+            DeleteObject(hBmp);
+        //HPALETTE hpal;
+        //GdipCreateBitmapFromHBITMAP(hBmp, hpal, &pgpbm);
+        //Bitmap ctlBitmap(wd,  ht, PixelFormat32bppARGB);
+        //bitmapFromPixels(ctlBitmap, resultPixels, wd, ht);
+        ReleaseDC(hWnd, hdcWinCl);
+
+        isScreenshot = FALSE;
         break;
     }
     case WM_RBUTTONDOWN:
@@ -945,6 +962,7 @@ static UINT SMOOTHSCROLL_SPEED;
     {
         si.cbSize = 0;
         DeleteDC(hdcMem);
+        DeleteObject(hbmpCompat);
         PostQuitMessage(0);
         return 0;
         break;
@@ -956,6 +974,7 @@ static UINT SMOOTHSCROLL_SPEED;
     {
         si.cbSize = 0;
         DeleteDC(hdcMem);
+        DeleteObject(hbmpCompat);
         PostQuitMessage(0);
         return 0;
         break;
