@@ -36,12 +36,14 @@ BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    MyBitmapWindowProc(HWND, UINT, WPARAM, LPARAM);
 void GetWdHt(HWND hWnd);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
-float DoSysInfo(HWND hWnd, bool progLoad);
 wchar_t* FileOpener(HWND hWnd);
-void message(const wchar_t* format, ...);
-BOOL bitmapFromPixels(Bitmap& myBitmap, const std::vector<std::vector<unsigned>>resultPixels, int width, int height);
-char* VecToArr(std::vector<std::vector<unsigned>> vec);
+void ReportErr(const wchar_t* format, ...);
 void PrintWindow(HWND hWnd, HBITMAP& hBmp);
+//Functions for later use
+BOOL bitmapFromPixels(Bitmap& myBitmap, const std::vector<std::vector<unsigned>>resultPixels, int width, int height);
+float DoSysInfo(HWND hWnd, bool progLoad);
+char* VecToArr(std::vector<std::vector<unsigned>> vec);
+
 
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -240,7 +242,7 @@ static UINT SMOOTHSCROLL_SPEED;
     // screen. The normal DC provides a snapshot of the 
     // screen contents. The memory DC keeps a copy of this 
     // snapshot in the associated bitmap. 
-    // wd += 10;
+
     isScreenshot = FALSE;
     hdcScreen = CreateDC(L"DISPLAY", (PCTSTR)NULL,
     (PCTSTR)NULL, (CONST DEVMODE*) NULL);
@@ -283,17 +285,18 @@ static UINT SMOOTHSCROLL_SPEED;
     SMOOTHSCROLL_FLAG = SW_SMOOTHSCROLL  | SMOOTHSCROLL_SPEED;
 
         
-        if (SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, &ulScrollLines, 0))
-        {
+    if (SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, &ulScrollLines, 0))
+    {
         // ulScrollLines usually equals 3 or 0 (for no scrolling)
         // WHEEL_DELTA equals 120, so iDeltaPerLine will be 40
-            if (ulScrollLines)
+        if (ulScrollLines)
             iDeltaPerLine = WHEEL_DELTA / ulScrollLines;
-            else
-            iDeltaPerLine = 0;
-        }
         else
-        MessageBoxExW(hWnd, L"SPI_GETWHEELSCROLLLINES: Cannot get info.", 0, 0, 0);
+            iDeltaPerLine = 0;
+    }
+    else
+    ReportErr(L"SPI_GETWHEELSCROLLLINES: Cannot get info.");
+
         return 0;
         break;
     }
@@ -732,7 +735,7 @@ static UINT SMOOTHSCROLL_SPEED;
         UpdateWindow(hWnd);
     }
 
-    // Reset the scroll bar. 
+    // Reset scroll bar. 
     si.fMask = SIF_POS;
     si.nPos = yCurrentScroll;
     SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
@@ -788,10 +791,6 @@ static UINT SMOOTHSCROLL_SPEED;
             wcscpy_s(szFile, MAX_LOADSTRING, FileOpener(hWnd));
 
 
-
-
-
-
                 //CLSID pngClsid;
                // GetEncoderClsid(L"image/png", &pngClsid);
             if (szFile[0] != L'*')
@@ -834,21 +833,9 @@ static UINT SMOOTHSCROLL_SPEED;
 
 
 
- 
-
                     if (!BitBlt(hdcWinCl, wd * scaleX, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
-                    MessageBoxExW(hWnd, L"Bad BitBlt from hdcMemTmp!", 0, 0, 0);
+                    ReportErr(L"Bad BitBlt from hdcMemTmp!");
 
-                   // if (!BitBlt(hdcWinCl, wd* scaleX, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
-                    //MessageBoxExW(hWnd, L"Bad BitBlt from hdcMem!", 0, 0, 0);
-                    // Now to "translate" the memory DC co-ords
-                    //HDC hdcMemTmp = CreateCompatibleDC(hdcWinCl);
-                    //SelectObject(hdcMemTmp, hBitmap);
-
-                    //if (!BitBlt(hdcMem, wd * scaleX, 0, bmpWidth, bmpHeight, hdcMemTmp, 0, 0, SRCCOPY))
-                    //MessageBoxExW(hWnd, L"Bad BitBlt from hdcMemtmp!", 0, 0, 0);
-
-                    //SelectObject(hdcMem, hBitmap);
   
                     ReleaseDC(hWnd, hdcWinCl);
                     ReleaseDC(hWnd, hdcWin);
@@ -860,7 +847,7 @@ static UINT SMOOTHSCROLL_SPEED;
                     isScreenshot = FALSE;
                 }
                 else
-                    MessageBoxExW(hWnd, L"Cannot open bitmap!", 0, 0, 0);
+                    ReportErr(L"Cannot open bitmap!");
             }
             free(szFile);
             fBlt = TRUE;
@@ -903,15 +890,12 @@ static UINT SMOOTHSCROLL_SPEED;
 
 
         if (!BitBlt(hdcWinCl, wd * scaleX, RectCl().ClMenuandTitle(hWnd), bmpWidth, bmpHeight, hdcMem, 0, RectCl().ClMenuandTitle(hWnd), SRCCOPY))
-            MessageBoxExW(hWnd, L"Bad BitBlt from hdcMem!", 0, 0, 0);
+            ReportErr(L"Bad BitBlt from hdcMem!");
 
 
         if (hBmp)
             DeleteObject(hBmp);
-        //HPALETTE hpal;
-        //GdipCreateBitmapFromHBITMAP(hBmp, hpal, &pgpbm);
-        //Bitmap ctlBitmap(wd,  ht, PixelFormat32bppARGB);
-        //bitmapFromPixels(ctlBitmap, resultPixels, wd, ht);
+
         ReleaseDC(hWnd, hdcWinCl);
 
         isScreenshot = FALSE;
@@ -924,8 +908,7 @@ static UINT SMOOTHSCROLL_SPEED;
 
     // Fill the client area to remove any existing contents. 
 
-    // Copy the contents of the current screen 
-    // into the compatible DC. 
+    // Copy the contents of the current screen into compatible DC. 
     BitBlt(hdcScreenCompat, wd * scaleX, 0, bmp.bmWidth * scaleX,
     bmp.bmHeight * scaleY, hdcScreen, 0, 0, SRCCOPY);
  
@@ -1005,7 +988,7 @@ GetWindowRect(hWnd, &rcWindow);
         if (rcWindow.left < GetSystemMetrics(0) && rcWindow.bottom < GetSystemMetrics(1))
         MoveWindow(hWnd, GetSystemMetrics(0) / 4, GetSystemMetrics(1) / 4, GetSystemMetrics(0) / 2, GetSystemMetrics(1) / 2, 1);
         else
-        MessageBoxExW(hWnd, L"Not a primary monitor: Resize unavailable.", 0, 0, 0);
+        ReportErr(L"Not a primary monitor: Resize unavailable.");
     }
 
 scaleX = wd/oldWd;
@@ -1017,8 +1000,8 @@ sizefactorX = GetSystemMetrics(0) / (3 * wd);
 sizefactorY = GetSystemMetrics(1) / (2 * ht);
 */
 }
-// Message handler for about box.
 
+// Message handler for about box.
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
 UNREFERENCED_PARAMETER(lParam);
@@ -1074,50 +1057,9 @@ szFile[1] = L'\0';
 return szFile;
     
 }
-float DoSysInfo(HWND hWnd, bool progLoad)
-{
 
-HMONITOR hMon = MonitorFromWindow(GetDesktopWindow(), MONITOR_DEFAULTTOPRIMARY);
-MONITORINFO monInfo;
-monInfo.cbSize = sizeof(MONITORINFO);
-
-    if (GetMonitorInfoW(hMon, &monInfo))
-    {
-    resX = (float)abs(monInfo.rcMonitor.right - monInfo.rcMonitor.left);
-    resY = (float)abs(monInfo.rcMonitor.top - monInfo.rcMonitor.bottom);
-    tmp = (int)(9 * resX / resY);
-    //scale factors
-    resX = resX / DESIGNSCRX;
-    resY = resY / DESIGNSCRY;
-        if (abs(1 - resX) < 0.1)
-        resX = 1;
-        if (abs(1 - resY) < 0.1)
-        resY = 1;
-
-        if (tmp <= FOURTHREEVID)
-        tmp = FOURTHREEVID;
-        else
-        {
-            if (tmp <= WIDESCREENVID)
-            tmp = WIDESCREENVID;
-            else
-            {
-                if (tmp <= UNIVISIUM)
-                tmp = UNIVISIUM;
-                else
-                tmp = ULTRAWIDEVID;
-            }
-        }
-    return (float)tmp / 9;
-    }
-    else
-    {
-    MessageBoxExW(hWnd, L"GetMonitorInfo: Cannot get info.", 0, 0, 0);
-    }
-return 0;
-}
 //example to use: message("test %s %d %d %d", "str", 1, 2, 3);
-void message(const wchar_t* format, ...)
+void ReportErr(const wchar_t* format, ...)
 {
     if (!format)
     return;
@@ -1130,27 +1072,69 @@ len = _vscwprintf(format, args) + 1;  //add room for terminating '\0'
 buf = (wchar_t*)malloc(len * sizeof(wchar_t));
 vswprintf_s(buf, len, format, args);
 
-MessageBoxW(0, buf, L"debug", 0);
+MessageBoxW(0, buf, L"Error", 0);
 //OutputDebugStringA(buf);
 free(buf);
 }
 
+void PrintWindow(HWND hWnd, HBITMAP& hBmp)
+{
+    HDC hDCMem = CreateCompatibleDC(NULL);
 
+    HGDIOBJ hOld = SelectObject(hDCMem, hBmp);
+    SendMessage(hWnd, WM_PRINT, (WPARAM)hDCMem, PRF_CHILDREN | PRF_CLIENT | PRF_ERASEBKGND | PRF_NONCLIENT | PRF_OWNED);
+    Sleep(50);
+    SelectObject(hDCMem, hOld);
+    DeleteObject(hDCMem);
+}
+//**************************************************************
+// Functions for possible later use
+//**************************************************************
+float DoSysInfo(HWND hWnd, bool progLoad)
+{
 
+    HMONITOR hMon = MonitorFromWindow(GetDesktopWindow(), MONITOR_DEFAULTTOPRIMARY);
+    MONITORINFO monInfo;
+    monInfo.cbSize = sizeof(MONITORINFO);
 
+    if (GetMonitorInfoW(hMon, &monInfo))
+    {
+        resX = (float)abs(monInfo.rcMonitor.right - monInfo.rcMonitor.left);
+        resY = (float)abs(monInfo.rcMonitor.top - monInfo.rcMonitor.bottom);
+        tmp = (int)(9 * resX / resY);
+        //scale factors
+        resX = resX / DESIGNSCRX;
+        resY = resY / DESIGNSCRY;
+        if (abs(1 - resX) < 0.1)
+            resX = 1;
+        if (abs(1 - resY) < 0.1)
+            resY = 1;
 
-
-
-
-
-
-
-
-
-
+        if (tmp <= FOURTHREEVID)
+            tmp = FOURTHREEVID;
+        else
+        {
+            if (tmp <= WIDESCREENVID)
+                tmp = WIDESCREENVID;
+            else
+            {
+                if (tmp <= UNIVISIUM)
+                    tmp = UNIVISIUM;
+                else
+                    tmp = ULTRAWIDEVID;
+            }
+        }
+        return (float)tmp / 9;
+    }
+    else
+    {
+        ReportErr(L"GetMonitorInfo: Cannot get info.");
+    }
+    return 0;
+}
 //https://stackoverflow.com/a/39654760/2128797
 std::vector<std::vector<unsigned>> getPixels(Gdiplus::Bitmap bitmap, int& width, int& height) {
-    
+
 
     //Pass up the width and height, as these are useful for accessing pixels in the vector o' vectors.
     width = bitmap.GetWidth();
@@ -1191,17 +1175,16 @@ std::vector<std::vector<unsigned>> getPixels(Gdiplus::Bitmap bitmap, int& width,
     bitmap.UnlockBits(bitmapData);
     return resultPixels;
 }
-BOOL bitmapFromPixels(Bitmap &myBitmap, const std::vector<std::vector<unsigned>>resultPixels, int width, int height)
+BOOL bitmapFromPixels(Bitmap& myBitmap, const std::vector<std::vector<unsigned>>resultPixels, int width, int height)
 {
+// Possible usage:
+//HPALETTE hpal;
+//GdipCreateBitmapFromHBITMAP(hBmp, hpal, &pgpbm);
+//Bitmap ctlBitmap(wd,  ht, PixelFormat32bppARGB);
+//bitmapFromPixels(ctlBitmap, resultPixels, wd, ht);
 
-    //int bmpArray[MAX_ARRAY_LENGTH] = {};
+    //consider MAX_ARRAY_LENGTH;
 
-    //Pass up the width and height, as these are useful for accessing pixels in the vector o' vectors.
-    //width = bitmap.GetWidth();
-    //height = bitmap.GetHeight();
-    //HBITMAP hBmp = CreateBitmap(width, height, nPlanes, nBitCount, const VOID * lpBits);
-    // Convert to single array
-    // bmpArray = VecToArr(resultPixels);
 
 
    // auto* bitmapData = new Gdiplus::BitmapData;
@@ -1209,23 +1192,18 @@ BOOL bitmapFromPixels(Bitmap &myBitmap, const std::vector<std::vector<unsigned>>
 
     BitmapData bitmapData;
     bitmapData.Width = width,
-    bitmapData.Height = height,
-    bitmapData.Stride = 4 * bitmapData.Width;
+        bitmapData.Height = height,
+        bitmapData.Stride = 4 * bitmapData.Width;
     bitmapData.PixelFormat = PixelFormat32bppARGB;
     bitmapData.Scan0 = (VOID*)VecToArr(resultPixels);
     bitmapData.Reserved = NULL;
 
-  
+
     Gdiplus::Rect rect(0, 0, width, height);
     myBitmap.LockBits(&rect, Gdiplus::ImageLockModeWrite | ImageLockModeUserInputBuf, PixelFormat32bppARGB, &bitmapData);
     myBitmap.UnlockBits(&bitmapData);
 
-    //Get the individual pixels from the locked area.
-    //auto* pixels = static_cast<unsigned*>(bitmapData->Scan0);
-
-    //Vector of vectors; each vector is a column.
-
-   return TRUE;
+    return TRUE;
 }
 
 char* VecToArr(std::vector<std::vector<unsigned>> vec)
@@ -1233,7 +1211,7 @@ char* VecToArr(std::vector<std::vector<unsigned>> vec)
     std::size_t totalsize = 0;
     // if totalsize > MAX_ARRAY_LENGTH
 
-    for (int i = 0; i < vec.size(); i++) 
+    for (int i = 0; i < vec.size(); i++)
         totalsize += vec[i].size();
 
     int* newarr = new int[totalsize];
@@ -1252,16 +1230,10 @@ char* VecToArr(std::vector<std::vector<unsigned>> vec)
         //bytes);
         bytes[i] = (char)newarr[i];
 
-    
+
     return bytes;
 }
-void PrintWindow(HWND hWnd, HBITMAP& hBmp)
-{
-    HDC hDCMem = CreateCompatibleDC(NULL);
 
-    HGDIOBJ hOld = SelectObject(hDCMem, hBmp);
-    SendMessage(hWnd, WM_PRINT, (WPARAM)hDCMem, PRF_CHILDREN | PRF_CLIENT | PRF_ERASEBKGND | PRF_NONCLIENT | PRF_OWNED);
-    Sleep(50);
-    SelectObject(hDCMem, hOld);
-    DeleteObject(hDCMem);
-}
+
+
+

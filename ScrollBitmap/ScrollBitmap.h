@@ -71,10 +71,12 @@ typedef struct tagRectCl {
     //RECT RectCl() {};
     int ClMenuandTitle(HWND ownHwnd)
         {
+        // Get usable client height
             RECT rectIn = {};
             RECT rectInCl = {};
             GetWindowRect(ownerHwnd, &rectIn);
             GetClientRect(ownerHwnd, &rectInCl);
+            // Also menu bar height
             return (rectIn.bottom - rectIn.top) - (rectInCl.bottom - rectInCl.top) - GetSystemMetrics(SM_CYMENU);
         }
 
