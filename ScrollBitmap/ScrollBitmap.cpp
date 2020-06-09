@@ -20,12 +20,12 @@ RECT RectCl::rectOwnerHwnd = {};
 RECT rcWindow;
 SCROLLINFO si = {0};
 HINSTANCE hInst;                                // current instance
-WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
+WCHAR szTitle[MAX_LOADSTRING];                  // Title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 wchar_t* szFile = nullptr;
 float scrAspect = 0, scaleX = 1, scaleY = 1,  resX = 0, resY = 0;
 int tmp = 0, wd = 0, ht = 0;
-HWND hWndButton = 0, hWndOpt1 =0, hWndOpt2 =0;
+HWND hWndGroupBox = 0, hWndButton = 0, hWndOpt1 =0, hWndOpt2 =0;
 BOOL optChk = TRUE;
 RECT rectB, rectO1, rectO2;
 
@@ -34,7 +34,8 @@ RECT rectB, rectO1, rectO2;
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    MyBitmapWindowProc(HWND, UINT, WPARAM, LPARAM);
-void GetWdHt(HWND hWnd);
+int GetDims(HWND hWnd);
+LRESULT CALLBACK staticSubClass(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 wchar_t* FileOpener(HWND hWnd);
 void ReportErr(const wchar_t* format, ...);
@@ -124,8 +125,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
 hInst = hInstance; // Store instance handle in our global variable
 
-HWND m_hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW
-| WS_CLIPCHILDREN,
+HWND m_hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
 CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
 
     if (!m_hWnd)
@@ -197,10 +197,8 @@ static UINT SMOOTHSCROLL_SPEED;
     si.cbSize = 0;
     SMOOTHSCROLL_SPEED = 0X00000002;
     ulScrollLines = 0;
-    
+    int fmHt = GetDims(hWnd);
     GdiplusInit gdiplusinit;
-
-    GetWdHt(hWnd);
 
     hWndButton = CreateWindowW(
     L"BUTTON",  // Predefined class; Unicode assumed 
@@ -237,7 +235,14 @@ static UINT SMOOTHSCROLL_SPEED;
         (HINSTANCE)NULL, NULL);
         SendMessage(hWndOpt1, BM_SETCHECK, BST_CHECKED, 0);
  
- 
+        hWndGroupBox = CreateWindowEx(0, TEXT("BUTTON"),
+            TEXT(""),
+            WS_VISIBLE | WS_CHILD | BS_GROUPBOX | BS_OWNERDRAW,
+            0, 0, wd, fmHt,
+            hWnd,
+            (HMENU)IDC_GROUPBOX,
+            GetModuleHandle(NULL),
+            NULL);
     // Create a normal DC and a memory DC for the entire 
     // screen. The normal DC provides a snapshot of the 
     // screen contents. The memory DC keeps a copy of this 
@@ -297,8 +302,16 @@ static UINT SMOOTHSCROLL_SPEED;
     else
     ReportErr(L"SPI_GETWHEELSCROLLLINES: Cannot get info.");
 
-        return 0;
-        break;
+    if (!SetWindowSubclass(hWndGroupBox, staticSubClass, 1, 0))
+    {
+        //std::cerr << "Failed to subclass list\n";
+        ReportErr(L"Cannot subclass Listview! Quitting...");
+        DestroyWindow(hWndGroupBox);
+        return NULL;
+
+    }
+
+    break;
     }
     case WM_SIZE:
     {
@@ -311,7 +324,7 @@ static UINT SMOOTHSCROLL_SPEED;
    //Get updated rect for the form
     RECT recthWndtmp = RectCl().RectCl(0, hWnd, 0);
 
-    GetWdHt(hWnd);
+    GetDims(hWnd);
     RECT rectBtmp = RectCl().RectCl(hWndButton, hWnd, 1);
     GetClientRect(hWndButton, &rectB);
     //rectB.top += BOX_HEIGHT;
@@ -357,7 +370,6 @@ static UINT SMOOTHSCROLL_SPEED;
     si.nPos = yCurrentScroll;
     si.nTrackPos = yTrackPos;
     SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
-    return 0;
     break;
     }
     case WM_PAINT:
@@ -570,7 +582,6 @@ static UINT SMOOTHSCROLL_SPEED;
         else
         RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_INTERNALPAINT);
 
-    return 0;
     break;
     }
 
@@ -651,7 +662,6 @@ static UINT SMOOTHSCROLL_SPEED;
     si.fMask = SIF_POS;
     si.nPos = xCurrentScroll;
     SetScrollInfo(hWnd, SB_HORZ, &si, TRUE);
-    return 0;
     break;
     }
 
@@ -739,7 +749,6 @@ static UINT SMOOTHSCROLL_SPEED;
     si.fMask = SIF_POS;
     si.nPos = yCurrentScroll;
     SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
-    return 0;
     break;
     }
     case WM_MOUSEWHEEL:
@@ -759,7 +768,6 @@ static UINT SMOOTHSCROLL_SPEED;
             SendMessage(hWnd, WM_VSCROLL, SB_LINEDOWN, 0);
             iAccumDelta += iDeltaPerLine;
         }
-        return 0;
         break;
     }
     case WM_COMMAND:
@@ -779,7 +787,6 @@ static UINT SMOOTHSCROLL_SPEED;
             if (wmEvent == BN_CLICKED)
                 optChk = (SendMessage((HWND)lParam, BM_GETCHECK, 0, 0) != BST_CHECKED);
             // Also BST_INDETERMINATE, BST_UNCHECKED
-            return 0;
             break;
         }
         case ID_OPENBITMAP:
@@ -856,7 +863,6 @@ static UINT SMOOTHSCROLL_SPEED;
         case IDM_ABOUT:
         {
             DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
-            return 0;
             break;
         }
         case IDM_EXIT:
@@ -865,13 +871,11 @@ static UINT SMOOTHSCROLL_SPEED;
             DeleteDC(hdcMem);
             DeleteObject(hbmpCompat);
             DestroyWindow(hWnd);
-            return 0;
             break;
         }
         default:
             return DefWindowProc(hWnd, uMsg, wParam, lParam);
         }
-        return 0;
         break;
     }
     case WM_LBUTTONDBLCLK:
@@ -935,22 +939,19 @@ static UINT SMOOTHSCROLL_SPEED;
         ReleaseDC(hWnd, hdcWinCl);
         fBlt = TRUE;
 
-    return 0;
     break;
     }
     case WM_KEYDOWN:
     {
-    switch (wParam)
-    case VK_ESCAPE:
-    {
-        si.cbSize = 0;
-        DeleteDC(hdcMem);
-        DeleteObject(hbmpCompat);
-        PostQuitMessage(0);
-        return 0;
-        break;
-    }
-    return 0;
+        switch (wParam)
+        case VK_ESCAPE:
+        {
+            si.cbSize = 0;
+            DeleteDC(hdcMem);
+            DeleteObject(hbmpCompat);
+            PostQuitMessage(0);
+            break;
+        }
     break;
     }
     case WM_DESTROY:
@@ -959,17 +960,17 @@ static UINT SMOOTHSCROLL_SPEED;
         DeleteDC(hdcMem);
         DeleteObject(hbmpCompat);
         PostQuitMessage(0);
-        return 0;
         break;
     }
     default:
     return DefWindowProc(hWnd, uMsg, wParam, lParam);
     }
-
+return 0;
 }
-void GetWdHt(HWND hWnd)
+int GetDims(HWND hWnd)
 {
 static float oldWd = 0, oldHt = 0;
+int htTmp = 0;
 GetWindowRect(hWnd, &rcWindow);
     if (oldWd)
     {
@@ -977,14 +978,15 @@ GetWindowRect(hWnd, &rcWindow);
     oldHt = ht;
     //For button
     wd = (int)(rcWindow.right - rcWindow.left) / 9;
-    ht = (int)(rcWindow.bottom - rcWindow.top) / 9;
+    htTmp = rcWindow.bottom - rcWindow.top;
+    ht = (int)(htTmp/9);
     }
     else
     {
         wd = (int)(rcWindow.right - rcWindow.left) / 9;
-        ht = (int)(rcWindow.bottom - rcWindow.top) / 9;
+        htTmp = rcWindow.bottom - rcWindow.top;
         oldWd = wd;
-        oldHt = ht;
+        oldHt = ht = (int)(htTmp / 9);
         if (rcWindow.left < GetSystemMetrics(0) && rcWindow.bottom < GetSystemMetrics(1))
         MoveWindow(hWnd, GetSystemMetrics(0) / 4, GetSystemMetrics(1) / 4, GetSystemMetrics(0) / 2, GetSystemMetrics(1) / 2, 1);
         else
@@ -999,7 +1001,33 @@ sizefactorX = 1, sizefactorY = 1
 sizefactorX = GetSystemMetrics(0) / (3 * wd);
 sizefactorY = GetSystemMetrics(1) / (2 * ht);
 */
+return htTmp;
 }
+
+LRESULT CALLBACK staticSubClass(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
+{
+    UNUSED(dwRefData);
+
+
+    switch (uMsg) // instead of LPNMHDR  lpnmh = (LPNMHDR) lParam above;
+    {
+    case WM_WINDOWPOSCHANGED:
+    {
+    }
+    break;
+    case NM_CLICK:
+        break;
+    case WM_NCDESTROY:
+        // NOTE: this requirement is NOT stated in the documentation, but it is stated in Raymond Chen's blog article...
+        RemoveWindowSubclass(hWnd, staticSubClass, uIdSubclass);
+        break;
+    default:
+        break;
+    }
+
+    return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+}
+
 
 // Message handler for about box.
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)

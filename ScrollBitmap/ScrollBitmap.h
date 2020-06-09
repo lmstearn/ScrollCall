@@ -15,9 +15,13 @@
 #include <gdiplusflat.h>
 
 #include "resource.h"
+#pragma comment(lib, "comctl32.lib")
 #pragma comment( lib, "gdiplus.lib" )
 #pragma warning( disable : 4018 )
 #pragma warning( disable : 4996 )
+
+//Suppress warning on unused variables https://stackoverflow.com/a/1486931/2128797
+#define UNUSED(expr) do { (void)(expr); } while (0)
 
 #define MAX_ARRAY_LENGTH 4000000
 

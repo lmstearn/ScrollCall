@@ -15,6 +15,7 @@
 #define ID_OPENBITMAP			50
 #define IDC_OPT1			51
 #define IDC_OPT2			52
+#define IDC_GROUPBOX	53
 #define IDC_MYICON				2
 #ifndef IDC_STATIC
 #define IDC_STATIC				-1
