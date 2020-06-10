@@ -193,56 +193,61 @@ static UINT SMOOTHSCROLL_SPEED;
     {
     case WM_CREATE:
     {
-    // Start Gdiplus
-    si.cbSize = 0;
-    SMOOTHSCROLL_SPEED = 0X00000002;
-    ulScrollLines = 0;
-    int fmHt = GetDims(hWnd);
-    GdiplusInit gdiplusinit;
+        // Start Gdiplus
+        si.cbSize = 0;
+        SMOOTHSCROLL_SPEED = 0X00000002;
+        ulScrollLines = 0;
+        int fmHt = GetDims(hWnd);
+        GdiplusInit gdiplusinit;
 
-    hWndButton = CreateWindowW(
-    L"BUTTON",  // Predefined class; Unicode assumed 
-    L"Open\nImage",      // Button text 
-    WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | BS_MULTILINE,  // Styles 
-    2,         // x position 
-    2,         // y position 
-    wd,        // Button width
-    ht,        // Button height
-    hWnd,     // Parent window
-    (HMENU)ID_OPENBITMAP,       // CTRL ID.
-    (HINSTANCE)NULL,
-    NULL);      // Pointer not needed.
-
-    // Radio Option
- 
-    hWndOpt1= CreateWindowEx(WS_EX_WINDOWEDGE,
-        L"BUTTON",
-        L"Scroll",
-        WS_VISIBLE | WS_CHILD | BS_AUTORADIOBUTTON | WS_GROUP,  // <---- WS_GROUP group the following radio buttons 1st,2nd button 
-        2, ht + 10,
-        wd-2, ht/2,
-        hWnd, //<----- Use main window handle
-        (HMENU)IDC_OPT1,
-        (HINSTANCE)NULL, NULL);
-    hWndOpt2 = CreateWindowEx(WS_EX_WINDOWEDGE,
-        L"BUTTON",
-        L"ScrollEx",
-        WS_VISIBLE | WS_CHILD | BS_AUTORADIOBUTTON,  // Styles 
-        2, 2 * ht,
-        wd-2, ht/2,
-        hWnd,
-        (HMENU)IDC_OPT2,
-        (HINSTANCE)NULL, NULL);
-        SendMessage(hWndOpt1, BM_SETCHECK, BST_CHECKED, 0);
- 
         hWndGroupBox = CreateWindowEx(0, TEXT("BUTTON"),
             TEXT(""),
-            WS_VISIBLE | WS_CHILD | BS_GROUPBOX | BS_OWNERDRAW,
+            WS_VISIBLE | WS_CHILD | BS_GROUPBOX | BS_OWNERDRAW | WS_CLIPCHILDREN,
             0, 0, wd, fmHt,
             hWnd,
             (HMENU)IDC_GROUPBOX,
             GetModuleHandle(NULL),
             NULL);
+
+
+        // Radio Option
+
+        hWndOpt1 = CreateWindowEx(WS_EX_WINDOWEDGE,
+            L"BUTTON",
+            L"Scroll",
+            WS_VISIBLE | WS_CHILD | BS_AUTORADIOBUTTON | WS_GROUP,  // <---- WS_GROUP group the following radio buttons 1st,2nd button 
+            2, ht + 10,
+            wd - 2, ht / 2,
+            hWndGroupBox, //<----- Use main window handle
+            (HMENU)IDC_OPT1,
+            (HINSTANCE)NULL, NULL);
+        hWndOpt2 = CreateWindowEx(WS_EX_WINDOWEDGE,
+            L"BUTTON",
+            L"ScrollEx",
+            WS_VISIBLE | WS_CHILD | BS_AUTORADIOBUTTON,  // Styles 
+            2, 2 * ht,
+            wd - 2, ht / 2,
+            hWndGroupBox,
+            (HMENU)IDC_OPT2,
+            (HINSTANCE)NULL, NULL);
+        SendMessage(hWndOpt1, BM_SETCHECK, BST_CHECKED, 0);
+
+    
+    hWndButton = CreateWindowW(
+        L"BUTTON",  // Predefined class; Unicode assumed 
+        L"Open\nImage",      // Button text 
+        WS_TABSTOP | WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON | BS_MULTILINE,  // Styles 
+        2,         // x position 
+        2,         // y position 
+        wd,        // Button width
+        ht,        // Button height
+        hWndGroupBox,     // Parent window
+        (HMENU)ID_OPENBITMAP,       // CTRL ID.
+        (HINSTANCE)NULL,
+        NULL);      // Pointer not needed.
+
+    
+    
     // Create a normal DC and a memory DC for the entire 
     // screen. The normal DC provides a snapshot of the 
     // screen contents. The memory DC keeps a copy of this 
@@ -303,6 +308,8 @@ static UINT SMOOTHSCROLL_SPEED;
     ReportErr(L"SPI_GETWHEELSCROLLLINES: Cannot get info.");
 
     if (!SetWindowSubclass(hWndGroupBox, staticSubClass, 1, 0))
+        // uIdSubclass is 1 and incremented for each new subclasse implemented
+        // dwRefData is 0 and has no explicit use
     {
         //std::cerr << "Failed to subclass list\n";
         ReportErr(L"Cannot subclass Listview! Quitting...");
@@ -330,7 +337,11 @@ static UINT SMOOTHSCROLL_SPEED;
     //rectB.top += BOX_HEIGHT;
     SetWindowPos(hWndButton, NULL, scaleX * (rectBtmp.left), scaleY * rectBtmp.top,
     scaleX * (rectB.right - rectB.left), scaleY * (rectB.bottom - rectB.top), NULL);
-    
+
+    SetWindowPos(hWndGroupBox, NULL, 0, 0,
+    scaleX* (rectB.right - rectB.left), scaleY* (bmp.bmHeight), NULL);
+
+
     RECT rectOpt1tmp = RectCl().RectCl(hWndOpt1, hWnd, 2);
     GetClientRect(hWndOpt1, &rectO1);
     //Extra edging for the wd - 2
@@ -342,8 +353,8 @@ static UINT SMOOTHSCROLL_SPEED;
     scaleX * (rectB.right - rectB.left - 2), scaleY * (rectO2.bottom - rectO2.top), NULL);
 
 
-    if (fBlt)
-    fSize = TRUE;
+        if (fBlt)
+        fSize = TRUE;
     // The horizontal scrolling range is defined by 
     // (bitmap_width) - (client_width). The current horizontal 
     // scroll value remains within the horizontal scrolling range. 
@@ -372,6 +383,7 @@ static UINT SMOOTHSCROLL_SPEED;
     SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
     break;
     }
+
     case WM_PAINT:
     {
         if (wParam == 0)
@@ -770,11 +782,19 @@ static UINT SMOOTHSCROLL_SPEED;
         }
         break;
     }
-    case WM_COMMAND:
+    case WM_PARENTNOTIFY:
     {
         USHORT wmId = LOWORD(wParam);
         USHORT wmEvent = HIWORD(wParam);
-        switch (wmId)
+        POINT pt; // Position of cursor when button was pressed
+        HWND hwndButton; // Button at position of cursor
+
+        pt.x = LOWORD(lParam);
+        pt.y = HIWORD(lParam);
+
+        hwndButton = ChildWindowFromPoint(hWndGroupBox, pt);
+
+        switch (GetWindowLong(hwndButton, GWL_ID))
         {
         case IDC_OPT1:
         {
@@ -1011,17 +1031,28 @@ LRESULT CALLBACK staticSubClass(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 
     switch (uMsg) // instead of LPNMHDR  lpnmh = (LPNMHDR) lParam above;
     {
-    case WM_WINDOWPOSCHANGED:
+    case WM_PAINT:
     {
-    }
-    break;
-    case NM_CLICK:
+        if (wParam == 0)
+        {
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hWnd, &ps);
+            PRECT prect;
+            prect = &ps.rcPaint;
+            FillRect(hdc, prect, (HBRUSH)(COLOR_WINDOW + 1));
+            EndPaint(hWnd, &ps);        
+        }
+        else
+            RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_INTERNALPAINT);
+        return TRUE;
         break;
+    }
     case WM_NCDESTROY:
         // NOTE: this requirement is NOT stated in the documentation, but it is stated in Raymond Chen's blog article...
         RemoveWindowSubclass(hWnd, staticSubClass, uIdSubclass);
         break;
     default:
+        return DefSubclassProc(hWnd, uMsg, wParam, lParam);
         break;
     }
 
