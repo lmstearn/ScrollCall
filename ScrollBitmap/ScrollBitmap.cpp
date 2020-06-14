@@ -24,9 +24,9 @@ WCHAR szTitle[MAX_LOADSTRING];                  // Title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 wchar_t* szFile = nullptr;
 float scrAspect = 0, scaleX = 1, scaleY = 1,  resX = 0, resY = 0;
-int tmp = 0, wd = 0, ht = 0;
+int tmp = 0, wd = 0, ht = 0, ctrlSzCt = 0, ctrlSzProgress = 0;
 HWND hWndGroupBox = 0, hWndButton = 0, hWndOpt1 =0, hWndOpt2 =0;
-BOOL optChk = TRUE;
+BOOL optChk = TRUE, groupboxFlag = FALSE, isLoading = TRUE;
 RECT rectB, rectO1, rectO2;
 
 
@@ -126,7 +126,16 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
 hInst = hInstance; // Store instance handle in our global variable
 
-HWND m_hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
+int msgboxID = MessageBoxW(NULL, L"Use GroupBox?", L"GroupBox", MB_YESNOCANCEL | MB_ICONQUESTION);
+    if (msgboxID == IDYES)
+    groupboxFlag = TRUE;
+    else
+    {
+        if (msgboxID == IDCANCEL)
+        return 0;
+    }
+
+HWND m_hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW | (groupboxFlag? NULL: WS_CLIPCHILDREN),
 CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
 
     if (!m_hWnd)
@@ -135,7 +144,7 @@ CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
 
 ShowWindow(m_hWnd, nCmdShow);
 UpdateWindow(m_hWnd);
-
+isLoading = FALSE;
 return TRUE;
 }
 
@@ -200,17 +209,20 @@ static UINT SMOOTHSCROLL_SPEED;
         ulScrollLines = 0;
         int fmHt = GetDims(hWnd);
         GdiplusInit gdiplusinit;
-
-        hWndGroupBox = CreateWindowEx(0, TEXT("BUTTON"),
-            TEXT(""),
-            WS_VISIBLE | WS_CHILD | BS_GROUPBOX | WS_CLIPSIBLINGS, //consider  WS_CLIPCHILDREN
-            // also MSDN: Do not combine the BS_OWNERDRAW style with any other button styles
-            0, 0, wd, fmHt,
-            hWnd,
-            (HMENU)IDC_GROUPBOX,
-            GetModuleHandle(NULL),
-            NULL);
-
+        ctrlSzCt = 3;
+        if (groupboxFlag)
+        {
+            ctrlSzCt += 1;
+                hWndGroupBox = CreateWindowEx(0, TEXT("BUTTON"),
+                TEXT(""),
+                WS_VISIBLE | WS_CHILD | BS_GROUPBOX | WS_CLIPSIBLINGS, //consider  WS_CLIPCHILDREN
+                // also MSDN: Do not combine the BS_OWNERDRAW style with any other button styles!
+                0, 0, wd, fmHt,
+                hWnd,
+                (HMENU)IDC_GROUPBOX,
+                GetModuleHandle(NULL),
+                NULL);
+        }
         hWndButton = CreateWindowW(
             L"BUTTON",  // Predefined class; Unicode assumed 
             L"Open\nImage",      // Button text 
@@ -310,16 +322,18 @@ static UINT SMOOTHSCROLL_SPEED;
     else
     ReportErr(L"SPI_GETWHEELSCROLLLINES: Cannot get info.");
 
-
-    if (!SetWindowSubclass(hWndGroupBox, staticSubClass, 1, 0))
-        // uIdSubclass is 1 and incremented for each new subclass implemented
-        // dwRefData is 0 and has no explicit use
+    if (groupboxFlag)
     {
-        //std::cerr << "Failed to subclass list\n";
-        ReportErr(L"Cannot subclass control! Quitting...");
-        DestroyWindow(hWndGroupBox);
-        return NULL;
+        if (!SetWindowSubclass(hWndGroupBox, staticSubClass, 1, 0))
+            // uIdSubclass is 1 and incremented for each new subclass implemented
+            // dwRefData is 0 and has no explicit use
+        {
+            //std::cerr << "Failed to subclass list\n";
+            ReportErr(L"Cannot subclass control! Quitting...");
+            DestroyWindow(hWndGroupBox);
+            return NULL;
 
+        }
     }
     /*
     if (!SetWindowSubclass(hWndButton, staticSubClassButton, 2, 0))
@@ -340,19 +354,35 @@ static UINT SMOOTHSCROLL_SPEED;
     xNewSize = LOWORD(lParam);
     yNewSize = HIWORD(lParam);
 
-   //Get updated rect for the form
+    if (ctrlSzCt && (ctrlSzProgress == ctrlSzCt))
+        ctrlSzProgress = 1; // WM_SIZE called for each child control (no subclass)
+    else
+    {
+        if (ctrlSzProgress)
+        {
+            ctrlSzProgress += 1;
+            //return 0;
+        }
+        else
+            ctrlSzProgress = 1;
+
+    }
+    //Get updated rect for the form
     RECT recthWndtmp = RectCl().RectCl(0, hWnd, 0);
 
     GetDims(hWnd);
+
     RECT rectBtmp = RectCl().RectCl(hWndButton, hWnd, 1);
     GetClientRect(hWndButton, &rectB);
     //rectB.top += BOX_HEIGHT;
     SetWindowPos(hWndButton, NULL, scaleX * (rectBtmp.left), scaleY * rectBtmp.top,
     scaleX * (rectB.right - rectB.left), scaleY * (rectB.bottom - rectB.top), NULL);
 
-    SetWindowPos(hWndGroupBox, NULL, 0, 0,
-    scaleX* (rectB.right - rectB.left), scaleY* (bmp.bmHeight), NULL);
-
+    if (groupboxFlag)
+    {
+        SetWindowPos(hWndGroupBox, NULL, 0, 0,
+            scaleX * (rectB.right - rectB.left), scaleY * (bmp.bmHeight), NULL);
+    }
 
     RECT rectOpt1tmp = RectCl().RectCl(hWndOpt1, hWnd, 2);
     GetClientRect(hWndOpt1, &rectO1);
@@ -430,6 +460,8 @@ static UINT SMOOTHSCROLL_SPEED;
                     prect->top + yCurrentScroll,
                     SRCCOPY);
 
+               if (!groupboxFlag)
+               {
                 if (fScroll == -1 && xCurrentScroll < scaleX * wd)
                 {
 
@@ -505,6 +537,7 @@ static UINT SMOOTHSCROLL_SPEED;
                     }
                 }
 
+            }
                 /*
 
 
@@ -586,19 +619,21 @@ static UINT SMOOTHSCROLL_SPEED;
                        The y - coordinate, in logical units, of the upper - left corner of the source rectangle.
                        */
 
-                if (fSize)
-                {
-                    BitBlt(ps.hdc,
-                        0, 0,
-                        bmp.bmWidth, bmp.bmHeight,
-                        isScreenshot ? hdcScreenCompat : hdcMem,
-                        xCurrentScroll, yCurrentScroll,
-                        SRCCOPY);
-
-                    fSize = FALSE;
-                }
-
                 fScroll = 0;
+            }
+            else
+            {
+            if (fSize)
+            {
+                BitBlt(ps.hdc,
+                    0, 0,
+                    bmp.bmWidth, bmp.bmHeight,
+                    isScreenshot ? hdcScreenCompat : hdcMem,
+                    xCurrentScroll, yCurrentScroll,
+                    SRCCOPY);
+
+                fSize = FALSE;
+            }
             }
 
             EndPaint(hWnd, &ps);
@@ -1002,7 +1037,7 @@ return 0;
 }
 int GetDims(HWND hWnd)
 {
-static float oldWd = 0, oldHt = 0;
+static float firstWd = 0, firstHt = 0, oldWd = 0, oldHt = 0;
 int htTmp = 0;
 GetWindowRect(hWnd, &rcWindow);
     if (oldWd)
@@ -1010,20 +1045,38 @@ GetWindowRect(hWnd, &rcWindow);
     oldWd = wd;
     oldHt = ht;
     //For button
-    wd = (int)(rcWindow.right - rcWindow.left) / 9;
-    htTmp = rcWindow.bottom - rcWindow.top;
-    ht = (int)(htTmp/9);
+
+        if (isLoading)
+            return 0;
+        else
+        {
+            wd = (int)(rcWindow.right - rcWindow.left) / 9;
+            htTmp = rcWindow.bottom - rcWindow.top;
+            ht = (int)(htTmp / 9);
+        }
     }
     else
     {
-        wd = (int)(rcWindow.right - rcWindow.left) / 9;
-        htTmp = rcWindow.bottom - rcWindow.top;
-        oldWd = wd;
-        oldHt = ht = (int)(htTmp / 9);
-        if (rcWindow.left < GetSystemMetrics(0) && rcWindow.bottom < GetSystemMetrics(1))
-        MoveWindow(hWnd, GetSystemMetrics(0) / 4, GetSystemMetrics(1) / 4, GetSystemMetrics(0) / 2, GetSystemMetrics(1) / 2, 1);
+        if (firstWd)
+        {
+            wd = (int)(rcWindow.right - rcWindow.left) / 9;
+            htTmp = rcWindow.bottom - rcWindow.top;
+            oldWd = wd;
+            oldHt = ht = (int)(htTmp / 9);
+
+        }
         else
-        ReportErr(L"Not a primary monitor: Resize unavailable.");
+        {
+            wd = (int)(rcWindow.right - rcWindow.left) / 9;
+            htTmp = rcWindow.bottom - rcWindow.top;
+            firstWd = wd;
+            firstHt = ht = (int)(htTmp / 9);
+            if (rcWindow.left < GetSystemMetrics(0) && rcWindow.bottom < GetSystemMetrics(1))
+                MoveWindow(hWnd, GetSystemMetrics(0) / 4, GetSystemMetrics(1) / 4, GetSystemMetrics(0) / 2, GetSystemMetrics(1) / 2, 1);
+            else
+                ReportErr(L"Not a primary monitor: Resize unavailable.");
+            return htTmp;
+        }
     }
 
 scaleX = wd/oldWd;
