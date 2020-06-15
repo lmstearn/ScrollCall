@@ -16,7 +16,7 @@ RECT RectCl::rectOwnerHwnd = {};
 
 
 
-// Global Variables:
+// Global Variables: static can be used for these
 RECT rcWindow;
 SCROLLINFO si = {0};
 HINSTANCE hInst;                                // current instance
@@ -45,7 +45,7 @@ void PrintWindow(HWND hWnd, HBITMAP& hBmp);
 BOOL bitmapFromPixels(Bitmap& myBitmap, const std::vector<std::vector<unsigned>>resultPixels, int width, int height);
 float DoSysInfo(HWND hWnd, bool progLoad);
 char* VecToArr(std::vector<std::vector<unsigned>> vec);
-
+BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight);
 
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -164,9 +164,15 @@ HDC hdc;
 PAINTSTRUCT ps;
 
 // These variables are required by BitBlt. 
+
+
+static HBITMAP bm = { 0 };
+static GpStatus gps = { };
+
+
 static HDC hdcWin;            // DC for window
 static HDC hdcWinCl;            // client area of DC for window
-static  HDC hdcMem;            // Mem DC 
+static HDC hdcMem;            // Mem DC 
 static HDC hdcScreen;           // DC for entire screen 
 static HDC hdcScreenCompat;     // memory DC for screen 
 static HBITMAP hbmpCompat;      // bitmap handle to old DC 
@@ -394,6 +400,12 @@ static UINT SMOOTHSCROLL_SPEED;
     SetWindowPos(hWndOpt2, NULL, scaleX * (rectOpt2tmp.left), scaleY * (rectOpt2tmp.top),
     scaleX * (rectB.right - rectB.left - 2), scaleY * (rectO2.bottom - rectO2.top), NULL);
 
+    if (!isLoading)
+    {
+        hdcWin = GetWindowDC(hWnd);
+        AdjustImage(isScreenshot, bm, bmp, gps, hdcMem, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight);
+        ReleaseDC(hWnd, hdcWin);
+    }
 
         if (fBlt)
         fSize = TRUE;
@@ -450,7 +462,7 @@ static UINT SMOOTHSCROLL_SPEED;
                 PRECT prect;
                 prect = &ps.rcPaint;
                 BitBlt(ps.hdc,
-                    prect->left + (isScreenshot ? 0 : (((fScroll == 1) && (xCurrentScroll > wd)) ? 0 : wd * scaleX)),
+                    prect->left + (isScreenshot ? 0 : (((fScroll == 1) && (xCurrentScroll > wd * scaleX)) ? 0 : wd * scaleX)),
                     prect->top,
                     //prect->left + ( (isScreenshot) ? 0 : wd * scaleX), prect->top,
                     (prect->right - prect->left),
@@ -653,7 +665,7 @@ static UINT SMOOTHSCROLL_SPEED;
     int xDelta;     // xDelta = new_pos - current_pos  
     int xNewPos;    // new position 
     int yDelta = 0;
-    SetWindowOrgEx(hdcMem, wd, 0, NULL);
+    SetWindowOrgEx(hdcMem, wd * scaleX, 0, NULL);
         switch (LOWORD(wParam))
         {
         // User clicked the scroll bar shaft left of the scroll box. 
@@ -872,11 +884,11 @@ static UINT SMOOTHSCROLL_SPEED;
             {
 
                 hdcWinCl = GetDC(hWnd);
-                int wd = RectCl().RectCl(1).right - RectCl().RectCl(1).left;
-                int ht = RectCl().RectCl(0).bottom - RectCl().RectCl(0).top;
+                wd = RectCl().RectCl(1).right - RectCl().RectCl(1).left;
+                ht = RectCl().RectCl(0).bottom - RectCl().RectCl(0).top;
                 const std::vector<std::vector<unsigned>>resultPixels;
                
-                GpStatus gps = GdipCreateBitmapFromFile(szFile, &pgpbm);
+                gps = GdipCreateBitmapFromFile(szFile, &pgpbm);
                 if (gps == Ok)
                 {
                     HBITMAP hBitmap = NULL;
@@ -886,31 +898,10 @@ static UINT SMOOTHSCROLL_SPEED;
                     gps = GdipGetImageHeight(pgpbm, &bmpHeight);
                     //HBITMAP hBmpCopy = (HBITMAP)CopyImage(hBitmap, IMAGE_BITMAP, 0, 0, LR_DEFAULTSIZE);
                     //GpStatus WINGDIPAPI GdipDrawImageI(GpGraphics* graphics, GpImage* image, INT x, INT y);
-
-                    hdcWin = GetWindowDC(hWnd);
-                    BITMAP bm = { 0 };
-                    HGDIOBJ hBmpObj = GetCurrentObject(hdcWin, OBJ_BITMAP); //hBmp =>handle to bitmap (HBITMAP)
-                    if (hBmpObj && GetObject(hBmpObj, sizeof(BITMAP), &bm)) //bm => BITMAP structure
-                    {
-                        //bm.biBitCount = 32;
-                        bmpHeight = scaleX * bm.bmHeight;
-                        bmpWidth = scaleY * bm.bmWidth;
-                        RECT rect;
-                        rect.left = 0;
-                        rect.top = 0;
-                        rect.bottom = bmpHeight;
-                        rect.right = bmpWidth;
-                        //FillRect(hdcWinCl, &rect, (HBRUSH)(COLOR_WINDOW + 1));
-                    }
-                    // black = (bits == 0);   alpha=255 => 0xFF000000
                     hdcMem = CreateCompatibleDC(hdcWinCl);
-                    SelectObject(hdcMem, hBitmap);
-
-
-
-                    if (!BitBlt(hdcWinCl, wd * scaleX, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
-                    ReportErr(L"Bad BitBlt from hdcMemTmp!");
-
+                    hdcWin = GetWindowDC(hWnd);
+                    GetDims(hWnd);
+                    AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight);
   
                     ReleaseDC(hWnd, hdcWinCl);
                     ReleaseDC(hWnd, hdcWin);
@@ -981,31 +972,21 @@ static UINT SMOOTHSCROLL_SPEED;
     // Fill the client area to remove any existing contents. 
 
     // Copy the contents of the current screen into compatible DC. 
+    GetDims(hWnd);
     BitBlt(hdcScreenCompat, wd * scaleX, 0, bmp.bmWidth * scaleX,
     bmp.bmHeight * scaleY, hdcScreen, 0, 0, SRCCOPY);
- 
 
+    isScreenshot = TRUE;
     hdcWin = GetWindowDC(hWnd);
-    BITMAP bm = { 0 };
-    HGDIOBJ hBmp = GetCurrentObject(hdcWin, OBJ_BITMAP);
-        if (hBmp && GetObject(hBmp, sizeof(BITMAP), &bm))
-        {
-        bmpHeight = bm.bmHeight;
-        bmpWidth = bm.bmWidth;
-        RECT rect;
-        rect.left = 0;
-        rect.top = 0;
-        rect.bottom = bmpHeight;
-        rect.right = bmpWidth;
-        FillRect(hdcWinCl, &rect, (HBRUSH)(COLOR_WINDOW + 1));
+    AdjustImage(isScreenshot, bm, bmp, gps, hdcMem, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight);
 
-        // Copy the compatible DC to the client area.
-         BitBlt(hdcWinCl, wd * scaleX, 0, bmp.bmWidth, bmp.bmHeight, hdcScreenCompat, wd * scaleX, 0, SRCCOPY);
-        ReleaseDC(hWnd, hdcWin);
-        isScreenshot = TRUE;
-        }
-        ReleaseDC(hWnd, hdcWinCl);
-        fBlt = TRUE;
+
+    ReleaseDC(hWnd, hdcWin);
+  
+
+
+    ReleaseDC(hWnd, hdcWinCl);
+    fBlt = TRUE;
 
     break;
     }
@@ -1379,4 +1360,46 @@ char* VecToArr(std::vector<std::vector<unsigned>> vec)
 
 
 
+BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight)
+{
+    GpBitmap* pgpbm = nullptr;
+    Color clr;
+    BOOL retVal = FALSE;
+
+    BITMAP bm = { 0 };
+    HGDIOBJ hBmpObj = GetCurrentObject(hdcWin, OBJ_BITMAP); //hBmp =>handle to bitmap (HBITMAP)
+    if (hBmpObj && GetObject(hBmpObj, sizeof(BITMAP), &bm)) //bm => BITMAP structure
+    {
+        //bm.biBitCount = 32;
+        bmpWidth = bm.bmWidth * (isScreenshot) ? 1 : scaleX;
+        bmpHeight = bm.bmHeight * (isScreenshot) ? 1 : scaleY;
+        if (isScreenshot)
+        {
+            RECT rect;
+            rect.left = 0;
+            rect.top = 0;
+            rect.bottom = bmpHeight;
+            rect.right = bmpWidth;
+            FillRect(hdcWinCl, &rect, (HBRUSH)(COLOR_WINDOW + 1));
+        }
+    }
+    else
+        ReportErr(L"Unable to size bitmap!");
+
+    if (isScreenshot)
+        // Copy the compatible DC to the client area.
+        retVal = (BOOL)BitBlt(hdcWinCl, wd, 0, bmp.bmWidth, bmp.bmHeight, hdcScreenCompat, wd, 0, SRCCOPY);
+    else
+    {
+        // black = (bits == 0);   alpha=255 => 0xFF000000
+        SelectObject(hdcMem, hBitmap);
+
+        retVal = (BOOL)BitBlt(hdcWinCl, wd, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY);
+            //if (!) ReportErr(L"Bad BitBlt from hdcMemTmp!");
+        if (pgpbm)
+            gps = GdipDisposeImage(pgpbm);
+    }
+
+    return retVal;
+}
 
