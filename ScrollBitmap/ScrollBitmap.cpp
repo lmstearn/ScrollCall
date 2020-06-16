@@ -45,7 +45,7 @@ void PrintWindow(HWND hWnd, HBITMAP& hBmp);
 BOOL bitmapFromPixels(Bitmap& myBitmap, const std::vector<std::vector<unsigned>>resultPixels, int width, int height);
 float DoSysInfo(HWND hWnd, bool progLoad);
 char* VecToArr(std::vector<std::vector<unsigned>> vec);
-BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight);
+BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight);
 
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -179,10 +179,11 @@ static HBITMAP hbmpCompat;      // bitmap handle to old DC
 static BITMAP bmp;          // bitmap data structure 
 static UINT bmpWidth = 0;
 static UINT bmpHeight = 0;
+static UINT fmHt = 0;
 static BOOL fBlt;           // TRUE if BitBlt occurred 
 static int fScroll;             // 1 if horz scrolling, -1 vert scrolling, 0 for WM_SIZE
 static BOOL fSize;          // TRUE if fBlt & WM_SIZE 
-static BOOL isScreenshot;   // TRUE if fBlt & WM_SIZE 
+static BOOL isScreenshot;
 
 // These variables are required for horizontal scrolling.
 static int xMinScroll;      // minimum horizontal scroll value
@@ -213,7 +214,7 @@ static UINT SMOOTHSCROLL_SPEED;
         si.cbSize = 0;
         SMOOTHSCROLL_SPEED = 0X00000002;
         ulScrollLines = 0;
-        int fmHt = GetDims(hWnd);
+        fmHt = GetDims(hWnd);
         GdiplusInit gdiplusinit;
         ctrlSzCt = 3;
         if (groupboxFlag)
@@ -376,7 +377,9 @@ static UINT SMOOTHSCROLL_SPEED;
     //Get updated rect for the form
     RECT recthWndtmp = RectCl().RectCl(0, hWnd, 0);
 
-    GetDims(hWnd);
+    tmp = GetDims(hWnd);
+    if (tmp)
+        fmHt = tmp;
 
     RECT rectBtmp = RectCl().RectCl(hWndButton, hWnd, 1);
     GetClientRect(hWndButton, &rectB);
@@ -403,7 +406,7 @@ static UINT SMOOTHSCROLL_SPEED;
     if (!isLoading)
     {
         hdcWin = GetWindowDC(hWnd);
-        AdjustImage(isScreenshot, bm, bmp, gps, hdcMem, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight);
+        AdjustImage(isScreenshot, bm, bmp, gps, hdcMem, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight);
         ReleaseDC(hWnd, hdcWin);
     }
 
@@ -462,7 +465,10 @@ static UINT SMOOTHSCROLL_SPEED;
                 PRECT prect;
                 prect = &ps.rcPaint;
                 BitBlt(ps.hdc,
-                    prect->left + (isScreenshot ? 0 : (((fScroll == 1) && (xCurrentScroll > wd * scaleX)) ? 0 : wd * scaleX)),
+                    //prect->left + (isScreenshot ? 0 : (((fScroll == 1) && (xCurrentScroll > wd)) ? 0 : wd)),
+                    // Blt at wd method
+                    //prect->left + (isScreenshot ? (fScroll == 1 ? 0 : wd) : (((fScroll == 1) && (xCurrentScroll > wd)) ? 0 : wd)),
+                    prect->left + (((fScroll == 1) && (xCurrentScroll > wd)) ? 0 : 0),
                     prect->top,
                     //prect->left + ( (isScreenshot) ? 0 : wd * scaleX), prect->top,
                     (prect->right - prect->left),
@@ -474,7 +480,7 @@ static UINT SMOOTHSCROLL_SPEED;
 
                if (!groupboxFlag)
                {
-                if (fScroll == -1 && xCurrentScroll < scaleX * wd)
+                if (fScroll == -1 && xCurrentScroll < wd)
                 {
 
                     if (yCurrentScroll > RectCl().RectCl(3).bottom)
@@ -483,7 +489,7 @@ static UINT SMOOTHSCROLL_SPEED;
                         rect.top = (yCurrentScroll - yOldScroll > 0) ? RectCl().RectCl(3).bottom : 0;
                         rect.bottom = RectCl().RectCl(0).bottom;
                         rect.left = prect->left;
-                        rect.right = prect->left + (scaleX * wd) - xCurrentScroll;
+                        rect.right = prect->left + wd - xCurrentScroll;
                         FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
                         //UpdateWindow(hWnd);
                     }
@@ -502,7 +508,7 @@ static UINT SMOOTHSCROLL_SPEED;
                                 rect.top = RectCl().RectCl(3).bottom;
                                 rect.bottom = RectCl().RectCl(0).bottom;
                                 rect.left = prect->left;
-                                rect.right = prect->left + (scaleX * wd) - xCurrentScroll;
+                                rect.right = prect->left + (wd) - xCurrentScroll;
                                 FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
                                 if (yOldScroll < y2T)
                                 {
@@ -510,7 +516,7 @@ static UINT SMOOTHSCROLL_SPEED;
                                     rect.top = RectCl().RectCl(2).bottom;
                                     rect.bottom = RectCl().RectCl(3).top;
                                     rect.left = prect->left;
-                                    rect.right = prect->left + (scaleX * wd) - xCurrentScroll;
+                                    rect.right = prect->left +wd - xCurrentScroll;
                                     FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
                                 }
                             }
@@ -523,7 +529,7 @@ static UINT SMOOTHSCROLL_SPEED;
                                 rect.top = RectCl().RectCl(3).bottom;
                                 rect.bottom = RectCl().RectCl(0).bottom;
                                 rect.left = prect->left;
-                                rect.right = prect->left + (scaleX * wd) - xCurrentScroll;
+                                rect.right = prect->left + wd - xCurrentScroll;
                                 FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
                                 if (yOldScroll < y2T)
                                 {
@@ -531,7 +537,7 @@ static UINT SMOOTHSCROLL_SPEED;
                                     rect.top = RectCl().RectCl(2).bottom;
                                     rect.bottom = RectCl().RectCl(3).top;
                                     rect.left = prect->left;
-                                    rect.right = prect->left + (scaleX * wd) - xCurrentScroll;
+                                    rect.right = prect->left + wd - xCurrentScroll;
                                     FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
                                 }
                             }
@@ -541,7 +547,7 @@ static UINT SMOOTHSCROLL_SPEED;
                                 rect.top = yOldScroll;
                                 rect.bottom = y3T;
                                 rect.left = prect->left;
-                                rect.right = prect->left + (scaleX * wd) - xCurrentScroll;
+                                rect.right = prect->left + wd - xCurrentScroll;
                                 FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
                             }
                         }
@@ -717,11 +723,24 @@ static UINT SMOOTHSCROLL_SPEED;
     xCurrentScroll = xNewPos;
 
     // Scroll the window. (The system repaints most of the 
-    // client area when ScrollWindowEx is called; however, it is 
+    // client area when ScrollWindow(Ex) is called; however, it is 
     // necessary to call UpdateWindow in order to repaint the 
     // rectangle of pixels that were invalidated.) 
+
+
     if (optChk)
+    {
+        /*
+        The following produces flicker
+        RECT rect;
+        rect.left = wd;
+        rect.top = 0;
+        rect.bottom = fmHt;
+        rect.right = bmp.bmWidth;
+        ScrollWindow(hWnd, -xDelta, -yDelta, (CONST RECT*) NULL, &rect);
+        */
         ScrollWindow(hWnd, -xDelta, -yDelta, (CONST RECT*) NULL, (CONST RECT*) NULL);
+    }
     else
     {
         ScrollWindowEx(hWnd, -xDelta, -yDelta, (CONST RECT*) NULL,
@@ -804,7 +823,7 @@ static UINT SMOOTHSCROLL_SPEED;
     yCurrentScroll = yNewPos;
     
     // Scroll the window. (The system repaints most of the 
-    // client area when ScrollWindowEx is called; however, it is 
+    // client area when ScrollWindow(Ex) is called; however, it is 
     // necessary to call UpdateWindow in order to repaint the 
     // rectangle of pixels that were invalidated.) 
     if (optChk)
@@ -900,8 +919,8 @@ static UINT SMOOTHSCROLL_SPEED;
                     //GpStatus WINGDIPAPI GdipDrawImageI(GpGraphics* graphics, GpImage* image, INT x, INT y);
                     hdcMem = CreateCompatibleDC(hdcWinCl);
                     hdcWin = GetWindowDC(hWnd);
-                    GetDims(hWnd);
-                    AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight);
+
+                    AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight);
   
                     ReleaseDC(hWnd, hdcWinCl);
                     ReleaseDC(hWnd, hdcWin);
@@ -952,7 +971,7 @@ static UINT SMOOTHSCROLL_SPEED;
         SelectObject(hdcMem, hBmp);
 
 
-        if (!BitBlt(hdcWinCl, wd * scaleX, RectCl().ClMenuandTitle(hWnd), bmpWidth, bmpHeight, hdcMem, 0, RectCl().ClMenuandTitle(hWnd), SRCCOPY))
+        if (!BitBlt(hdcWinCl, wd, RectCl().ClMenuandTitle(hWnd), bmpWidth, bmpHeight, hdcMem, 0, RectCl().ClMenuandTitle(hWnd), SRCCOPY))
             ReportErr(L"Bad BitBlt from hdcMem!");
 
 
@@ -972,13 +991,12 @@ static UINT SMOOTHSCROLL_SPEED;
     // Fill the client area to remove any existing contents. 
 
     // Copy the contents of the current screen into compatible DC. 
-    GetDims(hWnd);
-    BitBlt(hdcScreenCompat, wd * scaleX, 0, bmp.bmWidth * scaleX,
-    bmp.bmHeight * scaleY, hdcScreen, 0, 0, SRCCOPY);
+    
+
 
     isScreenshot = TRUE;
     hdcWin = GetWindowDC(hWnd);
-    AdjustImage(isScreenshot, bm, bmp, gps, hdcMem, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight);
+    AdjustImage(isScreenshot, bm, bmp, gps, hdcMem, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight);
 
 
     ReleaseDC(hWnd, hdcWin);
@@ -1360,7 +1378,7 @@ char* VecToArr(std::vector<std::vector<unsigned>> vec)
 
 
 
-BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight)
+BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcScreen,HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight)
 {
     GpBitmap* pgpbm = nullptr;
     Color clr;
@@ -1387,8 +1405,13 @@ BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, H
         ReportErr(L"Unable to size bitmap!");
 
     if (isScreenshot)
+    {
+        BitBlt(hdcScreenCompat, wd, 0, bmp.bmWidth,
+            bmp.bmHeight, hdcScreen, 0, 0, SRCCOPY);
         // Copy the compatible DC to the client area.
-        retVal = (BOOL)BitBlt(hdcWinCl, wd, 0, bmp.bmWidth, bmp.bmHeight, hdcScreenCompat, wd, 0, SRCCOPY);
+        //retVal = (BOOL)BitBlt(hdcWinCl, wd, 0, bmp.bmWidth, bmp.bmHeight, hdcScreenCompat, 0, 0, SRCCOPY); //Blt at zero method causes problems with horz scrolling
+        retVal = (BOOL)BitBlt(hdcWinCl, wd, 0, bmp.bmWidth, bmp.bmHeight, hdcScreenCompat, wd, 0, SRCCOPY); //Blt at wd method
+    }
     else
     {
         // black = (bits == 0);   alpha=255 => 0xFF000000
