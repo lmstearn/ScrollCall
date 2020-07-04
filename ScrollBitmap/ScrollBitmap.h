@@ -62,7 +62,8 @@ private:
     ULONG_PTR token_;
 }gdiplusInit;
 
-typedef struct tagRectCl {
+typedef struct tagRectCl
+{
     // long left;
     // long top;
     // long right;
@@ -115,6 +116,8 @@ typedef struct tagRectCl {
             // init ownerHwnd
             ownerHwnd = ownHwnd;
             GetClientRect(ownerHwnd, &rectOwnerHwnd);
+            rectIn = rectOwnerHwnd;
+            break;
         }
         case 1:
         {
@@ -122,9 +125,15 @@ typedef struct tagRectCl {
             break;
         }
         case 2:
+        {
             rectOut2 = rectIn;
+            break;
+        }
         case 3:
+        {
             rectOut3 = rectIn;
+            break;
+        }
         }
         return rectIn;
     }
