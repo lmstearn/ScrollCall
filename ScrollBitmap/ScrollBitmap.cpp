@@ -47,7 +47,7 @@ BOOL bitmapFromPixels(Bitmap& myBitmap, const std::vector<std::vector<unsigned>>
 float DoSysInfo(HWND hWnd, bool progLoad);
 char* VecToArr(std::vector<std::vector<unsigned>> vec);
 BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, BOOL newScrShot = FALSE);
-void SizeControls(BITMAP bmp, HWND hWnd);
+void SizeControls(BITMAP bmp, HWND hWnd, int offsetx = 0, int offsetY = 0);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 _In_opt_ HINSTANCE hPrevInstance,
@@ -361,7 +361,7 @@ static UINT SMOOTHSCROLL_SPEED;
     }
     	case WM_SIZING:
         {
-            if (capCallFrmResize > 10)
+            if (capCallFrmResize > capCallFrmResize)
             {
                 tmp = SetTimer(hWnd,             // handle to main window 
                     IDT_DRAGWINDOW,                   // timer identifier 
@@ -374,7 +374,11 @@ static UINT SMOOTHSCROLL_SPEED;
                 }
             }
             else
-            capCallFrmResize++;
+            {
+                capCallFrmResize++;
+                fScroll = 0;
+                fSize = TRUE;
+            }
             return TRUE;
         }
         case WM_TIMER:
@@ -382,14 +386,12 @@ static UINT SMOOTHSCROLL_SPEED;
             if (wParam == IDT_DRAGWINDOW)
             {
                     KillTimer(hWnd, IDT_DRAGWINDOW);
-                    capCallFrmResize = 0;
-                    fScroll = 0;
-                    fSize = TRUE;
                     SizeControls(bmp, hWnd);
                     hdcWin = GetWindowDC(hWnd);
-                    if (!AdjustImage(isScreenshot, bm, bmp, gps, hdcMem, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight))
-                        ReportErr(L"AdjustImage detected a problem with the image!");
+                    AdjustImage(isScreenshot, bm, bmp, gps, hdcMem, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight);
+                        //ReportErr(L"AdjustImage detected a problem with the image!");
                     ReleaseDC(hWnd, hdcWin);
+                    capCallFrmResize = 0;
             }
         }
         break;
@@ -399,8 +401,15 @@ static UINT SMOOTHSCROLL_SPEED;
             ((MINMAXINFO*)lParam)->ptMinTrackSize.y = 200;
             return 0;
        break;
+        case WM_ENTERSIZEMOVE:
+        {
+            //InvalidateRect(hWnd, 0, TRUE);
+        }
         case WM_EXITSIZEMOVE:
         {
+            fSize = TRUE;
+            InvalidateRect(hWnd, 0, TRUE);
+            return 0;
             KillTimer(hWnd, IDT_DRAGWINDOW);
             tmp = SetTimer(hWnd,             // handle to main window 
                 IDT_DRAGWINDOW,                   // timer identifier 
@@ -444,6 +453,7 @@ static UINT SMOOTHSCROLL_SPEED;
     // scroll value remains within the horizontal scrolling range. 
     xMaxScroll = max(bmp.bmWidth - xNewSize, 0);
     xCurrentScroll = min(xCurrentScroll, xMaxScroll);
+
     si.cbSize = sizeof(si);
     si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
     si.nMin = xMinScroll;
@@ -508,9 +518,7 @@ static UINT SMOOTHSCROLL_SPEED;
 
                 if (!groupboxFlag) // Paint sections
                 {
-                    if (fScroll == -1)
-                    {
-                        if (xCurrentScroll < wd)
+                         if (xCurrentScroll < wd)
                         {
                             RECT rect;
                             rect.top = prect->top;
@@ -520,20 +528,7 @@ static UINT SMOOTHSCROLL_SPEED;
                             FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
                             //UpdateWindow(hWnd);
                         }
-                    }
-                    else // horz scroll
-                    {
-                        if (xCurrentScroll < wd)
-                        {
-                            RECT rect;
-                            rect.top = prect->top;
-                            rect.bottom = prect->bottom;
-                            rect.left = prect->left;
-                            rect.right = prect->left + wd - xCurrentScroll;
-                            FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
-                        }
-                     }
-/*
+                         /*
                     else
                         {
                             if (xCurrentScroll > wd)
@@ -584,17 +579,37 @@ static UINT SMOOTHSCROLL_SPEED;
             {
             if (fSize)
             {
- 
+                //if (!capCallFrmResize)
                 BitBlt(ps.hdc,
-                    0, 0,
+                    //0, 0,
+                    -xCurrentScroll, -yCurrentScroll,
                     bmp.bmWidth, bmp.bmHeight,
-                    isScreenshot ? hdcWinCl : hdcMem,
-                    xCurrentScroll, yCurrentScroll,
+                    isScreenshot ? hdcScreenCompat : hdcMem,
+                   0, 0,
+                    //xCurrentScroll, yCurrentScroll,
                     SRCCOPY);
-                UpdateWindow(hWnd);
+                //UpdateWindow(hWnd);
                     if (!capCallFrmResize)
                     fSize = FALSE;
+                    if (!groupboxFlag) // Paint sections
+                    {
+                        if (xCurrentScroll < wd)
+                        {
+                            PRECT prect;
+                            prect = &ps.rcPaint;
+                            RECT rect;
+                            rect.top = prect->top;
+                            rect.bottom = prect->bottom;
+                            rect.left = prect->left;
+                            rect.right = prect->left + wd - xCurrentScroll;
+                            FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
+                            //UpdateWindow(hWnd);
+                        }
+                    }
             }
+            else
+                if (!isLoading)
+                ReportErr(L"Cannot get here, fSize should be set...");
             }
 
             EndPaint(hWnd, &ps);
@@ -927,14 +942,39 @@ static UINT SMOOTHSCROLL_SPEED;
     }
     case WM_RBUTTONDOWN:
     {
-    // Get the compatible DC of the client area. 
+        // Get the compatible DC of the client area. 
         ReleaseDC(hWnd, hdcWinCl);
         hdcWinCl = GetDCEx(hWnd, (HRGN)NULL, DCX_CACHE | DCX_CLIPCHILDREN);
 
-    // Fill the client area to remove any existing contents. 
+        SizeControls(bmp, hWnd, xCurrentScroll, yCurrentScroll);
+        xCurrentScroll ? fScroll = 1 : fScroll = -1;
+        xCurrentScroll = 0;
+        yCurrentScroll = 0;
+        //SetWindowOrgEx(hdcWinCl, xCurrentScroll, yCurrentScroll, NULL);
 
-    // Copy the contents of the current screen into compatible DC. 
-    
+
+        SetScrollPos(hWnd, SB_VERT, 0, TRUE);
+        SetScrollPos(hWnd, SB_HORZ, 0, TRUE);
+        /*
+        ScrollWindowEx(hWnd, -xCurrentScroll, -yCurrentScroll, (CONST RECT*) NULL,
+            (CONST RECT*) NULL, (HRGN)NULL, (PRECT)NULL, SW_SCROLLCHILDREN | SW_INVALIDATE); // SMOOTHSCROLL_FLAG fails
+        tmp = GetLastError();
+        SetViewportOrgEx(hdcScreenCompat, xCurrentScroll, yCurrentScroll, NULL);
+        SetWindowOrgEx(hdcScreenCompat, xCurrentScroll, yCurrentScroll, NULL);
+
+        fSize = TRUE;
+        si.cbSize = sizeof(si);
+        si.nPos = xCurrentScroll;
+        tmp = SetScrollInfo(hWnd, SB_HORZ, &si, TRUE);
+
+        // The vertical scrolling range is defined by 
+        // (bitmap_height) - (client_height). The current vertical 
+        // scroll value remains within the vertical scrolling range. 
+        yCurrentScroll = 0;
+        si.cbSize = sizeof(si);
+        si.nPos = yCurrentScroll;
+        tmp = SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
+        */
 
 
     isScreenshot = TRUE;
@@ -1336,6 +1376,7 @@ BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, H
         rect.top = 0;
         rect.bottom = bmpHeight;
         rect.right = bmpWidth;
+        //if (!capCallFrmResize)
         retVal = (BOOL)FillRect(hdcWinCl, &rect, (HBRUSH)(COLOR_WINDOW + 1)); //SetBkColor(hdcWinCl, COLOR_WINDOW + 1) causes flickering in the scrolling
         if (retVal)
         {
@@ -1365,30 +1406,32 @@ BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, H
     return retVal;
 }
 
-void SizeControls(BITMAP bmp, HWND hWnd)
-{    //Get updated rect for the form
+void SizeControls(BITMAP bmp, HWND hWnd, int offsetX, int offsetY)
+{
+    //Get updated rect for the form
     RECT recthWndtmp = RectCl().RectCl(0, hWnd, 0);
+
     GetDims(hWnd);
 
     RECT rectBtmp = RectCl().RectCl(hWndButton, hWnd, 1);
     GetClientRect(hWndButton, &rectB);
     //rectB.top += BOX_HEIGHT;
-    SetWindowPos(hWndButton, NULL, scaleX * (rectBtmp.left), scaleY * rectBtmp.top,
+    SetWindowPos(hWndButton, NULL, scaleX * (rectBtmp.left) + offsetX, scaleY * rectBtmp.top + offsetY,
         scaleX * (rectB.right - rectB.left), scaleY * (rectB.bottom - rectB.top), NULL);
 
     if (groupboxFlag)
     {
-        SetWindowPos(hWndGroupBox, NULL, 0, 0,
+        SetWindowPos(hWndGroupBox, NULL, offsetX, offsetY,
             scaleX * (rectB.right - rectB.left), scaleY * (bmp.bmHeight), NULL);
     }
 
     RECT rectOpt1tmp = RectCl().RectCl(hWndOpt1, hWnd, 2);
     GetClientRect(hWndOpt1, &rectO1);
     //Extra edging for the wd - 2
-    SetWindowPos(hWndOpt1, NULL, scaleX * (rectOpt1tmp.left), scaleY * (rectOpt1tmp.top),
+    SetWindowPos(hWndOpt1, NULL, scaleX * (rectOpt1tmp.left) + offsetX, scaleY * (rectOpt1tmp.top) + offsetY,
         scaleX * (rectB.right - rectB.left - 2), scaleY * (rectO1.bottom - rectO1.top), NULL);
     RECT rectOpt2tmp = RectCl().RectCl(hWndOpt2, hWnd, 3);
     GetClientRect(hWndOpt2, &rectO2);
-    SetWindowPos(hWndOpt2, NULL, scaleX * (rectOpt2tmp.left), scaleY * (rectOpt2tmp.top),
+    SetWindowPos(hWndOpt2, NULL, scaleX * (rectOpt2tmp.left) + offsetX, scaleY * (rectOpt2tmp.top) + offsetY,
         scaleX * (rectB.right - rectB.left - 2), scaleY * (rectO2.bottom - rectO2.top), NULL);
 }
