@@ -48,6 +48,7 @@ float DoSysInfo(HWND hWnd, bool progLoad);
 char* VecToArr(std::vector<std::vector<unsigned>> vec);
 BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, BOOL newScrShot = FALSE);
 void SizeControls(BITMAP bmp, HWND hWnd, int offsetx = 0, int offsetY = 0);
+void ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollXorY, int& xMaxScroll, int& yMaxScroll, BITMAP& bmp, int yTrackPos = 0, int xMinScroll = 0, int yMinScroll = 0, int xNewSize = 0, int yNewSize = 0);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 _In_opt_ HINSTANCE hPrevInstance,
@@ -186,6 +187,8 @@ static BOOL fBlt;           // TRUE if BitBlt occurred
 static int fScroll;             // 1 if horz scrolling, -1 vert scrolling, 0 for WM_SIZE
 static BOOL fSize;          // TRUE if fBlt & WM_SIZE 
 static BOOL isScreenshot;
+static int xNewSize;
+static int yNewSize;
 
 // These variables are required for horizontal scrolling.
 static int xMinScroll;      // minimum horizontal scroll value
@@ -361,7 +364,7 @@ static UINT SMOOTHSCROLL_SPEED;
     }
     	case WM_SIZING:
         {
-            if (capCallFrmResize > capCallFrmResize)
+            if (FALSE)
             {
                 tmp = SetTimer(hWnd,             // handle to main window 
                     IDT_DRAGWINDOW,                   // timer identifier 
@@ -375,7 +378,7 @@ static UINT SMOOTHSCROLL_SPEED;
             }
             else
             {
-                capCallFrmResize++;
+                //capCallFrmResize++;
                 fScroll = 0;
                 fSize = TRUE;
             }
@@ -430,8 +433,6 @@ static UINT SMOOTHSCROLL_SPEED;
     // WM_SIZE called for each child control (no subclass)
     if (!capCallFrmResize)
     {
-        int xNewSize;
-        int yNewSize;
 
         xNewSize = LOWORD(lParam);
         yNewSize = HIWORD(lParam);
@@ -444,37 +445,15 @@ static UINT SMOOTHSCROLL_SPEED;
                 if (!AdjustImage(isScreenshot, bm, bmp, gps, hdcMem, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight))
                 ReportErr(L"AdjustImage detected a problem with the image!");
             ReleaseDC(hWnd, hdcWin);
-        }
+
 
         if (fBlt)
         fSize = TRUE;
     // The horizontal scrolling range is defined by 
     // (bitmap_width) - (client_width). The current horizontal 
     // scroll value remains within the horizontal scrolling range. 
-    xMaxScroll = max(bmp.bmWidth - xNewSize, 0);
-    xCurrentScroll = min(xCurrentScroll, xMaxScroll);
-
-    si.cbSize = sizeof(si);
-    si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
-    si.nMin = xMinScroll;
-    si.nMax = bmp.bmWidth;
-    si.nPage = xNewSize;
-    si.nPos = xCurrentScroll;
-    SetScrollInfo(hWnd, SB_HORZ, &si, TRUE);
-
-    // The vertical scrolling range is defined by 
-    // (bitmap_height) - (client_height). The current vertical 
-    // scroll value remains within the vertical scrolling range. 
-    yMaxScroll = max(bmp.bmHeight - yNewSize, 0);
-    yCurrentScroll = min(yCurrentScroll, yMaxScroll);
-    si.cbSize = sizeof(si);
-    si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
-    si.nMin = yMinScroll;
-    si.nMax = bmp.bmHeight;
-    si.nPage = yNewSize;
-    si.nPos = yCurrentScroll;
-    si.nTrackPos = yTrackPos;
-    SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
+    ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, 0, xMaxScroll, yMaxScroll, bmp, yTrackPos, xMinScroll, yMinScroll, xNewSize, yNewSize);
+    }
     }
     break;
     }
@@ -706,10 +685,8 @@ static UINT SMOOTHSCROLL_SPEED;
         UpdateWindow(hWnd);
     }
         // Reset the scroll bar. 
-    si.cbSize = sizeof(si);
-    si.fMask = SIF_POS;
-    si.nPos = xCurrentScroll;
-    SetScrollInfo(hWnd, SB_HORZ, &si, TRUE);
+    ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, 1, xMaxScroll, yMaxScroll, bmp);
+
     break;
     }
 
@@ -794,9 +771,7 @@ static UINT SMOOTHSCROLL_SPEED;
     }
 
     // Reset scroll bar. 
-    si.fMask = SIF_POS;
-    si.nPos = yCurrentScroll;
-    SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
+    ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, -1, xMaxScroll, yMaxScroll, bmp);
     break;
     }
     case WM_MOUSEWHEEL:
@@ -942,12 +917,15 @@ static UINT SMOOTHSCROLL_SPEED;
     }
     case WM_RBUTTONDOWN:
     {
+        isScreenshot = TRUE;
         // Get the compatible DC of the client area. 
         ReleaseDC(hWnd, hdcWinCl);
         hdcWinCl = GetDCEx(hWnd, (HRGN)NULL, DCX_CACHE | DCX_CLIPCHILDREN);
 
         SizeControls(bmp, hWnd, xCurrentScroll, yCurrentScroll);
         xCurrentScroll ? fScroll = 1 : fScroll = -1;
+        ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, 0, xMaxScroll, yMaxScroll, bmp, yTrackPos, xMinScroll, yMinScroll, xNewSize, yNewSize);
+
         xCurrentScroll = 0;
         yCurrentScroll = 0;
         //SetWindowOrgEx(hdcWinCl, xCurrentScroll, yCurrentScroll, NULL);
@@ -977,7 +955,6 @@ static UINT SMOOTHSCROLL_SPEED;
         */
 
 
-    isScreenshot = TRUE;
     hdcWin = GetWindowDC(hWnd);
     
         if (!AdjustImage(isScreenshot, bm, bmp, gps, hdcMem, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight, 1))
@@ -1381,8 +1358,10 @@ BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, H
         if (retVal)
         {
             if (newScrShot)
-            retVal = (BOOL)BitBlt(hdcScreenCompat, wd, 0, bmp.bmWidth,
-                bmp.bmHeight, hdcScreen, 0, 0, SRCCOPY);
+                retVal = StretchBlt(hdcScreenCompat, wd, 0, bmp.bmWidth - wd,
+                    bmp.bmHeight, hdcScreen, 0, 0, bmp.bmWidth, bmp.bmHeight, SRCCOPY);
+            //retVal = (BOOL)BitBlt(hdcScreenCompat, wd, 0, bmp.bmWidth,
+                //bmp.bmHeight, hdcScreen, 0, 0, SRCCOPY);
             // Copy the compatible DC to the client area.
             //retVal = (BOOL)BitBlt(hdcWinCl, wd, 0, bmp.bmWidth, bmp.bmHeight, hdcScreenCompat, 0, 0, SRCCOPY); //Blt at zero method causes problems with horz scrolling
             if (retVal)
@@ -1434,4 +1413,46 @@ void SizeControls(BITMAP bmp, HWND hWnd, int offsetX, int offsetY)
     GetClientRect(hWndOpt2, &rectO2);
     SetWindowPos(hWndOpt2, NULL, scaleX * (rectOpt2tmp.left) + offsetX, scaleY * (rectOpt2tmp.top) + offsetY,
         scaleX * (rectB.right - rectB.left - 2), scaleY * (rectO2.bottom - rectO2.top), NULL);
+}
+void ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollXorY, int& xMaxScroll, int& yMaxScroll, BITMAP& bmp, int yTrackPos, int xMinScroll, int yMinScroll, int xNewSize, int yNewSize)
+{
+
+    si.nPos = xCurrentScroll;
+    if (scrollXorY == 1)
+    {
+        si.fMask = SIF_POS;
+        return;
+    }
+    else
+    {
+        xMaxScroll = max(bmp.bmWidth - xNewSize, 0);
+        xCurrentScroll = min(xCurrentScroll, xMaxScroll);
+        si.cbSize = sizeof(si);
+        si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+        si.nMin = xMinScroll;
+        si.nMax = bmp.bmWidth;
+        si.nPage = xNewSize;
+        // Not dealling with xTrackPos.
+        SetScrollInfo(hWnd, SB_HORZ, &si, TRUE);
+    }
+    // The vertical scrolling range is defined by 
+    // (bitmap_height) - (client_height). The current vertical 
+    // scroll value remains within the vertical scrolling range. 
+
+    si.nPos = yCurrentScroll;
+    if (scrollXorY == -1)
+        si.fMask = SIF_POS;
+    else
+    {
+        yMaxScroll = max(bmp.bmHeight - yNewSize, 0);
+        yCurrentScroll = min(yCurrentScroll, yMaxScroll);
+        si.cbSize = sizeof(si);
+        si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+        si.nMin = yMinScroll;
+        si.nMax = bmp.bmHeight;
+        si.nPage = yNewSize;
+        si.nPos = yCurrentScroll;
+        si.nTrackPos = yTrackPos;
+        SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
+    }
 }
