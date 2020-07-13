@@ -6,6 +6,7 @@
 //Common etc.
 #include <CommCtrl.h>
 #include <Commdlg.h>
+#include <uxTheme.h>
 #include <stdexcept>
 
 
@@ -16,9 +17,14 @@
 
 #include "resource.h"
 #pragma comment(lib, "comctl32.lib")
-#pragma comment( lib, "gdiplus.lib" )
+#pragma comment(lib, "gdiplus.lib" )
+#pragma comment(lib, "UxTheme.lib")
 #pragma warning( disable : 4018 )
 #pragma warning( disable : 4996 )
+
+#pragma comment(linker,"\"/manifestdependency:type='win32' \
+name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
+processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
 //Suppress warning on unused variables https://stackoverflow.com/a/1486931/2128797
 #define UNUSED(expr) do { (void)(expr); } while (0)

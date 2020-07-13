@@ -1035,8 +1035,9 @@ GetWindowRect(hWnd, &rcWindow);
         }
     }
 
-oldWd? (scaleX = wd/oldWd): scaleX = 1;
-oldHt? (scaleY = ht/oldHt): scaleY = 1;
+ oldWd ? (scaleX = wd / oldWd) : scaleX = 1;
+ oldHt ? (scaleY = ht / oldHt) : scaleY = 1;
+
 
 /*For screen
 sizefactorX = 1, sizefactorY = 1
