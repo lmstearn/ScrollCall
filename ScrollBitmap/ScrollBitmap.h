@@ -78,39 +78,42 @@ typedef struct tagRectCl
     static RECT rectOut2;
     static RECT rectOut3;
     static HWND ownerHwnd;
+    static RECT initRectOwnerHwnd;
     static RECT rectOwnerHwnd;
     //RECT RectCl() {};
     int ClMenuandTitle(HWND ownHwnd)
-        {
+    {
         // Get usable client height
-            RECT rectIn = {};
-            RECT rectInCl = {};
-            GetWindowRect(ownerHwnd, &rectIn);
-            GetClientRect(ownerHwnd, &rectInCl);
-            // Also menu bar height
-            return (rectIn.bottom - rectIn.top) - (rectInCl.bottom - rectInCl.top) - GetSystemMetrics(SM_CYMENU);
-        }
+        RECT rectIn = {};
+        RECT rectInCl = {};
+        GetWindowRect(ownerHwnd, &rectIn);
+        GetClientRect(ownerHwnd, &rectInCl);
+        // Also menu bar height
+        return (rectIn.bottom - rectIn.top) - (rectInCl.bottom - rectInCl.top) - GetSystemMetrics(SM_CYMENU);
+    }
 
     RECT RectCl(int ctrlIndex)
     {
         switch (ctrlIndex)
         {
-            case 0:
-                return rectOwnerHwnd;
-            case 1:
-                return rectOut1;
-            case 2:
-                return rectOut2;
-            case 3:
-                return rectOut3;
-            default:
-                return {};
+        case 0:
+            return initRectOwnerHwnd;
+        case 1:
+            return rectOwnerHwnd;
+        case 2:
+            return rectOut1;
+        case 3:
+            return rectOut2;
+        case 4:
+            return rectOut3;
+        default:
+            return {};
         }
     };
     RECT RectCl(HWND hwndCtrl, HWND& ownHwnd, int ctrlIndex)
     {
         RECT rectIn = {};
-        if (ctrlIndex)
+        if (ctrlIndex > 1)
         {
             GetWindowRect(hwndCtrl, &rectIn); //get window rect of control relative to screen
             MapWindowPoints(NULL, ownHwnd, (LPPOINT)&rectIn, 2);
@@ -119,23 +122,30 @@ typedef struct tagRectCl
         {
         case 0:
         {
+            //if (initRectOwnerHwnd.right - initRectOwnerHwnd.left == 0)
+            GetWindowRect(ownerHwnd, &initRectOwnerHwnd);
+            rectIn = initRectOwnerHwnd;
+            break;
+        }
+        case 1:
+        {
             // init ownerHwnd
             ownerHwnd = ownHwnd;
             GetClientRect(ownerHwnd, &rectOwnerHwnd);
             rectIn = rectOwnerHwnd;
             break;
         }
-        case 1:
+        case 2:
         {
             rectOut1 = rectIn;
             break;
         }
-        case 2:
+        case 3:
         {
             rectOut2 = rectIn;
             break;
         }
-        case 3:
+        case 4:
         {
             rectOut3 = rectIn;
             break;
@@ -146,11 +156,17 @@ typedef struct tagRectCl
 
     int width(int ctrlIndex)
     {
-        return RectCl(ctrlIndex).right - RectCl(ctrlIndex).left;
+        if (ctrlIndex)
+            return RectCl(ctrlIndex).right - RectCl(ctrlIndex).left;
+        else
+            return (int)(RectCl(ctrlIndex).right - RectCl(ctrlIndex).left)/9;
     }
     int height(int ctrlIndex)
     {
-        return RectCl(ctrlIndex).bottom - RectCl(ctrlIndex).top;
+        if (ctrlIndex)
+            return RectCl(ctrlIndex).bottom - RectCl(ctrlIndex).top;
+        else
+            return (int)(RectCl(ctrlIndex).bottom - RectCl(ctrlIndex).top)/9;
     }
 
 } RectCl;

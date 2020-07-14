@@ -3,6 +3,7 @@ RECT RectCl::rectOut1 = {};
 RECT RectCl::rectOut2 = {};
 RECT RectCl::rectOut3 = {};
 HWND RectCl::ownerHwnd = 0;
+RECT RectCl::initRectOwnerHwnd = {};
 RECT RectCl::rectOwnerHwnd = {};
 
 
@@ -17,16 +18,15 @@ RECT RectCl::rectOwnerHwnd = {};
 
 
 // Global Variables: static can be used for these
-RECT rcWindow;
-SCROLLINFO si = {0};
+SCROLLINFO si = { 0 };
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // Title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 wchar_t* szFile = nullptr;
-float scrAspect = 0, scaleX = 1, scaleY = 1,  resX = 0, resY = 0;
+float scrAspect = 0, scaleX = 1, scaleY = 1, resX = 0, resY = 0;
 // wd, ht: button dims
 int tmp = 0, wd = 0, ht = 0, capCallFrmResize = 0;
-HWND hWndGroupBox = 0, hWndButton = 0, hWndOpt1 =0, hWndOpt2 =0;
+HWND hWndGroupBox = 0, hWndButton = 0, hWndOpt1 = 0, hWndOpt2 = 0;
 BOOL optChk = TRUE, groupboxFlag = FALSE, isLoading = TRUE;
 RECT rectB, rectO1, rectO2;
 
@@ -51,42 +51,42 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT& fmWd, UINT& fmHt, int offsetx = 0
 void ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollXorY, int& xMaxScroll, int& yMaxScroll, BITMAP& bmp, UINT fmWd = 0, UINT fmHt = 0, int yTrackPos = 0, int xMinScroll = 0, int yMinScroll = 0, int xNewSize = 0, int yNewSize = 0);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
-_In_opt_ HINSTANCE hPrevInstance,
-_In_ LPWSTR    lpCmdLine,
-_In_ int       nCmdShow)
+    _In_opt_ HINSTANCE hPrevInstance,
+    _In_ LPWSTR    lpCmdLine,
+    _In_ int       nCmdShow)
 {
-UNREFERENCED_PARAMETER(hPrevInstance);
-UNREFERENCED_PARAMETER(lpCmdLine);
-//_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
-// TODO: Place code here.
-// Initialize global strings
-LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
-LoadStringW(hInstance, IDC_SCROLLBITMAP, szWindowClass, MAX_LOADSTRING);
-MyRegisterClass(hInstance);
+    UNREFERENCED_PARAMETER(hPrevInstance);
+    UNREFERENCED_PARAMETER(lpCmdLine);
+    //_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+    // TODO: Place code here.
+    // Initialize global strings
+    LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
+    LoadStringW(hInstance, IDC_SCROLLBITMAP, szWindowClass, MAX_LOADSTRING);
+    MyRegisterClass(hInstance);
 
     // Perform application initialization:
-    if (!InitInstance (hInstance, nCmdShow))
-    return FALSE;
+    if (!InitInstance(hInstance, nCmdShow))
+        return FALSE;
 
 
-HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SCROLLBITMAP));
+    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SCROLLBITMAP));
 
-MSG msg;
+    MSG msg;
 
-// Main message loop:
+    // Main message loop:
     while (GetMessage(&msg, nullptr, 0, 0))
     {
         if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
         {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
         }
     }
 
-return (int) msg.wParam;
+    return (int)msg.wParam;
 }
 
-  
+
 
 //
 //  FUNCTION: MyRegisterClass()
@@ -95,23 +95,23 @@ return (int) msg.wParam;
 //
 ATOM MyRegisterClass(HINSTANCE hInstance)
 {
-WNDCLASSEXW wcex;
+    WNDCLASSEXW wcex;
 
-wcex.cbSize = sizeof(WNDCLASSEX);
+    wcex.cbSize = sizeof(WNDCLASSEX);
 
-wcex.style          = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
-wcex.lpfnWndProc    = MyBitmapWindowProc;
-wcex.cbClsExtra     = 0;
-wcex.cbWndExtra     = 0;
-wcex.hInstance      = hInstance;
-wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_SCROLLBITMAP));
-wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
-wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
-wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_SCROLLBITMAP);
-wcex.lpszClassName  = szWindowClass;
-wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
+    wcex.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
+    wcex.lpfnWndProc = MyBitmapWindowProc;
+    wcex.cbClsExtra = 0;
+    wcex.cbWndExtra = 0;
+    wcex.hInstance = hInstance;
+    wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_SCROLLBITMAP));
+    wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wcex.lpszMenuName = MAKEINTRESOURCEW(IDC_SCROLLBITMAP);
+    wcex.lpszClassName = szWindowClass;
+    wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
 
-return RegisterClassExW(&wcex);
+    return RegisterClassExW(&wcex);
 }
 
 //
@@ -126,31 +126,31 @@ return RegisterClassExW(&wcex);
 //
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
-hInst = hInstance; // Store instance handle in our global variable
+    hInst = hInstance; // Store instance handle in our global variable
 
-int msgboxID = MessageBoxW(NULL, L"Use GroupBox?", L"GroupBox", MB_YESNOCANCEL | MB_ICONQUESTION);
+    int msgboxID = MessageBoxW(NULL, L"Use GroupBox?", L"GroupBox", MB_YESNOCANCEL | MB_ICONQUESTION);
     if (msgboxID == IDYES)
-    groupboxFlag = TRUE;
+        groupboxFlag = TRUE;
     else
     {
         if (msgboxID == IDCANCEL)
-        return 0;
+            return 0;
     }
 
-HWND m_hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW | (groupboxFlag? NULL: WS_CLIPCHILDREN),
-CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
-// Old style
-//SetWindowTheme(m_hWnd, L" ", L" ");
-//Or SetThemeAppProperties(STAP_ALLOW_CONTROLS | STAP_ALLOW_WEBCONTENT);
-//SetThemeAppProperties(0);
+    HWND m_hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW | (groupboxFlag ? NULL : WS_CLIPCHILDREN),
+        CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
+    // Old style
+    //SetWindowTheme(m_hWnd, L" ", L" ");
+    //Or SetThemeAppProperties(STAP_ALLOW_CONTROLS | STAP_ALLOW_WEBCONTENT);
+    //SetThemeAppProperties(0);
     if (!m_hWnd)
-    return FALSE;
+        return FALSE;
 
 
-ShowWindow(m_hWnd, nCmdShow);
-UpdateWindow(m_hWnd);
-isLoading = FALSE;
-return TRUE;
+    ShowWindow(m_hWnd, nCmdShow);
+    UpdateWindow(m_hWnd);
+    isLoading = FALSE;
+    return TRUE;
 }
 
 //
@@ -165,54 +165,54 @@ return TRUE;
 //
 LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-HDC hdc;
-PAINTSTRUCT ps;
+    HDC hdc;
+    PAINTSTRUCT ps;
 
-// These variables are required by BitBlt. 
-
-
-static HBITMAP bm = { 0 };
-static GpStatus gps = { };
+    // These variables are required by BitBlt. 
 
 
-static HDC hdcWin;            // DC for window
-static HDC hdcWinCl;            // client area of DC for window
-static HDC hdcMem;            // Mem DC 
-static HDC hdcScreen;           // DC for entire screen 
-static HDC hdcScreenCompat;     // memory DC for screen 
-static HBITMAP hbmpCompat;      // bitmap handle to old DC 
-static BITMAP bmp;          // bitmap data structure 
-static UINT bmpWidth = 0;
-static UINT bmpHeight = 0;
-static UINT fmHt = 0;
-static UINT fmWd = 0;
-static BOOL fBlt;           // TRUE if BitBlt occurred 
-static int fScroll;             // 1 if horz scrolling, -1 vert scrolling, 0 for WM_SIZE
-static BOOL fSize;          // TRUE if fBlt & WM_SIZE 
-static BOOL isScreenshot;
-static int xNewSize;
-static int yNewSize;
+    static HBITMAP bm = { 0 };
+    static GpStatus gps = { };
 
-// These variables are required for horizontal scrolling.
-static int xMinScroll;      // minimum horizontal scroll value
-static int xCurrentScroll;      // current horizontal scroll value
-static int  xOldScroll;     // last horizontal scroll value
-static int xMaxScroll;      // maximum horizontal scroll value
 
-// These variables are required for vertical scrolling.
-static int yMinScroll;      // minimum vertical scroll value
-static int yCurrentScroll;      // current vertical scroll value
-static int yOldScroll;      // last vertical scroll value 
-static int yMaxScroll;      // maximum vertical scroll value
-static int xTrackPos;   // current scroll drag value
-static int yTrackPos;
-   
-static int  iDeltaPerLine;      // for mouse wheel logic
-static int iAccumDelta;
-static ULONG ulScrollLines;
+    static HDC hdcWin;            // DC for window
+    static HDC hdcWinCl;            // client area of DC for window
+    static HDC hdcMem;            // Mem DC 
+    static HDC hdcScreen;           // DC for entire screen 
+    static HDC hdcScreenCompat;     // memory DC for screen 
+    static HBITMAP hbmpCompat;      // bitmap handle to old DC 
+    static BITMAP bmp;          // bitmap data structure 
+    static UINT bmpWidth = 0;
+    static UINT bmpHeight = 0;
+    static UINT fmHt = 0;
+    static UINT fmWd = 0;
+    static BOOL fBlt;           // TRUE if BitBlt occurred 
+    static int fScroll;             // 1 if horz scrolling, -1 vert scrolling, 0 for WM_SIZE
+    static BOOL fSize;          // TRUE if fBlt & WM_SIZE 
+    static BOOL isScreenshot;
+    static int xNewSize;
+    static int yNewSize;
 
-static UINT SMOOTHSCROLL_FLAG;
-static UINT SMOOTHSCROLL_SPEED;
+    // These variables are required for horizontal scrolling.
+    static int xMinScroll;      // minimum horizontal scroll value
+    static int xCurrentScroll;      // current horizontal scroll value
+    static int  xOldScroll;     // last horizontal scroll value
+    static int xMaxScroll;      // maximum horizontal scroll value
+
+    // These variables are required for vertical scrolling.
+    static int yMinScroll;      // minimum vertical scroll value
+    static int yCurrentScroll;      // current vertical scroll value
+    static int yOldScroll;      // last vertical scroll value 
+    static int yMaxScroll;      // maximum vertical scroll value
+    static int xTrackPos;   // current scroll drag value
+    static int yTrackPos;
+
+    static int  iDeltaPerLine;      // for mouse wheel logic
+    static int iAccumDelta;
+    static ULONG ulScrollLines;
+
+    static UINT SMOOTHSCROLL_FLAG;
+    static UINT SMOOTHSCROLL_SPEED;
 
     switch (uMsg)
     {
@@ -222,7 +222,7 @@ static UINT SMOOTHSCROLL_SPEED;
         si.cbSize = 0;
         SMOOTHSCROLL_SPEED = 0X00000002;
         ulScrollLines = 0;
-        RECT recthWndtmp = RectCl().RectCl(0, hWnd, 0);
+        RECT recthWndtmp = RectCl().RectCl(0, hWnd, 1);
         fmWd = recthWndtmp.right - recthWndtmp.left;
         fmHt = recthWndtmp.bottom - recthWndtmp.top;
 
@@ -232,7 +232,7 @@ static UINT SMOOTHSCROLL_SPEED;
         if (groupboxFlag)
         {
 
-                hWndGroupBox = CreateWindowEx(0, TEXT("BUTTON"),
+            hWndGroupBox = CreateWindowEx(0, TEXT("BUTTON"),
                 TEXT(""),
                 WS_VISIBLE | WS_CHILD | BS_GROUPBOX | WS_CLIPSIBLINGS, //consider  WS_CLIPCHILDREN
                 // also MSDN: Do not combine the BS_OWNERDRAW style with any other button styles!
@@ -277,149 +277,101 @@ static UINT SMOOTHSCROLL_SPEED;
             (HINSTANCE)NULL, NULL);
         SendMessage(hWndOpt1, BM_SETCHECK, BST_CHECKED, 0);
 
-    
 
 
-    
-    
-    // Create a normal DC and a memory DC for the entire 
-    // screen. The normal DC provides a snapshot of the 
-    // screen contents. The memory DC keeps a copy of this 
-    // snapshot in the associated bitmap. 
 
-    isScreenshot = FALSE;
-    hdcScreen = CreateDC(L"DISPLAY", (PCTSTR)NULL,
-    (PCTSTR)NULL, (CONST DEVMODE*) NULL);
-    hdcScreenCompat = CreateCompatibleDC(hdcScreen);
 
-    // Retrieve the metrics for the bitmap associated with the 
-    // regular device context. 
-    bmp.bmBitsPixel = (BYTE)GetDeviceCaps(hdcScreen, BITSPIXEL);
-    bmp.bmPlanes = (BYTE)GetDeviceCaps(hdcScreen, PLANES);
-    bmp.bmWidth = GetDeviceCaps(hdcScreen, HORZRES);
-    bmp.bmHeight = GetDeviceCaps(hdcScreen, VERTRES);
 
-    // The width must be byte-aligned. 
-    bmp.bmWidthBytes = ((bmp.bmWidth + 15) & ~15) / 8;
+        // Create a normal DC and a memory DC for the entire 
+        // screen. The normal DC provides a snapshot of the 
+        // screen contents. The memory DC keeps a copy of this 
+        // snapshot in the associated bitmap. 
 
-    // Create a bitmap for the compatible DC. 
-    hbmpCompat = CreateBitmap(bmp.bmWidth, bmp.bmHeight,
-    bmp.bmPlanes, bmp.bmBitsPixel, (CONST VOID*) NULL);
+        isScreenshot = FALSE;
+        hdcScreen = CreateDC(L"DISPLAY", (PCTSTR)NULL,
+            (PCTSTR)NULL, (CONST DEVMODE*) NULL);
+        hdcScreenCompat = CreateCompatibleDC(hdcScreen);
 
-    // Select the bitmap for the compatible DC. 
-    SelectObject(hdcScreenCompat, hbmpCompat);
+        // Retrieve the metrics for the bitmap associated with the 
+        // regular device context. 
+        bmp.bmBitsPixel = (BYTE)GetDeviceCaps(hdcScreen, BITSPIXEL);
+        bmp.bmPlanes = (BYTE)GetDeviceCaps(hdcScreen, PLANES);
+        bmp.bmWidth = GetDeviceCaps(hdcScreen, HORZRES);
+        bmp.bmHeight = GetDeviceCaps(hdcScreen, VERTRES);
 
-    // Initialize the flags. 
-    fBlt = FALSE;
-    fScroll = 0;
-    fSize = FALSE;
+        // The width must be byte-aligned. 
+        bmp.bmWidthBytes = ((bmp.bmWidth + 15) & ~15) / 8;
 
-    // Initialize the horizontal scrolling variables. 
-    xMinScroll = 0;
-    xCurrentScroll = 0;
-    xOldScroll = 0;
-    xMaxScroll = 0;
+        // Create a bitmap for the compatible DC. 
+        hbmpCompat = CreateBitmap(bmp.bmWidth, bmp.bmHeight,
+            bmp.bmPlanes, bmp.bmBitsPixel, (CONST VOID*) NULL);
 
-    // Initialize the vertical scrolling variables. 
-    yMinScroll = 0;
-    yCurrentScroll = 0;
-    yMaxScroll = 0;
+        // Select the bitmap for the compatible DC. 
+        SelectObject(hdcScreenCompat, hbmpCompat);
 
-    //SMOOTHSCROLL_FLAG = MAKELRESULT((USHORT)SW_SMOOTHSCROLL, SMOOTHSCROLL_SPEED);
-    SMOOTHSCROLL_FLAG = SW_SMOOTHSCROLL  | SMOOTHSCROLL_SPEED;
+        // Initialize the flags. 
+        fBlt = FALSE;
+        fScroll = 0;
+        fSize = FALSE;
 
-        
-    if (SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, &ulScrollLines, 0))
-    {
-        // ulScrollLines usually equals 3 or 0 (for no scrolling)
-        // WHEEL_DELTA equals 120, so iDeltaPerLine will be 40
-        if (ulScrollLines)
-            iDeltaPerLine = WHEEL_DELTA / ulScrollLines;
-        else
-            iDeltaPerLine = 0;
-    }
-    else
-    ReportErr(L"SPI_GETWHEELSCROLLLINES: Cannot get info.");
+        // Initialize the horizontal scrolling variables. 
+        xMinScroll = 0;
+        xCurrentScroll = 0;
+        xOldScroll = 0;
+        xMaxScroll = 0;
 
-    if (groupboxFlag)
-    {
-        if (!SetWindowSubclass(hWndGroupBox, staticSubClass, 1, 0))
-            // uIdSubclass is 1 and incremented for each new subclass implemented
-            // dwRefData is 0 and has no explicit use
+        // Initialize the vertical scrolling variables. 
+        yMinScroll = 0;
+        yCurrentScroll = 0;
+        yMaxScroll = 0;
+
+        //SMOOTHSCROLL_FLAG = MAKELRESULT((USHORT)SW_SMOOTHSCROLL, SMOOTHSCROLL_SPEED);
+        SMOOTHSCROLL_FLAG = SW_SMOOTHSCROLL | SMOOTHSCROLL_SPEED;
+
+
+        if (SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, &ulScrollLines, 0))
         {
-            //std::cerr << "Failed to subclass list\n";
+            // ulScrollLines usually equals 3 or 0 (for no scrolling)
+            // WHEEL_DELTA equals 120, so iDeltaPerLine will be 40
+            if (ulScrollLines)
+                iDeltaPerLine = WHEEL_DELTA / ulScrollLines;
+            else
+                iDeltaPerLine = 0;
+        }
+        else
+            ReportErr(L"SPI_GETWHEELSCROLLLINES: Cannot get info.");
+
+        if (groupboxFlag)
+        {
+            if (!SetWindowSubclass(hWndGroupBox, staticSubClass, 1, 0))
+                // uIdSubclass is 1 and incremented for each new subclass implemented
+                // dwRefData is 0 and has no explicit use
+            {
+                //std::cerr << "Failed to subclass list\n";
+                ReportErr(L"Cannot subclass control! Quitting...");
+                DestroyWindow(hWndGroupBox);
+                return NULL;
+
+            }
+        }
+        /*
+        if (!SetWindowSubclass(hWndButton, staticSubClassButton, 2, 0))
+        {
             ReportErr(L"Cannot subclass control! Quitting...");
-            DestroyWindow(hWndGroupBox);
+            DestroyWindow(hWndButton);
             return NULL;
 
         }
-    }
-    /*
-    if (!SetWindowSubclass(hWndButton, staticSubClassButton, 2, 0))
-    {
-        ReportErr(L"Cannot subclass control! Quitting...");
-        DestroyWindow(hWndButton);
-        return NULL;
-
-    }
-    */
-    break;
-    }
-    	case WM_SIZING:
-        {
-            if (FALSE)
-            {
-                tmp = SetTimer(hWnd,             // handle to main window 
-                    IDT_DRAGWINDOW,                   // timer identifier 
-                    10,                           // millisecond interval 
-                    (TIMERPROC)NULL);               // no timer callback 
-
-                if (tmp == 0)
-                {
-                    ReportErr(L"No timer is available.");
-                }
-            }
-            else
-            {
-                //capCallFrmResize++;
-                fScroll = 0;
-                fSize = TRUE;
-            }
-            return TRUE;
-        }
-        case WM_TIMER:
-        {
-            if (wParam == IDT_DRAGWINDOW)
-            {
-                    KillTimer(hWnd, IDT_DRAGWINDOW);
-                    SizeControls(bmp, hWnd, fmWd, fmHt);
-                    hdcWin = GetWindowDC(hWnd);
-                    AdjustImage(isScreenshot, bm, bmp, gps, hdcMem, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight);
-                        //ReportErr(L"AdjustImage detected a problem with the image!");
-                    ReleaseDC(hWnd, hdcWin);
-                    capCallFrmResize = 0;
-            }
-        }
+        */
         break;
-        case WM_GETMINMAXINFO:
-            // prevent the window from becoming too small
-            ((MINMAXINFO*)lParam)->ptMinTrackSize.x = 200;
-            ((MINMAXINFO*)lParam)->ptMinTrackSize.y = 200;
-            return 0;
-       break;
-        case WM_ENTERSIZEMOVE:
+    }
+    case WM_SIZING:
+    {
+        if (FALSE)
         {
-            //InvalidateRect(hWnd, 0, TRUE);
-        }
-        case WM_EXITSIZEMOVE:
-        {
-            fSize = TRUE;
-            InvalidateRect(hWnd, 0, TRUE);
-            return 0;
-            KillTimer(hWnd, IDT_DRAGWINDOW);
             tmp = SetTimer(hWnd,             // handle to main window 
                 IDT_DRAGWINDOW,                   // timer identifier 
-                2,                           // millisecond interval 
+                10,                           // millisecond interval 
                 (TIMERPROC)NULL);               // no timer callback 
 
             if (tmp == 0)
@@ -427,39 +379,87 @@ static UINT SMOOTHSCROLL_SPEED;
                 ReportErr(L"No timer is available.");
             }
         }
+        else
+        {
+            //capCallFrmResize++;
+            fScroll = 0;
+            fSize = TRUE;
+        }
+        return TRUE;
+    }
+    case WM_TIMER:
+    {
+        if (wParam == IDT_DRAGWINDOW)
+        {
+            KillTimer(hWnd, IDT_DRAGWINDOW);
+            SizeControls(bmp, hWnd, fmWd, fmHt);
+            hdcWin = GetWindowDC(hWnd);
+            AdjustImage(isScreenshot, bm, bmp, gps, hdcMem, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight);
+            //ReportErr(L"AdjustImage detected a problem with the image!");
+            ReleaseDC(hWnd, hdcWin);
+            capCallFrmResize = 0;
+        }
+    }
+    break;
+    case WM_GETMINMAXINFO:
+        // prevent the window from becoming too small
+        ((MINMAXINFO*)lParam)->ptMinTrackSize.x = 200;
+        ((MINMAXINFO*)lParam)->ptMinTrackSize.y = 200;
         return 0;
         break;
+    case WM_ENTERSIZEMOVE:
+    {
+        //InvalidateRect(hWnd, 0, TRUE);
+    }
+    case WM_EXITSIZEMOVE:
+    {
+        fSize = TRUE;
+        InvalidateRect(hWnd, 0, TRUE);
+        return 0;
+        KillTimer(hWnd, IDT_DRAGWINDOW);
+        tmp = SetTimer(hWnd,             // handle to main window 
+            IDT_DRAGWINDOW,                   // timer identifier 
+            2,                           // millisecond interval 
+            (TIMERPROC)NULL);               // no timer callback 
+
+        if (tmp == 0)
+        {
+            ReportErr(L"No timer is available.");
+        }
+    }
+    return 0;
+    break;
 
     case WM_SIZE:
     {
 
-    // WM_SIZE called for each child control (no subclass)
-    if (!capCallFrmResize)
-    {
-
-        xNewSize = LOWORD(lParam);
-        yNewSize = HIWORD(lParam);
-        SizeControls(bmp, hWnd, fmWd, fmHt);
-
-
-        if (!isLoading)
+        // WM_SIZE called for each child control (no subclass)
+        if (!capCallFrmResize)
         {
-            hdcWin = GetWindowDC(hWnd);
+
+            xNewSize = LOWORD(lParam);
+            yNewSize = HIWORD(lParam);
+            SizeControls(bmp, hWnd, fmWd, fmHt);
+
+
+            if (!isLoading)
+            {
+                hdcWin = GetWindowDC(hWnd);
                 if (!AdjustImage(isScreenshot, bm, bmp, gps, hdcMem, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight))
-                ReportErr(L"AdjustImage detected a problem with the image!");
-            ReleaseDC(hWnd, hdcWin);
+                    ReportErr(L"AdjustImage detected a problem with the image!");
+                ReleaseDC(hWnd, hdcWin);
 
 
-        if (fBlt)
-        fSize = TRUE;
-    // The horizontal scrolling range is defined by 
-    // (bitmap_width) - (client_width). The current horizontal 
-    // scroll value remains within the horizontal scrolling range. 
-    }
-        ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, 0, xMaxScroll, yMaxScroll, bmp, fmWd, fmHt, yTrackPos, xMinScroll, yMinScroll, xNewSize, yNewSize);
+                if (fBlt)
+                    fSize = TRUE;
+                // The horizontal scrolling range is defined by 
+                // (bitmap_width) - (client_width). The current horizontal 
+                // scroll value remains within the horizontal scrolling range. 
+            }
+            ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, 0, xMaxScroll, yMaxScroll, bmp, fmWd, fmHt, yTrackPos, xMinScroll, yMinScroll, xNewSize, yNewSize);
 
-    }
-    break;
+        }
+        break;
     }
 
     case WM_PAINT:
@@ -501,79 +501,79 @@ static UINT SMOOTHSCROLL_SPEED;
 
                 if (!groupboxFlag) // Paint sections
                 {
-                         if (xCurrentScroll < wd)
-                        {
-                            RECT rect;
-                            rect.top = prect->top;
-                            rect.bottom = prect->bottom;
-                            rect.left = prect->left;
-                            rect.right = prect->left + wd - xCurrentScroll;
-                            FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
-                            //UpdateWindow(hWnd);
-                        }
-                         /*
-                    else
-                        {
-                            if (xCurrentScroll > wd)
-                                BitBlt(ps.hdc,
-                                    prect->left, prect->top,
-                                    (prect->right - prect->left),
-                                    (prect->bottom - prect->top),
-                                    hdcScreenCompat,
-                                    prect->left + xCurrentScroll,
-                                    prect->top + yCurrentScroll,
-                                    SRCCOPY);
-                            else
-                            {
-                                BitBlt(ps.hdc,
-                                    wd - xCurrentScroll + prect->left, prect->top,
-                                    (xCurrentScroll - wd + prect->right - prect->left),
-                                    (prect->bottom - prect->top),
-                                    hdcScreenCompat,
-                                    prect->left + xCurrentScroll,
-                                    prect->top + yCurrentScroll,
-                                    SRCCOPY);
-                            }
+                    if (xCurrentScroll < wd)
+                    {
+                        RECT rect;
+                        rect.top = prect->top;
+                        rect.bottom = prect->bottom;
+                        rect.left = prect->left;
+                        rect.right = prect->left + wd - xCurrentScroll;
+                        FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
+                        //UpdateWindow(hWnd);
+                    }
+                    /*
+               else
+                   {
+                       if (xCurrentScroll > wd)
+                           BitBlt(ps.hdc,
+                               prect->left, prect->top,
+                               (prect->right - prect->left),
+                               (prect->bottom - prect->top),
+                               hdcScreenCompat,
+                               prect->left + xCurrentScroll,
+                               prect->top + yCurrentScroll,
+                               SRCCOPY);
+                       else
+                       {
+                           BitBlt(ps.hdc,
+                               wd - xCurrentScroll + prect->left, prect->top,
+                               (xCurrentScroll - wd + prect->right - prect->left),
+                               (prect->bottom - prect->top),
+                               hdcScreenCompat,
+                               prect->left + xCurrentScroll,
+                               prect->top + yCurrentScroll,
+                               SRCCOPY);
+                       }
 
-                        }
+                   }
 */
-                    /* If the window has been resized and the user has
-                   // captured the screen, use the following call to
-                   // BitBlt to paint the window's client area.
-                       x
-                       The x - coordinate, in logical units, of the upper - left corner of the destination rectangle.
-                       y
-                       The y - coordinate, in logical units, of the upper - left corner of the destination rectangle.
-                       cx
-                       The width, in logical units, of the source and destination rectangles.
-                       cy
-                       The height, in logical units, of the source and the destination rectangles.
-                       hdcSrc
-                       A handle to the source device context.
-                       x1
-                       The x - coordinate, in logical units, of the upper - left corner of the source rectangle.
-                       y1
-                       The y - coordinate, in logical units, of the upper - left corner of the source rectangle.
-                       */
+/* If the window has been resized and the user has
+// captured the screen, use the following call to
+// BitBlt to paint the window's client area.
+    x
+    The x - coordinate, in logical units, of the upper - left corner of the destination rectangle.
+    y
+    The y - coordinate, in logical units, of the upper - left corner of the destination rectangle.
+    cx
+    The width, in logical units, of the source and destination rectangles.
+    cy
+    The height, in logical units, of the source and the destination rectangles.
+    hdcSrc
+    A handle to the source device context.
+    x1
+    The x - coordinate, in logical units, of the upper - left corner of the source rectangle.
+    y1
+    The y - coordinate, in logical units, of the upper - left corner of the source rectangle.
+    */
                 }
                 fScroll = 0;
             }
             else
             {
-            if (fSize)
-            {
-                //if (!capCallFrmResize)
-                BitBlt(ps.hdc,
-                    //0, 0,
-                    -xCurrentScroll, -yCurrentScroll,
-                    bmp.bmWidth, bmp.bmHeight,
-                    isScreenshot ? hdcScreenCompat : hdcMem,
-                   0, 0,
-                    //xCurrentScroll, yCurrentScroll,
-                    SRCCOPY);
-                //UpdateWindow(hWnd);
+                if (fSize)
+                {
+                    //if (!capCallFrmResize)
+                    BitBlt(ps.hdc,
+                        //0, 0,
+                        -xCurrentScroll, -yCurrentScroll,
+                        bmp.bmWidth, bmp.bmHeight,
+                        isScreenshot ? hdcScreenCompat : hdcMem,
+                        0, 0,
+                        //xCurrentScroll, yCurrentScroll,
+                        SRCCOPY);
+                    //UpdateWindow(hWnd);
                     if (!capCallFrmResize)
-                    fSize = FALSE;
+                        fSize = FALSE;
                     if (!groupboxFlag) // Paint sections
                     {
                         if (xCurrentScroll < wd)
@@ -589,194 +589,194 @@ static UINT SMOOTHSCROLL_SPEED;
                             //UpdateWindow(hWnd);
                         }
                     }
-            }
-            else
-                if (!isLoading)
-                ReportErr(L"Cannot get here, fSize should be set...");
+                }
+                else
+                    if (!isLoading)
+                        ReportErr(L"Cannot get here, fSize should be set...");
             }
 
             EndPaint(hWnd, &ps);
         }
         else
-        RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_INTERNALPAINT);
+            RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_INTERNALPAINT);
 
-    break;
+        break;
     }
 
     case WM_HSCROLL:
     {
-    si.cbSize = sizeof(si);
-    si.fMask = SIF_TRACKPOS;
-    GetScrollInfo(hWnd, SB_HORZ, &si);
-    xTrackPos = si.nTrackPos;
-    int xDelta;     // xDelta = new_pos - current_pos  
-    int xNewPos;    // new position 
-    int yDelta = 0;
-    SetWindowOrgEx(hdcMem, wd * scaleX, 0, NULL);
+        si.cbSize = sizeof(si);
+        si.fMask = SIF_TRACKPOS;
+        GetScrollInfo(hWnd, SB_HORZ, &si);
+        xTrackPos = si.nTrackPos;
+        int xDelta;     // xDelta = new_pos - current_pos  
+        int xNewPos;    // new position 
+        int yDelta = 0;
+        SetWindowOrgEx(hdcMem, wd * scaleX, 0, NULL);
         switch (LOWORD(wParam))
         {
-        // User clicked the scroll bar shaft left of the scroll box. 
+            // User clicked the scroll bar shaft left of the scroll box. 
         case SB_PAGEUP:
-        xNewPos = xCurrentScroll - 50;
-        break;
+            xNewPos = xCurrentScroll - 50;
+            break;
 
-        // User clicked the scroll bar shaft right of the scroll box. 
+            // User clicked the scroll bar shaft right of the scroll box. 
         case SB_PAGEDOWN:
-        xNewPos = xCurrentScroll + 50;
-        break;
+            xNewPos = xCurrentScroll + 50;
+            break;
 
-        // User clicked the left arrow. 
+            // User clicked the left arrow. 
         case SB_LINEUP:
-        xNewPos = xCurrentScroll - 5;
-        break;
+            xNewPos = xCurrentScroll - 5;
+            break;
 
-        // User clicked the right arrow. 
+            // User clicked the right arrow. 
         case SB_LINEDOWN:
-        xNewPos = xCurrentScroll + 5;
-        break;
+            xNewPos = xCurrentScroll + 5;
+            break;
         case SB_THUMBTRACK:
-        xNewPos = xTrackPos;
-        break;
-         // User dragged the scroll box. 
+            xNewPos = xTrackPos;
+            break;
+            // User dragged the scroll box. 
         case SB_THUMBPOSITION:
-        xNewPos = HIWORD(wParam);
-        break;
+            xNewPos = HIWORD(wParam);
+            break;
         default:
-        xNewPos = xCurrentScroll;
+            xNewPos = xCurrentScroll;
         }
 
-    // New position must be between 0 and the screen width. 
-    xNewPos = max(0, xNewPos);
-    xNewPos = min(xMaxScroll, xNewPos);
+        // New position must be between 0 and the screen width. 
+        xNewPos = max(0, xNewPos);
+        xNewPos = min(xMaxScroll, xNewPos);
 
-    // If the current position does not change, do not scroll.
-    if (xNewPos == xCurrentScroll)
-        return 0;
-
-
-    fScroll = 1;
-
-    // Determine the amount scrolled (in pixels). 
-    xDelta = xNewPos - xCurrentScroll;
-
-    // Reset the current scroll position. 
-    xOldScroll = xCurrentScroll;
-    xCurrentScroll = xNewPos;
-
-    // Scroll the window. (The system repaints most of the 
-    // client area when ScrollWindow(Ex) is called; however, it is 
-    // necessary to call UpdateWindow in order to repaint the 
-    // rectangle of pixels that were invalidated.) 
+        // If the current position does not change, do not scroll.
+        if (xNewPos == xCurrentScroll)
+            return 0;
 
 
-    if (optChk)
-    {
-        /*
-        The following produces flicker
-        RECT rect;
-        rect.left = wd;
-        rect.top = 0;
-        rect.bottom = fmHt * scaleY;
-        rect.right = bmp.bmWidth;
-        ScrollWindow(hWnd, -xDelta, -yDelta, (CONST RECT*) NULL, &rect);
-        */
-        ScrollWindow(hWnd, -xDelta, -yDelta, (CONST RECT*) NULL, (CONST RECT*) NULL);
-    }
-    else
-    {
-        ScrollWindowEx(hWnd, -xDelta, -yDelta, (CONST RECT*) NULL,
-            (CONST RECT*) NULL, (HRGN)NULL, (PRECT)NULL, SW_SCROLLCHILDREN | SW_INVALIDATE); // SMOOTHSCROLL_FLAG fails
-        UpdateWindow(hWnd);
-    }
+        fScroll = 1;
+
+        // Determine the amount scrolled (in pixels). 
+        xDelta = xNewPos - xCurrentScroll;
+
+        // Reset the current scroll position. 
+        xOldScroll = xCurrentScroll;
+        xCurrentScroll = xNewPos;
+
+        // Scroll the window. (The system repaints most of the 
+        // client area when ScrollWindow(Ex) is called; however, it is 
+        // necessary to call UpdateWindow in order to repaint the 
+        // rectangle of pixels that were invalidated.) 
+
+
+        if (optChk)
+        {
+            /*
+            The following produces flicker
+            RECT rect;
+            rect.left = wd;
+            rect.top = 0;
+            rect.bottom = fmHt * scaleY;
+            rect.right = bmp.bmWidth;
+            ScrollWindow(hWnd, -xDelta, -yDelta, (CONST RECT*) NULL, &rect);
+            */
+            ScrollWindow(hWnd, -xDelta, -yDelta, (CONST RECT*) NULL, (CONST RECT*) NULL);
+        }
+        else
+        {
+            ScrollWindowEx(hWnd, -xDelta, -yDelta, (CONST RECT*) NULL,
+                (CONST RECT*) NULL, (HRGN)NULL, (PRECT)NULL, SW_SCROLLCHILDREN | SW_INVALIDATE); // SMOOTHSCROLL_FLAG fails
+            UpdateWindow(hWnd);
+        }
         // Reset the scroll bar. 
-    ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, 1, xMaxScroll, yMaxScroll, bmp);
+        ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, 1, xMaxScroll, yMaxScroll, bmp);
 
-    break;
+        break;
     }
 
     case WM_VSCROLL:
     {
-    si.cbSize = sizeof(si);
-    si.fMask = SIF_TRACKPOS;
-    GetScrollInfo(hWnd, SB_VERT, &si);
-    yTrackPos = si.nTrackPos;
-    int xDelta = 0;
-    int yDelta;     // yDelta = new_pos - current_pos
-    int yNewPos;    // new position
-    SetWindowOrgEx(hdcMem, 0, 0, NULL);
+        si.cbSize = sizeof(si);
+        si.fMask = SIF_TRACKPOS;
+        GetScrollInfo(hWnd, SB_VERT, &si);
+        yTrackPos = si.nTrackPos;
+        int xDelta = 0;
+        int yDelta;     // yDelta = new_pos - current_pos
+        int yNewPos;    // new position
+        SetWindowOrgEx(hdcMem, 0, 0, NULL);
 
-    switch (LOWORD(wParam))
-    {
-    case SB_BOTTOM:         //Scrolls to the lower right.
-    yNewPos = si.nMax;
-    break;
-    case SB_TOP:
-        yNewPos = si.nMin;
+        switch (LOWORD(wParam))
+        {
+        case SB_BOTTOM:         //Scrolls to the lower right.
+            yNewPos = si.nMax;
+            break;
+        case SB_TOP:
+            yNewPos = si.nMin;
+            break;
+            // User clicked the scroll bar shaft above the scroll box. 
+        case SB_PAGEUP:
+            yNewPos = yCurrentScroll - 50;
+            break;
+
+            // User clicked the scroll bar shaft below the scroll box. 
+        case SB_PAGEDOWN:
+            yNewPos = yCurrentScroll + 50;
+            break;
+
+            // User clicked the top arrow. 
+        case SB_LINEUP:
+            yNewPos = yCurrentScroll - 5;
+            break;
+
+            // User clicked the bottom arrow. 
+        case SB_LINEDOWN:
+            yNewPos = yCurrentScroll + 5;
+            break;
+        case SB_THUMBTRACK:
+            yNewPos = yTrackPos;
+            break;
+            // User dragged the scroll box. 
+        case SB_THUMBPOSITION:
+            yNewPos = HIWORD(wParam);
+            break;
+
+        default:
+            yNewPos = yCurrentScroll;
+        }
+
+        // New position must be between 0 and the screen height. 
+        yNewPos = max(0, yNewPos);
+        yNewPos = min(yMaxScroll, yNewPos);
+
+        // If the current position does not change, do not scroll.
+        if (yNewPos == yCurrentScroll)
+            return 0;
+        // Set the scroll flag to TRUE. 
+        fScroll = -1;
+
+        // Determine the amount scrolled (in pixels). 
+        yDelta = yNewPos - yCurrentScroll;
+
+        // Reset the current scroll position. 
+        yOldScroll = yCurrentScroll;
+        yCurrentScroll = yNewPos;
+
+        // Scroll the window. (The system repaints most of the 
+        // client area when ScrollWindow(Ex) is called; however, it is 
+        // necessary to call UpdateWindow in order to repaint the 
+        // rectangle of pixels that were invalidated.) 
+        if (optChk)
+            ScrollWindow(hWnd, -xDelta, -yDelta, (CONST RECT*) NULL, (CONST RECT*) NULL);
+        else
+        {
+            ScrollWindowEx(hWnd, -xDelta, -yDelta, (CONST RECT*) NULL,
+                (CONST RECT*) NULL, (HRGN)NULL, (PRECT)NULL, SW_SCROLLCHILDREN | SW_INVALIDATE); // SMOOTHSCROLL_FLAG fails
+            UpdateWindow(hWnd);
+        }
+
+        // Reset scroll bar. 
+        ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, -1, xMaxScroll, yMaxScroll, bmp);
         break;
-    // User clicked the scroll bar shaft above the scroll box. 
-    case SB_PAGEUP:
-    yNewPos = yCurrentScroll - 50;
-    break;
-
-    // User clicked the scroll bar shaft below the scroll box. 
-    case SB_PAGEDOWN:
-    yNewPos = yCurrentScroll + 50;
-    break;
-
-    // User clicked the top arrow. 
-    case SB_LINEUP:
-    yNewPos = yCurrentScroll - 5;
-    break;
-
-    // User clicked the bottom arrow. 
-    case SB_LINEDOWN:
-    yNewPos = yCurrentScroll + 5;
-    break;
-    case SB_THUMBTRACK:
-    yNewPos = yTrackPos;
-    break;
-    // User dragged the scroll box. 
-    case SB_THUMBPOSITION:
-    yNewPos = HIWORD(wParam);
-    break;
-
-    default:
-    yNewPos = yCurrentScroll;
-    }
-
-    // New position must be between 0 and the screen height. 
-    yNewPos = max(0, yNewPos);
-    yNewPos = min(yMaxScroll, yNewPos);
-
-    // If the current position does not change, do not scroll.
-    if (yNewPos == yCurrentScroll)
-        return 0;
-    // Set the scroll flag to TRUE. 
-    fScroll = -1;
-
-    // Determine the amount scrolled (in pixels). 
-    yDelta = yNewPos - yCurrentScroll;
-
-    // Reset the current scroll position. 
-    yOldScroll = yCurrentScroll;
-    yCurrentScroll = yNewPos;
-    
-    // Scroll the window. (The system repaints most of the 
-    // client area when ScrollWindow(Ex) is called; however, it is 
-    // necessary to call UpdateWindow in order to repaint the 
-    // rectangle of pixels that were invalidated.) 
-    if (optChk)
-        ScrollWindow(hWnd, -xDelta, -yDelta, (CONST RECT*) NULL, (CONST RECT*) NULL);
-    else
-    {
-        ScrollWindowEx(hWnd, -xDelta, -yDelta, (CONST RECT*) NULL,
-            (CONST RECT*) NULL, (HRGN)NULL, (PRECT)NULL, SW_SCROLLCHILDREN | SW_INVALIDATE); // SMOOTHSCROLL_FLAG fails
-        UpdateWindow(hWnd);
-    }
-
-    // Reset scroll bar. 
-    ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, -1, xMaxScroll, yMaxScroll, bmp);
-    break;
     }
     case WM_MOUSEWHEEL:
     {
@@ -834,16 +834,17 @@ static UINT SMOOTHSCROLL_SPEED;
             wcscpy_s(szFile, MAX_LOADSTRING, FileOpener(hWnd));
 
 
-                //CLSID pngClsid;
-               // GetEncoderClsid(L"image/png", &pngClsid);
+            //CLSID pngClsid;
+           // GetEncoderClsid(L"image/png", &pngClsid);
             if (szFile[0] != L'*')
             {
                 ReleaseDC(hWnd, hdcWinCl);
                 hdcWinCl = GetDCEx(hWnd, (HRGN)NULL, DCX_CACHE | DCX_CLIPCHILDREN);
-                wd = RectCl().width(1);
-                ht = RectCl().height(0);
+
+                wd = RectCl().width(2);
+                ht = RectCl().height(1);
                 const std::vector<std::vector<unsigned>>resultPixels;
-               
+
                 gps = GdipCreateBitmapFromFile(szFile, &pgpbm);
                 if (gps == Ok)
                 {
@@ -857,7 +858,7 @@ static UINT SMOOTHSCROLL_SPEED;
                     hdcMem = CreateCompatibleDC(hdcWinCl);
                     hdcWin = GetWindowDC(hWnd);
 
-                        if (!AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight))
+                    if (!AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight))
                         ReportErr(L"AdjustImage detected a problem with the image!");
                     ReleaseDC(hWnd, hdcWin);
                     if (hBitmap)
@@ -898,8 +899,8 @@ static UINT SMOOTHSCROLL_SPEED;
         hdcWinCl = GetDCEx(hWnd, (HRGN)NULL, DCX_CACHE | DCX_CLIPCHILDREN);
         hdcMem = CreateCompatibleDC(hdcWinCl);
         HBITMAP hBmp = NULL;
-        bmpWidth = (scaleX * RectCl().width(0)) - wd;
-        bmpHeight = scaleY * (RectCl().height(0));
+        bmpWidth = (scaleX * RectCl().width(1)) - wd;
+        bmpHeight = scaleY * (RectCl().height(1));
 
 
         hBmp = CreateCompatibleBitmap(hdcWinCl, bmpWidth, bmpHeight);
@@ -949,9 +950,9 @@ static UINT SMOOTHSCROLL_SPEED;
         si.nPos = xCurrentScroll;
         tmp = SetScrollInfo(hWnd, SB_HORZ, &si, TRUE);
 
-        // The vertical scrolling range is defined by 
-        // (bitmap_height) - (client_height). The current vertical 
-        // scroll value remains within the vertical scrolling range. 
+        // The vertical scrolling range is defined by
+        // (bitmap_height) - (client_height). The current vertical
+        // scroll value remains within the vertical scrolling range.
         yCurrentScroll = 0;
         si.cbSize = sizeof(si);
         si.nPos = yCurrentScroll;
@@ -959,36 +960,36 @@ static UINT SMOOTHSCROLL_SPEED;
         */
 
 
-    hdcWin = GetWindowDC(hWnd);
-    
+        hdcWin = GetWindowDC(hWnd);
+
         if (!AdjustImage(isScreenshot, bm, bmp, gps, hdcMem, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight, 1))
-        ReportErr(L"AdjustImage detected a problem with the image!");
+            ReportErr(L"AdjustImage detected a problem with the image!");
 
-    ReleaseDC(hWnd, hdcWin);
-  
-    fBlt = TRUE;
+        ReleaseDC(hWnd, hdcWin);
 
-    break;
+        fBlt = TRUE;
+
+        break;
     }
     case WM_KEYDOWN:
     {
         switch (wParam)
-        case VK_ESCAPE:
+    case VK_ESCAPE:
         {
             si.cbSize = 0;
-                if (hdcWinCl)
+            if (hdcWinCl)
                 ReleaseDC(hWnd, hdcWinCl);
             DeleteDC(hdcMem);
             DeleteObject(hbmpCompat);
             PostQuitMessage(0);
             break;
         }
-    break;
+        break;
     }
     case WM_DESTROY:
     {
         si.cbSize = 0;
-            if (hdcWinCl)
+        if (hdcWinCl)
             ReleaseDC(hWnd, hdcWinCl);
         DeleteDC(hdcMem);
         DeleteObject(hbmpCompat);
@@ -996,53 +997,56 @@ static UINT SMOOTHSCROLL_SPEED;
         break;
     }
     default:
-    return DefWindowProc(hWnd, uMsg, wParam, lParam);
+        return DefWindowProc(hWnd, uMsg, wParam, lParam);
     }
-return 0;
+    return 0;
 }
 void GetDims(HWND hWnd)
 {
-static float firstWd = 0, firstHt = 0, oldWd = 0, oldHt = 0;
-GetWindowRect(hWnd, &rcWindow);
+    static float firstWd = 0, firstHt = 0, oldWd = 0, oldHt = 0;
+
     if (oldWd)
     {
-    oldWd = wd;
-    oldHt = ht;
-    //For button
+        oldWd = wd;
+        oldHt = ht;
+        //For button
 
         if (!isLoading)
         {
-            wd = (int)(rcWindow.right - rcWindow.left) / 9;
-            ht = (int)((rcWindow.bottom - rcWindow.top)/ 9);
+            RECT recthWndtmp;
+            GetWindowRect(hWnd, &recthWndtmp);
+            wd = (int)(recthWndtmp.right - recthWndtmp.left) / 9;
+            ht = (int)(recthWndtmp.bottom - recthWndtmp.top) / 9;
         }
     }
     else
     {
+        //Init class: Must be done twice because of default window positions before WM_SIZE.
+        RECT recthWndtmp = RectCl().RectCl(0, hWnd, 0);
         if (firstWd)
         {
-            oldWd = wd = (int)(rcWindow.right - rcWindow.left) / 9;
-            oldHt = ht = (int)((rcWindow.bottom - rcWindow.top) / 9);
-
+            oldWd = wd = RectCl().width(0);
+            oldHt = ht = RectCl().height(0);
         }
         else
         {
-            firstWd = wd = (int)(rcWindow.right - rcWindow.left) / 9;
-            firstHt = ht = (int)(rcWindow.bottom - rcWindow.top / 9);
-            if (rcWindow.left < GetSystemMetrics(0) && rcWindow.bottom < GetSystemMetrics(1))
+            firstWd = wd = RectCl().width(0);
+            firstHt = ht = RectCl().height(0);
+            if (recthWndtmp.left < GetSystemMetrics(0) && recthWndtmp.bottom < GetSystemMetrics(1))
                 MoveWindow(hWnd, GetSystemMetrics(0) / 4, GetSystemMetrics(1) / 4, GetSystemMetrics(0) / 2, GetSystemMetrics(1) / 2, 1);
             else
                 ReportErr(L"Not a primary monitor: Resize unavailable.");
         }
     }
 
-oldWd? (scaleX = wd/oldWd): scaleX = 1;
-oldHt? (scaleY = ht/oldHt): scaleY = 1;
+    oldWd ? (scaleX = wd / oldWd) : scaleX = 1;
+    oldHt ? (scaleY = ht / oldHt) : scaleY = 1;
 
-/*For screen
-sizefactorX = 1, sizefactorY = 1
-sizefactorX = GetSystemMetrics(0) / (3 * wd);
-sizefactorY = GetSystemMetrics(1) / (2 * ht);
-*/
+    /*For screen
+    sizefactorX = 1, sizefactorY = 1
+    sizefactorX = GetSystemMetrics(0) / (3 * wd);
+    sizefactorY = GetSystemMetrics(1) / (2 * ht);
+    */
 }
 
 LRESULT CALLBACK staticSubClass(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
@@ -1102,24 +1106,24 @@ LRESULT CALLBACK staticSubClassButton(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 // Message handler for about box.
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
-UNREFERENCED_PARAMETER(lParam);
+    UNREFERENCED_PARAMETER(lParam);
     switch (message)
     {
     case WM_INITDIALOG:
-    return (INT_PTR)TRUE;
+        return (INT_PTR)TRUE;
 
     case WM_COMMAND:
-    if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
-    {
-    EndDialog(hDlg, LOWORD(wParam));
-    return (INT_PTR)TRUE;
+        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+        {
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+        }
+        break;
     }
-    break;
-    }
-return (INT_PTR)FALSE;
+    return (INT_PTR)FALSE;
 }
 
-wchar_t * FileOpener(HWND hWnd)
+wchar_t* FileOpener(HWND hWnd)
 {
 
     static const INITCOMMONCONTROLSEX commonCtrls =
@@ -1128,51 +1132,51 @@ wchar_t * FileOpener(HWND hWnd)
     ICC_STANDARD_CLASSES | ICC_BAR_CLASSES
     };
 
-InitCommonControlsEx(&commonCtrls);
+    InitCommonControlsEx(&commonCtrls);
 
-OPENFILENAMEW ofn;       // common dialog box structure
-wchar_t szFile[255] = { 0 };       // https://stackoverflow.com/questions/7769998/how-to-return-local-array-in-c#comment107762728_7769998
-//wchar_t* szFile = new wchar_t [255]; // not working with ofn.lpstrFile
+    OPENFILENAMEW ofn;       // common dialog box structure
+    wchar_t szFile[255] = { 0 };       // https://stackoverflow.com/questions/7769998/how-to-return-local-array-in-c#comment107762728_7769998
+    //wchar_t* szFile = new wchar_t [255]; // not working with ofn.lpstrFile
 
-// Initialize OPENFILENAME
-ZeroMemory(&ofn, sizeof(OPENFILENAMEW));
-ofn.lStructSize = sizeof(OPENFILENAMEW);
-ofn.hwndOwner = hWnd;
-ofn.lpstrFile = szFile;
-ofn.nMaxFile = sizeof(szFile);
-ofn.lpstrFilter = L"All Files (*.*)\0*.*\0JPEG\0*.jpg\0\0PNG\0*.png\0\0BMP\0*.bmp\0\0GIF\0*.gif\0";
-ofn.nFilterIndex = 1;
-ofn.lpstrFileTitle = NULL;
-ofn.nMaxFileTitle = 0;
-ofn.lpstrInitialDir = NULL;
-ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+    // Initialize OPENFILENAME
+    ZeroMemory(&ofn, sizeof(OPENFILENAMEW));
+    ofn.lStructSize = sizeof(OPENFILENAMEW);
+    ofn.hwndOwner = hWnd;
+    ofn.lpstrFile = szFile;
+    ofn.nMaxFile = sizeof(szFile);
+    ofn.lpstrFilter = L"All Files (*.*)\0*.*\0JPEG\0*.jpg\0\0PNG\0*.png\0\0BMP\0*.bmp\0\0GIF\0*.gif\0";
+    ofn.nFilterIndex = 1;
+    ofn.lpstrFileTitle = NULL;
+    ofn.nMaxFileTitle = 0;
+    ofn.lpstrInitialDir = NULL;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
 
-if (GetOpenFileNameW(&ofn) == TRUE)
-return ofn.lpstrFile;
-else
-szFile[0] = L'*';
-szFile[1] = L'\0';
-return szFile;
-    
+    if (GetOpenFileNameW(&ofn) == TRUE)
+        return ofn.lpstrFile;
+    else
+        szFile[0] = L'*';
+    szFile[1] = L'\0';
+    return szFile;
+
 }
 
 //example to use: message("test %s %d %d %d", "str", 1, 2, 3);
 void ReportErr(const wchar_t* format, ...)
 {
     if (!format)
-    return;
-int len;
-wchar_t* buf;
-va_list args;
-va_start(args, format);
+        return;
+    int len;
+    wchar_t* buf;
+    va_list args;
+    va_start(args, format);
 
-len = _vscwprintf(format, args) + 1;  //add room for terminating '\0'
-buf = (wchar_t*)malloc(len * sizeof(wchar_t));
-vswprintf_s(buf, len, format, args);
+    len = _vscwprintf(format, args) + 1;  //add room for terminating '\0'
+    buf = (wchar_t*)malloc(len * sizeof(wchar_t));
+    vswprintf_s(buf, len, format, args);
 
-MessageBoxW(0, buf, L"Error", 0);
-//OutputDebugStringA(buf);
-free(buf);
+    MessageBoxW(0, buf, L"Error", 0);
+    //OutputDebugStringA(buf);
+    free(buf);
 }
 
 void PrintWindow(HWND hWnd, HBITMAP& hBmp)
@@ -1275,17 +1279,17 @@ std::vector<std::vector<unsigned>> getPixels(Gdiplus::Bitmap bitmap, int& width,
 }
 BOOL bitmapFromPixels(Bitmap& myBitmap, const std::vector<std::vector<unsigned>>resultPixels, int width, int height)
 {
-// Possible usage:
-//HPALETTE hpal;
-//GdipCreateBitmapFromHBITMAP(hBmp, hpal, &pgpbm);
-//Bitmap ctlBitmap(wd,  ht, PixelFormat32bppARGB);
-//bitmapFromPixels(ctlBitmap, resultPixels, wd, ht);
+    // Possible usage:
+    //HPALETTE hpal;
+    //GdipCreateBitmapFromHBITMAP(hBmp, hpal, &pgpbm);
+    //Bitmap ctlBitmap(wd,  ht, PixelFormat32bppARGB);
+    //bitmapFromPixels(ctlBitmap, resultPixels, wd, ht);
 
-    //consider MAX_ARRAY_LENGTH;
+        //consider MAX_ARRAY_LENGTH;
 
 
 
-   // auto* bitmapData = new Gdiplus::BitmapData;
+       // auto* bitmapData = new Gdiplus::BitmapData;
 
 
     BitmapData bitmapData;
@@ -1334,7 +1338,7 @@ char* VecToArr(std::vector<std::vector<unsigned>> vec)
 
 
 
-BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcScreen,HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, BOOL newScrShot)
+BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, BOOL newScrShot)
 {
 
     BOOL retVal = FALSE;
@@ -1344,8 +1348,8 @@ BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, H
     if (hBmpObj && GetObject(hBmpObj, sizeof(BITMAP), &bm)) //bm => BITMAP structure
     {
         //bm.biBitCount = 32;
-        bmpWidth = bm.bmWidth *( (isScreenshot) ? 1 : scaleX);
-        bmpHeight = bm.bmHeight *( (isScreenshot) ? 1 : scaleY);
+        bmpWidth = bm.bmWidth * ((isScreenshot) ? 1 : scaleX);
+        bmpHeight = bm.bmHeight * ((isScreenshot) ? 1 : scaleY);
     }
     else
         ReportErr(L"Unable to size bitmap!");
@@ -1369,7 +1373,7 @@ BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, H
             // Copy the compatible DC to the client area.
             //retVal = (BOOL)BitBlt(hdcWinCl, wd, 0, bmp.bmWidth, bmp.bmHeight, hdcScreenCompat, 0, 0, SRCCOPY); //Blt at zero method causes problems with horz scrolling
             if (retVal)
-            retVal = (BOOL)BitBlt(hdcWinCl, wd, 0, bmp.bmWidth, bmp.bmHeight, hdcScreenCompat, wd, 0, SRCCOPY); //Blt at wd method
+                retVal = (BOOL)BitBlt(hdcWinCl, wd, 0, bmp.bmWidth, bmp.bmHeight, hdcScreenCompat, wd, 0, SRCCOPY); //Blt at wd method
         }
     }
     else
@@ -1392,32 +1396,37 @@ BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, H
 void SizeControls(BITMAP bmp, HWND hWnd, UINT& fmWd, UINT& fmHt, int offsetX, int offsetY)
 {
     //Get updated rect for the form
-    RECT recthWndtmp = RectCl().RectCl(0, hWnd, 0);
-    fmWd = recthWndtmp.right - recthWndtmp.left;
-    fmHt = recthWndtmp.bottom - recthWndtmp.top;
+    fmWd = RectCl().width(1);
+    fmHt = RectCl().height(1);
+    int minWd = RectCl().width(0);
+    int minHt = RectCl().height(0);
     GetDims(hWnd);
 
-    RECT rectBtmp = RectCl().RectCl(hWndButton, hWnd, 1);
+    RECT rectBtmp = RectCl().RectCl(hWndButton, hWnd, 2);
     GetClientRect(hWndButton, &rectB);
     //rectB.top += BOX_HEIGHT;
-    SetWindowPos(hWndButton, NULL, scaleX * (rectBtmp.left) + offsetX, scaleY * rectBtmp.top + offsetY,
-        scaleX * (rectB.right - rectB.left), scaleY * (rectB.bottom - rectB.top), NULL);
-
-    if (groupboxFlag)
+    if ((rectB.right - rectB.left) >= minWd && (rectB.bottom - rectB.top) >= minHt) // button size determines scale
     {
-        SetWindowPos(hWndGroupBox, NULL, offsetX, offsetY,
-            scaleX * (rectB.right - rectB.left), scaleY * (bmp.bmHeight), NULL);
-    }
+        SetWindowPos(hWndButton, NULL, scaleX * (rectBtmp.left) + offsetX, scaleY * rectBtmp.top + offsetY,
+            scaleX * (rectB.right - rectB.left), scaleY * (rectB.bottom - rectB.top), NULL);
 
-    RECT rectOpt1tmp = RectCl().RectCl(hWndOpt1, hWnd, 2);
-    GetClientRect(hWndOpt1, &rectO1);
-    //Extra edging for the wd - 2
-    SetWindowPos(hWndOpt1, NULL, scaleX * (rectOpt1tmp.left) + offsetX, scaleY * (rectOpt1tmp.top) + offsetY,
-        scaleX * (rectB.right - rectB.left - 2), scaleY * (rectO1.bottom - rectO1.top), NULL);
-    RECT rectOpt2tmp = RectCl().RectCl(hWndOpt2, hWnd, 3);
-    GetClientRect(hWndOpt2, &rectO2);
-    SetWindowPos(hWndOpt2, NULL, scaleX * (rectOpt2tmp.left) + offsetX, scaleY * (rectOpt2tmp.top) + offsetY,
-        scaleX * (rectB.right - rectB.left - 2), scaleY * (rectO2.bottom - rectO2.top), NULL);
+        if (groupboxFlag)
+        {
+            //if ((rectB.bottom - rectB.top) > fmHt)
+            SetWindowPos(hWndGroupBox, NULL, offsetX, offsetY,
+                scaleX * (rectB.right - rectB.left), scaleY * (bmp.bmHeight), NULL);
+        }
+
+        RECT rectOpt1tmp = RectCl().RectCl(hWndOpt1, hWnd, 3);
+        GetClientRect(hWndOpt1, &rectO1);
+        //Extra edging for the wd - 2
+        SetWindowPos(hWndOpt1, NULL, scaleX * (rectOpt1tmp.left) + offsetX, scaleY * (rectOpt1tmp.top) + offsetY,
+            scaleX * (rectB.right - rectB.left - 2), scaleY * (rectO1.bottom - rectO1.top), NULL);
+        RECT rectOpt2tmp = RectCl().RectCl(hWndOpt2, hWnd, 4);
+        GetClientRect(hWndOpt2, &rectO2);
+        SetWindowPos(hWndOpt2, NULL, scaleX * (rectOpt2tmp.left) + offsetX, scaleY * (rectOpt2tmp.top) + offsetY,
+            scaleX * (rectB.right - rectB.left - 2), scaleY * (rectO2.bottom - rectO2.top), NULL);
+    }
 }
 void ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollXorY, int& xMaxScroll, int& yMaxScroll, BITMAP& bmp, UINT fmWd, UINT fmHt, int yTrackPos, int xMinScroll, int yMinScroll, int xNewSize, int yNewSize)
 {
@@ -1449,8 +1458,8 @@ void ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollX
                 ShowScrollBar(hWnd, SB_HORZ, FALSE);
                 //si.fMask = SIF_DISABLENOSCROLL;
                 if (IsThemeActive())
-                     SetWindowTheme(hWnd, NULL, _T("Scrollbar"));
-             }
+                    SetWindowTheme(hWnd, NULL, _T("Scrollbar"));
+            }
         }
         SetScrollInfo(hWnd, SB_HORZ, &si, TRUE);
     }
@@ -1483,9 +1492,9 @@ void ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollX
             {
                 ShowScrollBar(hWnd, SB_VERT, FALSE);
                 if (IsThemeActive())
-                     SetWindowTheme(hWnd, NULL, _T("Scrollbar"));
-                    //RedrawWindow(hWnd, NULL, NULL, RDW_FRAME | RDW_INVALIDATE | RDW_UPDATENOW);
-             }
+                    SetWindowTheme(hWnd, NULL, _T("Scrollbar"));
+                //RedrawWindow(hWnd, NULL, NULL, RDW_FRAME | RDW_INVALIDATE | RDW_UPDATENOW);
+            }
         }
     }
     SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
