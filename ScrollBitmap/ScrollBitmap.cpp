@@ -47,8 +47,8 @@ BOOL bitmapFromPixels(Bitmap& myBitmap, const std::vector<std::vector<unsigned>>
 float DoSysInfo(HWND hWnd, bool progLoad);
 char* VecToArr(std::vector<std::vector<unsigned>> vec);
 BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, BOOL newScrShot = FALSE);
-void SizeControls(BITMAP bmp, HWND hWnd, UINT& fmWd, UINT& fmHt, int offsetx = 0, int offsetY = 0);
-void ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollXorY, int& xMaxScroll, int& yMaxScroll, BITMAP& bmp, UINT fmWd = 0, UINT fmHt = 0, int yTrackPos = 0, int xMinScroll = 0, int yMinScroll = 0, int xNewSize = 0, int yNewSize = 0);
+void SizeControls(BITMAP bmp, HWND hWnd, UINT& defFmWd, UINT& defFmHt, int scrollOffsetX = 0, int scrollOffsetY = 0);
+void ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollXorY, int& xMaxScroll, int& yMaxScroll, BITMAP& bmp, UINT defFmWd = 0, UINT defFmHt = 0, int yTrackPos = 0, int xMinScroll = 0, int yMinScroll = 0, int xNewSize = 0, int yNewSize = 0);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
@@ -184,8 +184,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     static BITMAP bmp;          // bitmap data structure 
     static UINT bmpWidth = 0;
     static UINT bmpHeight = 0;
-    static UINT fmHt = 0;
-    static UINT fmWd = 0;
+    static UINT defFmHt = 0;
+    static UINT defFmWd = 0;
     static BOOL fBlt;           // TRUE if BitBlt occurred 
     static int fScroll;             // 1 if horz scrolling, -1 vert scrolling, 0 for WM_SIZE
     static BOOL fSize;          // TRUE if fBlt & WM_SIZE 
@@ -222,13 +222,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         si.cbSize = 0;
         SMOOTHSCROLL_SPEED = 0X00000002;
         ulScrollLines = 0;
-        RECT recthWndtmp = RectCl().RectCl(0, hWnd, 1);
-        fmWd = recthWndtmp.right - recthWndtmp.left;
-        fmHt = recthWndtmp.bottom - recthWndtmp.top;
-
+       
         GetDims(hWnd);
         GdiplusInit gdiplusinit;
-
+        RECT recthWndtmp = RectCl().RectCl(0, hWnd, 1);
+        defFmWd = RectCl().width(1);
+        defFmHt = RectCl().height(1);
         if (groupboxFlag)
         {
 
@@ -236,7 +235,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 TEXT(""),
                 WS_VISIBLE | WS_CHILD | BS_GROUPBOX | WS_CLIPSIBLINGS, //consider  WS_CLIPCHILDREN
                 // also MSDN: Do not combine the BS_OWNERDRAW style with any other button styles!
-                0, 0, wd, fmHt,
+                0, 0, wd, defFmHt,
                 hWnd,
                 (HMENU)IDC_GROUPBOX,
                 GetModuleHandle(NULL),
@@ -277,8 +276,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             (HINSTANCE)NULL, NULL);
         SendMessage(hWndOpt1, BM_SETCHECK, BST_CHECKED, 0);
 
-
-
+   
 
 
 
@@ -381,7 +379,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         }
         else
         {
-            //capCallFrmResize++;
+            capCallFrmResize++;
             fScroll = 0;
             fSize = TRUE;
         }
@@ -392,12 +390,15 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         if (wParam == IDT_DRAGWINDOW)
         {
             KillTimer(hWnd, IDT_DRAGWINDOW);
-            SizeControls(bmp, hWnd, fmWd, fmHt);
-            hdcWin = GetWindowDC(hWnd);
-            AdjustImage(isScreenshot, bm, bmp, gps, hdcMem, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight);
-            //ReportErr(L"AdjustImage detected a problem with the image!");
-            ReleaseDC(hWnd, hdcWin);
-            capCallFrmResize = 0;
+            if (TRUE)
+            {
+                SizeControls(bmp, hWnd, defFmWd, defFmHt);
+                hdcWin = GetWindowDC(hWnd);
+                AdjustImage(isScreenshot, bm, bmp, gps, hdcMem, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight);
+                //ReportErr(L"AdjustImage detected a problem with the image!");
+                ReleaseDC(hWnd, hdcWin);
+                capCallFrmResize = 0;
+            }
         }
     }
     break;
@@ -434,12 +435,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     {
 
         // WM_SIZE called for each child control (no subclass)
-        if (!capCallFrmResize)
+        if (TRUE) //!capCallFrmResize
         {
 
             xNewSize = LOWORD(lParam);
             yNewSize = HIWORD(lParam);
-            SizeControls(bmp, hWnd, fmWd, fmHt);
+            SizeControls(bmp, hWnd, defFmWd, defFmHt);
 
 
             if (!isLoading)
@@ -456,7 +457,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 // (bitmap_width) - (client_width). The current horizontal 
                 // scroll value remains within the horizontal scrolling range. 
             }
-            ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, 0, xMaxScroll, yMaxScroll, bmp, fmWd, fmHt, yTrackPos, xMinScroll, yMinScroll, xNewSize, yNewSize);
+            ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, 0, xMaxScroll, yMaxScroll, bmp, defFmWd, defFmHt, yTrackPos, xMinScroll, yMinScroll, xNewSize, yNewSize);
 
         }
         break;
@@ -676,7 +677,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             RECT rect;
             rect.left = wd;
             rect.top = 0;
-            rect.bottom = fmHt * scaleY;
+            rect.bottom = defFmHt * scaleY;
             rect.right = bmp.bmWidth;
             ScrollWindow(hWnd, -xDelta, -yDelta, (CONST RECT*) NULL, &rect);
             */
@@ -927,9 +928,9 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         ReleaseDC(hWnd, hdcWinCl);
         hdcWinCl = GetDCEx(hWnd, (HRGN)NULL, DCX_CACHE | DCX_CLIPCHILDREN);
 
-        SizeControls(bmp, hWnd, fmWd, fmHt, xCurrentScroll, yCurrentScroll);
+        SizeControls(bmp, hWnd, defFmWd, defFmHt, xCurrentScroll, yCurrentScroll);
         xCurrentScroll ? fScroll = 1 : fScroll = -1;
-        ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, 0, xMaxScroll, yMaxScroll, bmp, fmWd, fmHt, yTrackPos, xMinScroll, yMinScroll, xNewSize, yNewSize);
+        ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, 0, xMaxScroll, yMaxScroll, bmp, defFmWd, defFmHt, yTrackPos, xMinScroll, yMinScroll, xNewSize, yNewSize);
 
         xCurrentScroll = 0;
         yCurrentScroll = 0;
@@ -1393,42 +1394,104 @@ BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, H
     return retVal;
 }
 
-void SizeControls(BITMAP bmp, HWND hWnd, UINT& fmWd, UINT& fmHt, int offsetX, int offsetY)
+void SizeControls(BITMAP bmp, HWND hWnd, UINT& defFmWd, UINT& defFmHt, int scrollOffsetX, int scrollOffsetY)
 {
     //Get updated rect for the form
-    fmWd = RectCl().width(1);
-    fmHt = RectCl().height(1);
+    
+    static int defopt1Top = 0;
+    static int defopt2Top = 0;
+
+
+    RECT recthWndtmp = RectCl().RectCl(0, hWnd, 1);
+    int curFmWd = RectCl().width(1);
+    int curFmHt = RectCl().height(1);
     int minWd = RectCl().width(0);
     int minHt = RectCl().height(0);
     GetDims(hWnd);
 
+    if (ht > 10 && !defopt1Top)
+    {
+        defopt1Top = ht + 10;
+        defopt2Top = 2 * ht;
+    }
+
     RECT rectBtmp = RectCl().RectCl(hWndButton, hWnd, 2);
     GetClientRect(hWndButton, &rectB);
+    int btnWd = rectB.right - rectB.left;
+    int btnHt = rectB.bottom - rectB.top;
     //rectB.top += BOX_HEIGHT;
-    if ((rectB.right - rectB.left) >= minWd && (rectB.bottom - rectB.top) >= minHt) // button size determines scale
+    if (btnWd >= minWd && btnHt >= minHt) // button size determines scale
     {
-        SetWindowPos(hWndButton, NULL, scaleX * (rectBtmp.left) + offsetX, scaleY * rectBtmp.top + offsetY,
-            scaleX * (rectB.right - rectB.left), scaleY * (rectB.bottom - rectB.top), NULL);
+        int newHt = scaleY * btnHt;
+        //Extra edging for the wd - 2
+        int newEdgeWd = scaleX * (btnWd - 2);
+        int newWd = scaleX * btnWd;
+        int newEdgeHt = scaleY * (btnHt - 2);
 
-        if (groupboxFlag)
+        if (newWd < minWd)
         {
-            //if ((rectB.bottom - rectB.top) > fmHt)
-            SetWindowPos(hWndGroupBox, NULL, offsetX, offsetY,
-                scaleX * (rectB.right - rectB.left), scaleY * (bmp.bmHeight), NULL);
+            newEdgeWd = minWd - 2;
+            newWd = minWd;
+        }
+        else
+        {
+            if (curFmWd < defFmWd)
+            {
+                newEdgeWd = minWd - 2;
+                newWd = minWd;
+            }
+        }
+        if (newHt < minHt)
+        {
+            newEdgeHt = btnHt - 2;
+            newHt = minHt;
+        }
+        else
+        {
+            if (curFmHt < defFmHt)
+            {
+                newEdgeHt = minHt - 2;
+                newHt = minHt;
+            }
         }
 
-        RECT rectOpt1tmp = RectCl().RectCl(hWndOpt1, hWnd, 3);
-        GetClientRect(hWndOpt1, &rectO1);
-        //Extra edging for the wd - 2
-        SetWindowPos(hWndOpt1, NULL, scaleX * (rectOpt1tmp.left) + offsetX, scaleY * (rectOpt1tmp.top) + offsetY,
-            scaleX * (rectB.right - rectB.left - 2), scaleY * (rectO1.bottom - rectO1.top), NULL);
-        RECT rectOpt2tmp = RectCl().RectCl(hWndOpt2, hWnd, 4);
-        GetClientRect(hWndOpt2, &rectO2);
-        SetWindowPos(hWndOpt2, NULL, scaleX * (rectOpt2tmp.left) + offsetX, scaleY * (rectOpt2tmp.top) + offsetY,
-            scaleX * (rectB.right - rectB.left - 2), scaleY * (rectO2.bottom - rectO2.top), NULL);
+        SetWindowPos(hWndButton, NULL, scaleX * rectBtmp.left + scrollOffsetX, scaleY * rectBtmp.top + scrollOffsetY,
+                newWd, newHt, NULL);
+
+            if (groupboxFlag)
+            {
+                //if ((rectB.bottom - rectB.top) > defFmHt)
+                SetWindowPos(hWndGroupBox, NULL, scrollOffsetX, scrollOffsetY,
+                    newWd, bmp.bmHeight, NULL);
+            }
+
+            RECT rectOpt1tmp = RectCl().RectCl(hWndOpt1, hWnd, 3);
+            GetClientRect(hWndOpt1, &rectO1);
+            int opt1Ht = rectO1.bottom - rectO1.top;
+            if (scaleY * opt1Ht < minHt / 2)
+                opt1Ht = minHt / (2 * scaleY);
+
+            rectOpt1tmp.top *= scaleY;
+            if (rectOpt1tmp.top < defopt1Top)
+                rectOpt1tmp.top = defopt1Top;
+
+            SetWindowPos(hWndOpt1, NULL, scaleX * (rectOpt1tmp.left) + scrollOffsetX, rectOpt1tmp.top + scrollOffsetY,
+                newEdgeWd, opt1Ht, NULL);
+            
+            RECT rectOpt2tmp = RectCl().RectCl(hWndOpt2, hWnd, 4);
+            GetClientRect(hWndOpt2, &rectO2);
+            int opt2Ht = rectO2.bottom - rectO2.top;
+            if (scaleY * opt2Ht < minHt / 2)
+                opt2Ht = minHt / (2 * scaleY);
+            rectOpt2tmp.top *= scaleY;
+            if (rectOpt2tmp.top < defopt2Top)
+                rectOpt2tmp.top = defopt2Top;
+
+            SetWindowPos(hWndOpt2, NULL, scaleX * (rectOpt2tmp.left) + scrollOffsetX, rectOpt2tmp.top + scrollOffsetY,
+                newEdgeWd, opt2Ht, NULL);
     }
 }
-void ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollXorY, int& xMaxScroll, int& yMaxScroll, BITMAP& bmp, UINT fmWd, UINT fmHt, int yTrackPos, int xMinScroll, int yMinScroll, int xNewSize, int yNewSize)
+void ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollXorY, int& xMaxScroll, int& yMaxScroll, BITMAP& bmp, UINT defFmWd, UINT defFmHt, int yTrackPos, int xMinScroll, int yMinScroll, int xNewSize, int yNewSize)
 {
     si.cbSize = sizeof(si);
     si.nPos = xCurrentScroll;
@@ -1442,7 +1505,7 @@ void ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollX
     {
         if (!scrollXorY)
         {
-            if (!isLoading && bmp.bmWidth > fmWd)
+            if (!isLoading && bmp.bmWidth > defFmWd)
             {
                 ShowScrollBar(hWnd, SB_HORZ, TRUE);
                 xMaxScroll = max(bmp.bmWidth - xNewSize, 0);
@@ -1474,7 +1537,7 @@ void ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollX
     {
         if (!scrollXorY)
         {
-            if (!isLoading && bmp.bmHeight > fmHt)
+            if (!isLoading && bmp.bmHeight > defFmHt)
             {
                 ShowScrollBar(hWnd, SB_VERT, TRUE);
                 yMaxScroll = max(bmp.bmHeight - yNewSize, 0);
@@ -1483,7 +1546,7 @@ void ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollX
                 si.nMin = yMinScroll;
                 int x = GetSystemMetrics(21);
                 si.nMax = bmp.bmHeight;
-                //si.nMax = bmp.bmHeight + ((bmp.bmWidth > fmWd)? GetSystemMetrics(21) : 0);
+                //si.nMax = bmp.bmHeight + ((bmp.bmWidth > defFmWd)? GetSystemMetrics(21) : 0);
                 si.nPage = yNewSize;
                 si.nPos = yCurrentScroll;
                 si.nTrackPos = yTrackPos;
