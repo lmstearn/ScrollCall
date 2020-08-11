@@ -46,8 +46,7 @@ typedef struct BitmapData {
 };
 */
 // Gdiplus
-using namespace Gdiplus;
-using namespace Gdiplus::DllExports;
+
 using std::runtime_error;
 ULONG_PTR gdiplusToken;
 
@@ -55,14 +54,14 @@ struct GdiplusInit
 {
     GdiplusInit()
     {
-        GdiplusStartupInput inp;
-        GdiplusStartupOutput outp;
-        if (Ok != GdiplusStartup(&token_, &inp, &outp))
+        Gdiplus::GdiplusStartupInput inp;
+        Gdiplus::GdiplusStartupOutput outp;
+        if (Gdiplus::Ok != Gdiplus::GdiplusStartup(&token_, &inp, &outp))
             throw runtime_error("GdiplusStartup");
     }
     ~GdiplusInit() // Destructor
     {
-        GdiplusShutdown(token_);
+        Gdiplus::GdiplusShutdown(token_);
     }
 private:
     ULONG_PTR token_;
