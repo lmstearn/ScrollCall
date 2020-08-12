@@ -46,7 +46,7 @@ void PrintWindow(HWND hWnd, HBITMAP& hBmp);
 BOOL bitmapFromPixels(Bitmap& myBitmap, const std::vector<std::vector<unsigned>>resultPixels, int width, int height);
 float DoSysInfo(HWND hWnd, bool progLoad);
 char* VecToArr(std::vector<std::vector<unsigned>> vec);
-BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, BOOL newScrShot = FALSE);
+BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, BOOL newScrShot = FALSE, BOOL maxMin = FALSE);
 void GetDims(HWND hWnd, int resizeType = 0);
 void SizeControls(BITMAP bmp, HWND hWnd, UINT& defFmWd, UINT& defFmHt, int resizeType = -1, int scrollOffsetX = 0, int scrollOffsetY = 0);
 void ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollXorY, int& xMaxScroll, int& yMaxScroll, int bmpWidth, int bmpHeight, UINT defFmWd = 0, UINT defFmHt = 0, int yTrackPos = 0, int xMinScroll = 0, int yMinScroll = 0, int xNewSize = 0, int yNewSize = 0);
@@ -464,7 +464,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             if (!isLoading)
             {
                 hdcWin = GetWindowDC(hWnd);
-                if (!AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight))
+                if (!AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight, 0 , (wParam != SIZE_RESTORED)))
                     ReportErr(L"AdjustImage detected a problem with the image!");
                 ReleaseDC(hWnd, hdcWin);
 
@@ -594,7 +594,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                         //0, 0,
                         -xCurrentScroll, -yCurrentScroll,
                         bmp.bmWidth, bmp.bmHeight,
-                        hdcScreenCompat,
+                        hdcWinCl,
                         0, 0,
                         //xCurrentScroll, yCurrentScroll,
                         SRCCOPY);
@@ -1005,10 +1005,10 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         tmp = SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
         */
 
-
+        hdcMem = CreateCompatibleDC(hdcWinCl);
         hdcWin = GetWindowDC(hWnd);
 
-        if (!AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight, 1))
+        if (!AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight, 1, 0))
             ReportErr(L"AdjustImage detected a problem with the image!");
         xCurrentScroll ? fScroll = 1 : fScroll = -1;
         ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, 0, xMaxScroll, yMaxScroll, bmpWidth, bmpHeight, defFmWd, defFmHt, yTrackPos, xMinScroll, yMinScroll, xNewSize, yNewSize);
@@ -1337,8 +1337,9 @@ char* VecToArr(std::vector<std::vector<unsigned>> vec)
 
 
 
-BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, BOOL newScrShot)
+BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, BOOL newScrShot, BOOL maxMin)
 {
+    static int oldWd = 0;
 
     BOOL retVal = FALSE;
 
@@ -1365,14 +1366,26 @@ BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, H
         if (retVal)
         {
             if (newScrShot)
+            {
                 retVal = StretchBlt(hdcScreenCompat, wd, 0, bmpWidth - wd,
                     bmpHeight, hdcScreen, 0, 0, bmpWidth, bmpHeight, SRCCOPY);
+                if (retVal)
+                    retVal = (BOOL)BitBlt(hdcWinCl, wd, 0, bmpWidth, bmpHeight, hdcScreenCompat, wd, 0, SRCCOPY); //Blt at wd method
+                oldWd = wd;
+            }
+            else
+            {
+                if (maxMin)
+                    retVal = StretchBlt(hdcWinCl, wd, 0, bmpWidth,
+                        bmpHeight, hdcScreenCompat, oldWd, 0, bmpWidth, bmpHeight, SRCCOPY);
+                else
+                    if (retVal)
+                    retVal = (BOOL)BitBlt(hdcWinCl, wd, 0, bmpWidth, bmpHeight, hdcScreenCompat, oldWd, 0, SRCCOPY); //Blt at wd method
+            }
             //retVal = (BOOL)BitBlt(hdcScreenCompat, wd, 0, bmp.bmWidth,
                 //bmp.bmHeight, hdcScreen, 0, 0, SRCCOPY);
             // Copy the compatible DC to the client area.
             //retVal = (BOOL)BitBlt(hdcWinCl, wd, 0, bmp.bmWidth, bmp.bmHeight, hdcScreenCompat, 0, 0, SRCCOPY); //Blt at zero method causes problems with horz scrolling
-            if (retVal)
-                retVal = (BOOL)BitBlt(hdcWinCl, wd, 0, bmpWidth, bmpHeight, hdcScreenCompat, wd, 0, SRCCOPY); //Blt at wd method
         }
     }
     else
