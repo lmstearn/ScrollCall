@@ -2,6 +2,7 @@
 RECT RectCl::rectOut1 = {};
 RECT RectCl::rectOut2 = {};
 RECT RectCl::rectOut3 = {};
+RECT RectCl::rectOut4 = {};
 HWND RectCl::ownerHwnd = 0;
 RECT RectCl::initRectOwnerHwnd = {};
 RECT RectCl::rectOwnerHwnd = {};
@@ -28,8 +29,8 @@ wchar_t* szFile = nullptr;
 float scrAspect = 0, scaleX = 1, scaleY = 1, resX = 0, resY = 0;
 // wd, ht: button dims
 int tmp = 0, wd = 0, ht = 0, capCallFrmResize = 0;
-HWND hWndGroupBox = 0, hWndButton = 0, hWndOpt1 = 0, hWndOpt2 = 0;
-BOOL optChk = TRUE, groupboxFlag = FALSE, isLoading = TRUE;
+HWND hWndGroupBox = 0, hWndButton = 0, hWndOpt1 = 0, hWndOpt2 = 0, hWndChk = 0;
+BOOL optChk = TRUE, chkChk = FALSE, groupboxFlag = FALSE, isLoading = TRUE;
 
 
 // Forward declarations of functions included in this code module:
@@ -43,8 +44,8 @@ wchar_t* FileOpener(HWND hWnd);
 void ReportErr(const wchar_t* format, ...);
 void PrintWindow(HWND hWnd, HBITMAP& hBmp);
 //Functions for later use
-BOOL bitmapFromPixels(Bitmap& myBitmap, const std::vector<std::vector<unsigned>>resultPixels, int width, int height);
-float DoSysInfo(HWND hWnd, bool progLoad);
+BOOL BitmapFromPixels(Bitmap& myBitmap, const std::vector<std::vector<unsigned>>resultPixels, int width, int height);
+void DoSysInfo();
 char* VecToArr(std::vector<std::vector<unsigned>> vec);
 BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcMemIn, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, BOOL resizePic = FALSE, BOOL maxMin = FALSE);
 void GetDims(HWND hWnd, int resizeType = 0);
@@ -134,7 +135,10 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
     int msgboxID = MessageBoxW(NULL, L"Use GroupBox?", L"GroupBox", MB_YESNOCANCEL | MB_ICONQUESTION);
     if (msgboxID == IDYES)
+    {
         groupboxFlag = TRUE;
+        DoSysInfo();
+    }
     else
     {
         if (msgboxID == IDCANCEL)
@@ -169,16 +173,15 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 //
 LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    HDC hdc;
-    PAINTSTRUCT ps;
+
 
     // These variables are required by BitBlt. 
-
 
     static HBITMAP hBitmap = { 0 };
     static GpStatus gps = { };
 
 
+    static HDC hdc; // for WM_PAINT
     static HDC hdcWin;            // DC for window
     static HDC hdcWinCl;            // client area of DC for window
     static HDC hdcMem;            // Mem DC
@@ -287,6 +290,15 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         SendMessage(hWndOpt1, BM_SETCHECK, BST_CHECKED, 0);
 
 
+        hWndChk = CreateWindowEx(WS_EX_WINDOWEDGE,
+            L"BUTTON",
+            L"Stretch",
+            WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX | BS_CENTER,  // Styles 
+            2, 3 * ht,
+            wd - 2, ht / 2,
+            hWnd,
+            (HMENU)IDC_CHK,
+            (HINSTANCE)NULL, NULL);
 
 
 
@@ -442,7 +454,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         KillTimer(hWnd, IDT_DRAGWINDOW);
         SizeControls(bmp, hWnd, defFmWd, defFmHt, END_SIZE_MOVE);
         hdcWin = GetWindowDC(hWnd);
-        AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight);
+        AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight, chkChk, 0);
         //ReportErr(L"AdjustImage detected a problem with the image!");
         ReleaseDC(hWnd, hdcWin);
     }
@@ -464,7 +476,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             if (!isLoading)
             {
                 hdcWin = GetWindowDC(hWnd);
-                if (!AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight, 1 , (wParam != SIZE_RESTORED)))
+                if (!AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight, chkChk, (wParam != SIZE_RESTORED)))
                     ReportErr(L"AdjustImage detected a problem with the image!");
                 ReleaseDC(hWnd, hdcWin);
 
@@ -867,6 +879,13 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             // Also BST_INDETERMINATE, BST_UNCHECKED
             break;
         }
+         case IDC_CHK:
+        {
+            if (wmEvent == BN_CLICKED)
+                chkChk = (SendMessage((HWND)lParam, BM_GETCHECK, 0, 0) == BST_CHECKED);
+            // Also BST_INDETERMINATE, BST_UNCHECKED
+            break;
+        }
         case ID_OPENBITMAP:
         {
             //https://social.msdn.microsoft.com/Forums/sqlserver/en-US/76441f64-a7f2-4483-ad6d-f51b40464d6b/how-to-get-both-width-and-height-of-bitmap-in-gdiplus-flat-api?forum=windowsgeneraldevelopmentissues
@@ -1210,155 +1229,22 @@ void PrintWindow(HWND hWnd, HBITMAP& hBmp)
     SelectObject(hDCMem, hOld);
     DeleteObject(hDCMem);
 }
-//**************************************************************
-// Functions for possible later use
-//**************************************************************
-float DoSysInfo(HWND hWnd, bool progLoad)
+void DoSysInfo()
 {
 
     HMONITOR hMon = MonitorFromWindow(GetDesktopWindow(), MONITOR_DEFAULTTOPRIMARY);
     MONITORINFO monInfo;
     monInfo.cbSize = sizeof(MONITORINFO);
 
+
     if (GetMonitorInfoW(hMon, &monInfo))
     {
-        resX = (float)abs(monInfo.rcMonitor.right - monInfo.rcMonitor.left);
-        resY = (float)abs(monInfo.rcMonitor.top - monInfo.rcMonitor.bottom);
-        tmp = (int)(9 * resX / resY);
-        //scale factors
-        resX = resX / DESIGNSCRX;
-        resY = resY / DESIGNSCRY;
-        if (abs(1 - resX) < 0.1)
-            resX = 1;
-        if (abs(1 - resY) < 0.1)
-            resY = 1;
-
-        if (tmp <= FOURTHREEVID)
-            tmp = FOURTHREEVID;
-        else
-        {
-            if (tmp <= WIDESCREENVID)
-                tmp = WIDESCREENVID;
-            else
-            {
-                if (tmp <= UNIVISIUM)
-                    tmp = UNIVISIUM;
-                else
-                    tmp = ULTRAWIDEVID;
-            }
-        }
-        return (float)tmp / 9;
+        if (monInfo.dwFlags != MONITORINFOF_PRIMARY)
+            ReportErr(L"ScrollCall has bot been fully tested on a secondary monitor!.");
     }
     else
-    {
         ReportErr(L"GetMonitorInfo: Cannot get info.");
-    }
-    return 0;
 }
-//https://stackoverflow.com/a/39654760/2128797
-std::vector<std::vector<unsigned>> getPixels(Gdiplus::Bitmap bitmap, int& width, int& height) {
-
-
-    //Pass up the width and height, as these are useful for accessing pixels in the vector o' vectors.
-    width = bitmap.GetWidth();
-    height = bitmap.GetHeight();
-
-    auto* bitmapData = new Gdiplus::BitmapData;
-
-    //Lock the whole bitmap so we can read pixel data easily.
-    Gdiplus::Rect rect(0, 0, width, height);
-    bitmap.LockBits(&rect, Gdiplus::ImageLockModeRead, PixelFormat32bppARGB, bitmapData);
-
-    //Get the individual pixels from the locked area.
-    auto* pixels = static_cast<unsigned*>(bitmapData->Scan0);
-
-    //Vector of vectors; each vector is a column.
-    std::vector<std::vector<unsigned>> resultPixels(width, std::vector<unsigned>(height));
-
-    const int stride = abs(bitmapData->Stride);
-    for (int x = 0; x < width; x++) {
-        for (int y = 0; y < height; y++) {
-            //Get the pixel colour from the pixels array which we got earlier.
-            const unsigned pxColor = pixels[y * stride / 4 + x];
-
-            //Get each individual colour component. Bitmap colours are in reverse order.
-            const unsigned red = (pxColor & 0xFF0000) >> 16;
-            const unsigned green = (pxColor & 0xFF00) >> 8;
-            const unsigned blue = pxColor & 0xFF;
-
-            //Combine the values in a more typical RGB format (as opposed to the bitmap way).
-            const int rgbValue = RGB(red, green, blue);
-
-            //Assign this RGB value to the pixel location in the vector o' vectors.
-            resultPixels[x][y] = rgbValue;
-        }
-    }
-
-    //Unlock the bits that we locked before.
-    bitmap.UnlockBits(bitmapData);
-    return resultPixels;
-}
-BOOL bitmapFromPixels(Bitmap& myBitmap, const std::vector<std::vector<unsigned>>resultPixels, int width, int height)
-{
-    // Possible usage:
-    //HPALETTE hpal;
-    //GdipCreateBitmapFromHBITMAP(hBmp, hpal, &pgpbm);
-    //Bitmap ctlBitmap(wd,  ht, PixelFormat32bppARGB);
-    //bitmapFromPixels(ctlBitmap, resultPixels, wd, ht);
-
-        //consider MAX_ARRAY_LENGTH;
-
-
-
-       // auto* bitmapData = new Gdiplus::BitmapData;
-
-
-    BitmapData bitmapData;
-    bitmapData.Width = width,
-        bitmapData.Height = height,
-        bitmapData.Stride = 4 * bitmapData.Width;
-    bitmapData.PixelFormat = PixelFormat32bppARGB;
-    bitmapData.Scan0 = (VOID*)VecToArr(resultPixels);
-    bitmapData.Reserved = NULL;
-
-
-    Gdiplus::Rect rect(0, 0, width, height);
-    myBitmap.LockBits(&rect, Gdiplus::ImageLockModeWrite | ImageLockModeUserInputBuf, PixelFormat32bppARGB, &bitmapData);
-    myBitmap.UnlockBits(&bitmapData);
-
-    return TRUE;
-}
-
-char* VecToArr(std::vector<std::vector<unsigned>> vec)
-{
-    std::size_t totalsize = 0;
-    // if totalsize > MAX_ARRAY_LENGTH
-
-    for (int i = 0; i < vec.size(); i++)
-        totalsize += vec[i].size();
-
-    int* newarr = new int[totalsize];
-    char* bytes = new char[totalsize];
-    int* newarr_ptr_copy = newarr;
-
-    for (int i = 0; i < vec.size(); i++)
-    {
-        std::copy(vec[i].begin(), vec[i].end(), newarr_ptr_copy);
-        newarr_ptr_copy += vec[i].size();
-
-    }
-    for (int i = 0; i < totalsize; i++)
-        //std::copy(static_cast<const char*>(static_cast<const void*>(&newarr[i])),
-        //static_cast<const char*>(static_cast<const void*>(&newarr[i])) + sizeof newarr[i],
-        //bytes);
-        bytes[i] = (char)newarr[i];
-
-
-    return bytes;
-}
-
-
-
 BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcMemIn, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, BOOL resizePic, BOOL maxMin)
 {
     static int oldWd = 0;
@@ -1370,8 +1256,8 @@ BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, H
     if (hBmpObj && GetObject(hBmpObj, sizeof(BITMAP), &bm)) //bm => BITMAP structure
     {
         //bm.biBitCount = 32;
-        bmpWidth = (isScreenshot) ? bmp.bmWidth: (bmpWidth);
-        bmpHeight = (isScreenshot) ? bmp.bmHeight: (bmpHeight);
+        bmpWidth = (isScreenshot) ? bmp.bmWidth : (bmpWidth);
+        bmpHeight = (isScreenshot) ? bmp.bmHeight : (bmpHeight);
     }
     else
         ReportErr(L"Unable to size bitmap!");
@@ -1402,7 +1288,7 @@ BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, H
                         bmpHeight, hdcScreenCompat, oldWd, 0, bmpWidth, bmpHeight, SRCCOPY);
                 else
                     if (retVal)
-                    retVal = (BOOL)BitBlt(hdcWinCl, wd, 0, bmpWidth, bmpHeight, hdcScreenCompat, oldWd, 0, SRCCOPY); //Blt at wd method
+                        retVal = (BOOL)BitBlt(hdcWinCl, wd, 0, bmpWidth, bmpHeight, hdcScreenCompat, oldWd, 0, SRCCOPY); //Blt at wd method
             }
             //retVal = (BOOL)BitBlt(hdcScreenCompat, wd, 0, bmp.bmWidth,
                 //bmp.bmHeight, hdcScreen, 0, 0, SRCCOPY);
@@ -1414,23 +1300,23 @@ BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, H
     {
         if (retVal)
         {
-              if (resizePic)
+            if (resizePic)
             {
-                  //retVal = (int)SelectObject(hdcMem, hBitmap);
-                  HBITMAP hBmp = CreateCompatibleBitmap(hdcWinCl, bmpWidth + wd, bmpHeight);
-                  //retVal = (int)SelectObject(hdcMem, hBmpObj);
-                  retVal = (int)SelectObject(hdcMem, hBmp);
+                //retVal = (int)SelectObject(hdcMem, hBitmap);
+                HBITMAP hBmp = CreateCompatibleBitmap(hdcWinCl, bmpWidth + wd, bmpHeight);
+                //retVal = (int)SelectObject(hdcMem, hBmpObj);
+                retVal = (int)SelectObject(hdcMem, hBmp);
 
-                  // In later calls, hBitmap goes out of scope, so better handling is required
-                      if (hBitmap)
-                      retVal = (int)SelectObject(hdcMemIn, hBitmap);
-                  if (!retVal || (retVal == (int)HGDI_ERROR))
-                      ReportErr(L"Cannot use bitmap!");
-                  retVal = (BOOL)BitBlt(hdcMem, wd, 0, bmpWidth, bmpHeight, hdcMemIn, 0, 0, SRCCOPY); //Blt at wd method
+                // In later calls, hBitmap goes out of scope, so better handling is required
+                if (hBitmap)
+                    retVal = (UINT64)SelectObject(hdcMemIn, hBitmap);
+                if (!retVal || (retVal == (BOOL)HGDI_ERROR))
+                    ReportErr(L"Cannot use bitmap!");
+                retVal = (BOOL)BitBlt(hdcMem, wd, 0, bmpWidth, bmpHeight, hdcMemIn, 0, 0, SRCCOPY); //Blt at wd method
 
-                  //retVal = StretchBlt(hdcMem, wd, 0, bmpWidth - wd, bmpHeight, hdcMemIn, 0, 0, bmpWidth, bmpHeight, SRCCOPY);
+                //retVal = StretchBlt(hdcMem, wd, 0, bmpWidth - wd, bmpHeight, hdcMemIn, 0, 0, bmpWidth, bmpHeight, SRCCOPY);
                 if (retVal)
-                    retVal = (BOOL)BitBlt(hdcWinCl, 0, 0, bmpWidth +wd, bmpHeight, hdcMem, 0, 0, SRCCOPY); //Blt at wd method
+                    retVal = (BOOL)BitBlt(hdcWinCl, 0, 0, bmpWidth + wd, bmpHeight, hdcMem, 0, 0, SRCCOPY); //Blt at wd method
                 oldWd = wd;
                 DeleteObject(hBmp);
             }
@@ -1444,7 +1330,7 @@ BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, H
                         retVal = (BOOL)BitBlt(hdcWinCl, wd, 0, bmpWidth, bmpHeight, hdcMem, oldWd, 0, SRCCOPY); //Blt at wd method
             }
         }
- 
+
     }
 
     return retVal;
@@ -1461,7 +1347,7 @@ void GetDims(HWND hWnd, int resizeType)
         {
             if (resizeType == START_SIZE_MOVE)
             {
-                savedWd= oldWd;
+                savedWd = oldWd;
                 savedHt = oldHt;
             }
             else
@@ -1530,18 +1416,18 @@ void GetDims(HWND hWnd, int resizeType)
     }
     break;
     case SIZE_MAXIMIZED:
-        {
-            scaleX = wd / oldWd;
-            scaleY = ht / oldHt;
-        }
-        break;
+    {
+        scaleX = wd / oldWd;
+        scaleY = ht / oldHt;
+    }
+    break;
     default:
-        {
-                scaleX = oldWd / wd;
-                scaleY = oldHt / ht;
-                 wd = oldWd;
-                 ht = oldHt;
-        }
+    {
+        scaleX = oldWd / wd;
+        scaleY = oldHt / ht;
+        wd = oldWd;
+        ht = oldHt;
+    }
 
 
     }
@@ -1554,13 +1440,13 @@ void GetDims(HWND hWnd, int resizeType)
 
 void SizeControls(BITMAP bmp, HWND hWnd, UINT& defFmWd, UINT& defFmHt, int resizeType, int scrollOffsetX, int scrollOffsetY)
 {
-    int opt1Ht = 0, opt2Ht = 0, btnWd = 0, btnHt = 0, curFmWd = 0, curFmHt = 0;
+    int opt1Ht = 0, opt2Ht = 0, opt3Ht = 0, btnWd = 0, btnHt = 0, curFmWd = 0, curFmHt = 0;
     int newHt = 0, newEdgeWd = 0, newWd = 0, newEdgeHt = 0;
 
 
     static int oldResizeType = 0, oldFmWd = 0, oldFmHt = 0;
-    static int defOpt1Top = 0, defOpt2Top = 0, oldOpt1Top = 0, oldOpt2Top = 0;
-    static int minWd = 0, minHt = 0, startSizeWd = 0, startSizeHt = 0, startSizeOpt1Top = 0, startSizeOpt2Top = 0;
+    static int defOpt1Top = 0, defOpt2Top = 0, defOpt3Top = 0, oldOpt1Top = 0, oldOpt2Top = 0, oldOpt3Top = 0;
+    static int minWd = 0, minHt = 0, startSizeWd = 0, startSizeHt = 0, startSizeOpt1Top = 0, startSizeOpt2Top = 0, startSizeOpt3Top = 0;
     if (!minWd)
     {
         minWd = RectCl().width(0);
@@ -1572,31 +1458,34 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT& defFmWd, UINT& defFmHt, int resiz
         resizeType = MAX_TO_MIN;
 
     //Get updated rect for the form
-    RECT rectB, rectO1, rectO2;
-    RECT rectOpt1tmp = {}, rectOpt2tmp = {}, rectBtmp;
+    RECT rectB, rect01, rect02, rect03;
+    RECT rect0pt1tmp = {}, rect0pt2tmp = {}, rect0pt3tmp = {}, rectBtmp;
 
     RECT recthWndtmp = RectCl().RectCl(0, hWnd, 1);
     curFmWd = RectCl().width(1);
     curFmHt = RectCl().height(1);
-        GetDims(hWnd, resizeType);
+    GetDims(hWnd, resizeType);
 
 
     if ((ht > 10) && !defOpt1Top)
     {
         defOpt1Top = ht + 10;
         defOpt2Top = 2 * ht;
+        defOpt3Top = 3 * ht;
     }
 
     rectBtmp = RectCl().RectCl(hWndButton, hWnd, 2);
-    rectOpt1tmp = RectCl().RectCl(hWndOpt1, hWnd, 3);
-    rectOpt2tmp = RectCl().RectCl(hWndOpt2, hWnd, 4);
+    rect0pt1tmp = RectCl().RectCl(hWndOpt1, hWnd, 3);
+    rect0pt2tmp = RectCl().RectCl(hWndOpt2, hWnd, 4);
+    rect0pt3tmp = RectCl().RectCl(hWndChk, hWnd, 5);
 
     if (resizeType == END_SIZE_MOVE)
     {
         btnWd = startSizeWd;
         btnHt = startSizeHt;
-        rectOpt1tmp.top = startSizeOpt1Top;
-        rectOpt2tmp.top = startSizeOpt2Top;
+        rect0pt1tmp.top = startSizeOpt1Top;
+        rect0pt2tmp.top = startSizeOpt2Top;
+        rect0pt3tmp.top = startSizeOpt3Top;
     }
     else
     {
@@ -1608,8 +1497,9 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT& defFmWd, UINT& defFmHt, int resiz
         {
             startSizeWd = max(btnWd, minWd);
             startSizeHt = max(btnHt, minHt);
-            startSizeOpt1Top = max (rectOpt1tmp.top, defOpt1Top);
-            startSizeOpt2Top = max(rectOpt2tmp.top, defOpt2Top);
+            startSizeOpt1Top = max(rect0pt1tmp.top, defOpt1Top);
+            startSizeOpt2Top = max(rect0pt2tmp.top, defOpt2Top);
+            startSizeOpt3Top = max(rect0pt3tmp.top, defOpt3Top);
             return;
         }
 
@@ -1663,73 +1553,109 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT& defFmWd, UINT& defFmHt, int resiz
                 newWd, bmp.bmHeight, NULL);
         }
 
-        GetClientRect(hWndOpt1, &rectO1);
-        opt1Ht = scaleY * (rectO1.bottom - rectO1.top);
+        GetClientRect(hWndOpt1, &rect01);
+        opt1Ht = scaleY * (rect01.bottom - rect01.top);
         if (opt1Ht < minHt / 2)
             opt1Ht = minHt / 2;
 
         if (resizeType == SIZE_RESTORED)
         {
             if (curFmHt >= defFmHt)
-                (oldOpt1Top) ? (rectOpt1tmp.top = oldOpt1Top * ((oldResizeType == SIZE_RESTORED) ? scaleY : 1)) : (rectOpt1tmp.top *= scaleY);
+                (oldOpt1Top) ? (rect0pt1tmp.top = oldOpt1Top * ((oldResizeType == SIZE_RESTORED) ? scaleY : 1)) : (rect0pt1tmp.top *= scaleY);
             else
-                rectOpt1tmp.top = oldOpt1Top;
+                rect0pt1tmp.top = oldOpt1Top;
         }
         else
         {
-            rectOpt1tmp.top *= scaleY;
+            rect0pt1tmp.top *= scaleY;
         }
 
 
-        if (rectOpt1tmp.top < defOpt1Top)
-            rectOpt1tmp.top = defOpt1Top;
+        if (rect0pt1tmp.top < defOpt1Top)
+            rect0pt1tmp.top = defOpt1Top;
 
-        SetWindowPos(hWndOpt1, NULL, scaleX * (rectOpt1tmp.left) + scrollOffsetX, rectOpt1tmp.top + scrollOffsetY,
+        SetWindowPos(hWndOpt1, NULL, scaleX * (rect0pt1tmp.left) + scrollOffsetX, rect0pt1tmp.top + scrollOffsetY,
             newEdgeWd, opt1Ht, NULL);
 
 
 
-        GetClientRect(hWndOpt2, &rectO2);
-
-
+        GetClientRect(hWndOpt2, &rect02);
 
         if (resizeType == SIZE_RESTORED)
         {
-            opt2Ht = scaleY * (rectOpt2tmp.bottom - rectOpt2tmp.top);
+            opt2Ht = scaleY * (rect0pt2tmp.bottom - rect0pt2tmp.top);
             if (curFmHt >= defFmHt)
-                (oldOpt2Top) ? (rectOpt2tmp.top = oldOpt2Top * ((oldResizeType == SIZE_RESTORED) ? scaleY : 1)) : (rectOpt2tmp.top *= scaleY);
+                (oldOpt2Top) ? (rect0pt2tmp.top = oldOpt2Top * ((oldResizeType == SIZE_RESTORED) ? scaleY : 1)) : (rect0pt2tmp.top *= scaleY);
             else
-                rectOpt2tmp.top = oldOpt2Top;
+                rect0pt2tmp.top = oldOpt2Top;
         }
         else
         {
-            opt2Ht = scaleY * (rectO2.bottom - rectO2.top);
-            rectOpt2tmp.top *= scaleY;
+            opt2Ht = scaleY * (rect02.bottom - rect02.top);
+            rect0pt2tmp.top *= scaleY;
         }
 
 
         if (opt2Ht < minHt / 2)
             opt2Ht = minHt / 2;
 
-        if (rectOpt2tmp.top < defOpt2Top)
-            rectOpt2tmp.top = defOpt2Top;
+        if (rect0pt2tmp.top < defOpt2Top)
+            rect0pt2tmp.top = defOpt2Top;
 
-        SetWindowPos(hWndOpt2, NULL, scaleX * (rectOpt2tmp.left) + scrollOffsetX, rectOpt2tmp.top + scrollOffsetY,
+        SetWindowPos(hWndOpt2, NULL, scaleX * (rect0pt2tmp.left) + scrollOffsetX, rect0pt2tmp.top + scrollOffsetY,
             newEdgeWd, opt2Ht, NULL);
+
+
+
+
+            GetClientRect(hWndChk, &rect03);
+
+        if (resizeType == SIZE_RESTORED)
+        {
+            opt3Ht = scaleY * (rect0pt3tmp.bottom - rect0pt3tmp.top);
+            if (curFmHt >= defFmHt)
+                (oldOpt3Top) ? (rect0pt3tmp.top = oldOpt3Top * ((oldResizeType == SIZE_RESTORED) ? scaleY : 1)) : (rect0pt3tmp.top *= scaleY);
+            else
+                rect0pt3tmp.top = oldOpt3Top;
+        }
+        else
+        {
+            opt3Ht = scaleY * (rect03.bottom - rect03.top);
+            rect0pt3tmp.top *= scaleY;
+        }
+
+
+        if (opt3Ht < minHt / 2)
+            opt3Ht = minHt / 2;
+
+        if (rect0pt3tmp.top < defOpt3Top)
+            rect0pt3tmp.top = defOpt3Top;
+
+        SetWindowPos(hWndChk, NULL, scaleX * (rect0pt3tmp.left) + scrollOffsetX, rect0pt3tmp.top + scrollOffsetY,
+            newEdgeWd, opt3Ht, NULL);
+
+
+
+
+
+
+
+
+
     }
- 
+
 
     if (resizeType == SIZE_RESTORED)
     {
         oldFmWd = curFmWd;
         oldFmHt = curFmHt;
-        oldOpt1Top = rectOpt1tmp.top;
-        oldOpt2Top = rectOpt2tmp.top;
+        oldOpt1Top = rect0pt1tmp.top;
+        oldOpt2Top = rect0pt2tmp.top;
     }
 
     oldResizeType = resizeType;
 }
-int ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollXorY, int& xMaxScroll, int& yMaxScroll, int bmpWidth , int bmpHeight, UINT defFmWd, UINT defFmHt, int yTrackPos, int xMinScroll, int yMinScroll, int xNewSize, int yNewSize)
+int ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollXorY, int& xMaxScroll, int& yMaxScroll, int bmpWidth, int bmpHeight, UINT defFmWd, UINT defFmHt, int yTrackPos, int xMinScroll, int yMinScroll, int xNewSize, int yNewSize)
 {
     int retVal = 0;
     si.cbSize = sizeof(si);
@@ -1820,7 +1746,7 @@ int ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollXo
     }
 
 }
-BOOL Kleenup(HWND hWnd, HBITMAP &hBitmap,HBITMAP & hbmpCompat, GpBitmap* &pgpbm, HDC &hdcMem, HDC &hdcMemIn, HDC & hdcWinCl)
+BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcWinCl)
 {
     if (hdcWinCl)
         ReleaseDC(hWnd, hdcWinCl);
@@ -1837,3 +1763,110 @@ BOOL Kleenup(HWND hWnd, HBITMAP &hBitmap,HBITMAP & hbmpCompat, GpBitmap* &pgpbm,
     DestroyWindow(hWnd);
     return true;
 }
+//**************************************************************
+// Functions for possible later use
+//**************************************************************
+//https://stackoverflow.com/a/39654760/2128797
+std::vector<std::vector<unsigned>> getPixels(Gdiplus::Bitmap bitmap, int& width, int& height) {
+
+
+    //Pass up the width and height, as these are useful for accessing pixels in the vector o' vectors.
+    width = bitmap.GetWidth();
+    height = bitmap.GetHeight();
+
+    auto* bitmapData = new Gdiplus::BitmapData;
+
+    //Lock the whole bitmap so we can read pixel data easily.
+    Gdiplus::Rect rect(0, 0, width, height);
+    bitmap.LockBits(&rect, Gdiplus::ImageLockModeRead, PixelFormat32bppARGB, bitmapData);
+
+    //Get the individual pixels from the locked area.
+    auto* pixels = static_cast<unsigned*>(bitmapData->Scan0);
+
+    //Vector of vectors; each vector is a column.
+    std::vector<std::vector<unsigned>> resultPixels(width, std::vector<unsigned>(height));
+
+    const int stride = abs(bitmapData->Stride);
+    for (int x = 0; x < width; x++) {
+        for (int y = 0; y < height; y++) {
+            //Get the pixel colour from the pixels array which we got earlier.
+            const unsigned pxColor = pixels[y * stride / 4 + x];
+
+            //Get each individual colour component. Bitmap colours are in reverse order.
+            const unsigned red = (pxColor & 0xFF0000) >> 16;
+            const unsigned green = (pxColor & 0xFF00) >> 8;
+            const unsigned blue = pxColor & 0xFF;
+
+            //Combine the values in a more typical RGB format (as opposed to the bitmap way).
+            const int rgbValue = RGB(red, green, blue);
+
+            //Assign this RGB value to the pixel location in the vector o' vectors.
+            resultPixels[x][y] = rgbValue;
+        }
+    }
+
+    //Unlock the bits that we locked before.
+    bitmap.UnlockBits(bitmapData);
+    return resultPixels;
+}
+BOOL BitmapFromPixels(Bitmap& myBitmap, const std::vector<std::vector<unsigned>>resultPixels, int width, int height)
+{
+    // Possible usage:
+    //HPALETTE hpal;
+    //GdipCreateBitmapFromHBITMAP(hBmp, hpal, &pgpbm);
+    //Bitmap ctlBitmap(wd,  ht, PixelFormat32bppARGB);
+    //BitmapFromPixels(ctlBitmap, resultPixels, wd, ht);
+
+        //consider MAX_ARRAY_LENGTH;
+
+
+
+       // auto* bitmapData = new Gdiplus::BitmapData;
+
+
+    BitmapData bitmapData;
+    bitmapData.Width = width,
+        bitmapData.Height = height,
+        bitmapData.Stride = 4 * bitmapData.Width;
+    bitmapData.PixelFormat = PixelFormat32bppARGB;
+    bitmapData.Scan0 = (VOID*)VecToArr(resultPixels);
+    bitmapData.Reserved = NULL;
+
+
+    Gdiplus::Rect rect(0, 0, width, height);
+    myBitmap.LockBits(&rect, Gdiplus::ImageLockModeWrite | ImageLockModeUserInputBuf, PixelFormat32bppARGB, &bitmapData);
+    myBitmap.UnlockBits(&bitmapData);
+
+    return TRUE;
+}
+
+char* VecToArr(std::vector<std::vector<unsigned>> vec)
+{
+    std::size_t totalsize = 0;
+    // if totalsize > MAX_ARRAY_LENGTH
+
+    for (int i = 0; i < vec.size(); i++)
+        totalsize += vec[i].size();
+
+    int* newarr = new int[totalsize];
+    char* bytes = new char[totalsize];
+    int* newarr_ptr_copy = newarr;
+
+    for (int i = 0; i < vec.size(); i++)
+    {
+        std::copy(vec[i].begin(), vec[i].end(), newarr_ptr_copy);
+        newarr_ptr_copy += vec[i].size();
+
+    }
+    for (int i = 0; i < totalsize; i++)
+        //std::copy(static_cast<const char*>(static_cast<const void*>(&newarr[i])),
+        //static_cast<const char*>(static_cast<const void*>(&newarr[i])) + sizeof newarr[i],
+        //bytes);
+        bytes[i] = (char)newarr[i];
+
+
+    return bytes;
+}
+
+
+

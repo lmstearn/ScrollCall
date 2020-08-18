@@ -16,7 +16,8 @@
 #define ID_OPENBITMAP			50
 #define IDC_OPT1			51
 #define IDC_OPT2			52
-#define IDC_GROUPBOX	53
+#define IDC_CHK			53
+#define IDC_GROUPBOX	54
 #define START_SIZE_MOVE			16
 #define END_SIZE_MOVE			12
 #define MAX_TO_MIN			8
