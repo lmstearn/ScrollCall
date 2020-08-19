@@ -47,7 +47,7 @@ void PrintWindow(HWND hWnd, HBITMAP& hBmp);
 BOOL BitmapFromPixels(Bitmap& myBitmap, const std::vector<std::vector<unsigned>>resultPixels, int width, int height);
 void DoSysInfo();
 char* VecToArr(std::vector<std::vector<unsigned>> vec);
-BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcMemIn, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, BOOL resizePic = FALSE, BOOL maxMin = FALSE);
+BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcMemIn, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, int xCurrentScroll, BOOL resizePic = FALSE, BOOL maxMin = FALSE);
 void GetDims(HWND hWnd, int resizeType = 0);
 void SizeControls(BITMAP bmp, HWND hWnd, UINT& defFmWd, UINT& defFmHt, int resizeType = -1, int scrollOffsetX = 0, int scrollOffsetY = 0);
 int ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollXorY, int& xMaxScroll, int& yMaxScroll, int bmpWidth, int bmpHeight, UINT defFmWd = 0, UINT defFmHt = 0, int yTrackPos = 0, int xMinScroll = 0, int yMinScroll = 0, int xNewSize = 0, int yNewSize = 0);
@@ -454,8 +454,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         KillTimer(hWnd, IDT_DRAGWINDOW);
         SizeControls(bmp, hWnd, defFmWd, defFmHt, END_SIZE_MOVE);
         hdcWin = GetWindowDC(hWnd);
-        AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight, chkChk, 0);
-        //ReportErr(L"AdjustImage detected a problem with the image!");
+        if (!AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight, 0, chkChk, 0));
+        ReportErr(L"AdjustImage detected a problem with the image!");
         ReleaseDC(hWnd, hdcWin);
     }
     return 0;
@@ -476,7 +476,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             if (!isLoading)
             {
                 hdcWin = GetWindowDC(hWnd);
-                if (!AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight, chkChk, (wParam != SIZE_RESTORED)))
+                if (!AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight, 0, chkChk, (wParam != SIZE_RESTORED)))
                     ReportErr(L"AdjustImage detected a problem with the image!");
                 ReleaseDC(hWnd, hdcWin);
 
@@ -665,8 +665,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         int yDelta = 0;
 
             //hdcMem already adjusted for control
-            if (isScreenshot)
-            SetWindowOrgEx(hdcMem, wd * scaleX, 0, NULL);
+            //if (isScreenshot)
+            //SetWindowOrgEx(hdcScreenCompat, wd * scaleX, 0, NULL);
         switch (LOWORD(wParam))
         {
             // User clicked the scroll bar shaft left of the scroll box. 
@@ -757,7 +757,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         int xDelta = 0;
         int yDelta;     // yDelta = new_pos - current_pos
         int yNewPos;    // new position
-        SetWindowOrgEx(hdcMem, 0, 0, NULL);
+
 
         switch (LOWORD(wParam))
         {
@@ -930,7 +930,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     hdcMem = CreateCompatibleDC(hdcWinCl);
                     hdcWin = GetWindowDC(hWnd);
                     isScreenshot = FALSE;
-                    if (!AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight, 1, 0))
+                    if (!AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight, xCurrentScroll, 1, 0))
                         ReportErr(L"AdjustImage detected a problem with the image!");
                     //SizeControls(bmp, hWnd, defFmWd, defFmHt, -1, xCurrentScroll, yCurrentScroll);
                     xCurrentScroll ? fScroll = 1 : fScroll = -1;
@@ -956,7 +956,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                         fScroll = 0;
                     break;
                     }
-                    if (!AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight))
+                    if (!AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight, xCurrentScroll))
                         ReportErr(L"AdjustImage detected a problem with the image!");
 
                     
@@ -1048,17 +1048,35 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
         hdcWin = GetWindowDC(hWnd);
 
-        if (!AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight, 1, 0))
+        if (!AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight, xCurrentScroll, 1, 0))
             ReportErr(L"AdjustImage detected a problem with the image!");
         xCurrentScroll ? fScroll = 1 : fScroll = -1;
+        scrollStat = SetWindowOrgEx(hdcWinCl, -xCurrentScroll, yCurrentScroll, NULL);
+        //xCurrentScroll = 0;
+        //yCurrentScroll = 0;
         ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, 0, xMaxScroll, yMaxScroll, bmpWidth, bmpHeight, defFmWd, defFmHt, yTrackPos, xMinScroll, yMinScroll, xNewSize, yNewSize);
 
-        xCurrentScroll = 0;
-        yCurrentScroll = 0;
+
+        switch (scrollStat)
+        {
+        case 1:
+            SetScrollPos(hWnd, SB_HORZ, xCurrentScroll, TRUE);
+            break;
+        case 2:
+            SetScrollPos(hWnd, SB_VERT, yCurrentScroll, TRUE);
+            break;
+        case 3:
+        {
+            SetScrollPos(hWnd, SB_HORZ, xCurrentScroll, TRUE);
+            SetScrollPos(hWnd, SB_VERT, yCurrentScroll, TRUE);
+        }
+        break;
+        default:
+        break;
+        }
+
         //SetWindowOrgEx(hdcWinCl, xCurrentScroll, yCurrentScroll, NULL);
 
-
-        SetScrollPos(hWnd, SB_BOTH, 0, TRUE);
 
         ReleaseDC(hWnd, hdcWin);
         fSize = FALSE;
@@ -1245,7 +1263,7 @@ void DoSysInfo()
     else
         ReportErr(L"GetMonitorInfo: Cannot get info.");
 }
-BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcMemIn, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, BOOL resizePic, BOOL maxMin)
+BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcMemIn, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, int xCurrentScroll, BOOL resizePic, BOOL maxMin)
 {
     static int oldWd = 0;
 
@@ -1256,8 +1274,8 @@ BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, H
     if (hBmpObj && GetObject(hBmpObj, sizeof(BITMAP), &bm)) //bm => BITMAP structure
     {
         //bm.biBitCount = 32;
-        bmpWidth = (isScreenshot) ? bmp.bmWidth : (bmpWidth);
-        bmpHeight = (isScreenshot) ? bmp.bmHeight : (bmpHeight);
+        bmpWidth = (isScreenshot) ? bmp.bmWidth : bmpWidth;
+        bmpHeight = (isScreenshot) ? bmp.bmHeight : bmpHeight;
     }
     else
         ReportErr(L"Unable to size bitmap!");
@@ -1278,7 +1296,7 @@ BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, H
                 retVal = StretchBlt(hdcScreenCompat, wd, 0, bmpWidth - wd,
                     bmpHeight, hdcScreen, 0, 0, bmpWidth, bmpHeight, SRCCOPY);
                 if (retVal)
-                    retVal = (BOOL)BitBlt(hdcWinCl, wd, 0, bmpWidth, bmpHeight, hdcScreenCompat, wd, 0, SRCCOPY); //Blt at wd method
+                    retVal = (BOOL)BitBlt(hdcWinCl, (xCurrentScroll)? wd - xCurrentScroll: wd, 0, bmpWidth, bmpHeight, hdcScreenCompat, wd, 0, SRCCOPY); //Blt at wd method
                 oldWd = wd;
             }
             else
