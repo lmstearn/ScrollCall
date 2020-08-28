@@ -20,8 +20,9 @@ using namespace Gdiplus;
 using namespace Gdiplus::DllExports;
 
 
-// Global Variables: static can be also applied these, although not generally recommended
-SCROLLINFO si = { 0 };
+// Global Variables: static can be also applied to these, although not generally recommended
+SCROLLINFO siHORZ = { 0 };
+SCROLLINFO siVERT = { 0 };
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // Title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
@@ -52,7 +53,7 @@ void DoSysInfo();
 char* VecToArr(std::vector<std::vector<unsigned>> vec);
 BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC hdcMem, HDC hdcMemIn, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWin, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, int xCurrentScroll, int resizePic = 0, BOOL maxMin = FALSE);
 void GetDims(HWND hWnd, int resizeType = 0);
-void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeType = -1, int scrollOffsetX = -1, int scrollOffsetY = -1);
+void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeType = -1, int scrollOffsetX = -1, int scrollOffsetY = -1, int xNewSize = 0, int yNewSize = 0);
 int ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollXorY, int& xMaxScroll, int& yMaxScroll, int bmpWidth, int bmpHeight, UINT defFmWd = 0, UINT defFmHt = 0, int yTrackPos = 0, int xMinScroll = 0, int yMinScroll = 0, int xNewSize = 0, int yNewSize = 0);
 BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcWinCl);
 
@@ -75,6 +76,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     // Perform application initialization:
     if (!InitInstance(hInstance, nCmdShow))
         return FALSE;
+
 
 
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SCROLLBITMAP));
@@ -148,7 +150,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
             return 0;
     }
 
-    HWND m_hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW | (groupboxFlag ? NULL : WS_CLIPCHILDREN),
+    HWND m_hWnd = CreateWindowW(szWindowClass, szTitle, WS_HSCROLL | WS_VSCROLL | WS_OVERLAPPEDWINDOW | (groupboxFlag ? NULL : WS_CLIPCHILDREN),
         CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
     // Old style
     //SetWindowTheme(m_hWnd, L" ", L" ");
@@ -235,7 +237,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     {
         timDragWindow = 1;
         // Start Gdiplus
-        si.cbSize = 0;
+        siHORZ.cbSize = 0;
+        siVERT.cbSize = 0;
         SMOOTHSCROLL_SPEED = 0X00000002;
         ulScrollLines = 0;
 
@@ -505,7 +508,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
             xNewSize = LOWORD(lParam);
             yNewSize = HIWORD(lParam);
-            SizeControls(bmp, hWnd, defFmWd, defFmHt, wParam);
+            SizeControls(bmp, hWnd, defFmWd, defFmHt, wParam, xCurrentScroll, yCurrentScroll, xNewSize, yNewSize);
 
 
             if (!isLoading)
@@ -690,10 +693,10 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         break;
     case WM_HSCROLL:
     {
-        si.cbSize = sizeof(si);
-        si.fMask = SIF_TRACKPOS;
-        GetScrollInfo(hWnd, SB_HORZ, &si);
-        xTrackPos = si.nTrackPos;
+        siHORZ.cbSize = sizeof(siHORZ);
+        siHORZ.fMask = SIF_TRACKPOS;
+        GetScrollInfo(hWnd, SB_HORZ, &siHORZ);
+        xTrackPos = siHORZ.nTrackPos;
         int xDelta;     // xDelta = new_pos - current_pos  
         int xNewPos;    // new position 
         int yDelta = 0;
@@ -784,10 +787,10 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     break;
     case WM_VSCROLL:
     {
-        si.cbSize = sizeof(si);
-        si.fMask = SIF_TRACKPOS;
-        GetScrollInfo(hWnd, SB_VERT, &si);
-        yTrackPos = si.nTrackPos;
+        siVERT.cbSize = sizeof(siVERT);
+        siVERT.fMask = SIF_TRACKPOS;
+        GetScrollInfo(hWnd, SB_VERT, &siVERT);
+        yTrackPos = siVERT.nTrackPos;
         int xDelta = 0;
         int yDelta;     // yDelta = new_pos - current_pos
         int yNewPos;    // new position
@@ -796,10 +799,10 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         switch (LOWORD(wParam))
         {
         case SB_BOTTOM:         //Scrolls to the lower right.
-            yNewPos = si.nMax;
+            yNewPos = siVERT.nMax;
             break;
         case SB_TOP:
-            yNewPos = si.nMin;
+            yNewPos = siVERT.nMin;
             break;
             // User clicked the scroll bar shaft above the scroll box. 
         case SB_PAGEUP:
@@ -1399,13 +1402,16 @@ void GetDims(HWND hWnd, int resizeType)
 {
     static float firstWd = 0, firstHt = 0, savedWd = 0, savedHt = 0, savedScaleX = 1, savedScaleY = 1, oldWd = 0, oldHt = 0;
     // int will not compute
+    static int startCtrlHt = 0;
+    static BOOL firstSizeAfterSTART_SIZE_MOVE = FALSE;
+
 
     if (oldWd)
     {
 
         if (resizeType != SIZE_MINIMIZED && resizeType != MAX_TO_MIN)
         {
-            if (resizeType != START_SIZE_MOVE)
+            if (resizeType != START_SIZE_MOVE && !firstSizeAfterSTART_SIZE_MOVE)
             {
                 oldWd = wd;
                 oldHt = ht;
@@ -1420,6 +1426,7 @@ void GetDims(HWND hWnd, int resizeType)
                 ht = (int)(recthWndtmp.bottom - recthWndtmp.top) / 9;
             }
         }
+
 
     }
     else
@@ -1451,12 +1458,18 @@ void GetDims(HWND hWnd, int resizeType)
     {
     case SIZE_RESTORED: // 0
     {
+        if (firstSizeAfterSTART_SIZE_MOVE)
+            oldWd = oldWd;
         oldWd ? (scaleX = wd / oldWd) : scaleX = 1;
         oldHt ? (scaleY = ht / oldHt) : scaleY = 1;
+        firstSizeAfterSTART_SIZE_MOVE = FALSE;
     }
     break;
     case START_SIZE_MOVE:
     {
+        RECT rectBtmp = RectCl().RectCl(hWndButton, hWnd, 2);
+        RECT rectOpt1tmp = RectCl().RectCl(hWndOpt1, hWnd, 3);
+        startCtrlHt = rectOpt1tmp.top - rectBtmp.top;
         savedWd = wd;
         savedHt = ht;
         //don't care about scale, but without it, controls revert to default sizes
@@ -1466,6 +1479,7 @@ void GetDims(HWND hWnd, int resizeType)
         savedScaleX = scaleX;
         if (ht != oldHt)
         savedScaleY = scaleY;
+        firstSizeAfterSTART_SIZE_MOVE = TRUE;
 
     }
     break;
@@ -1475,16 +1489,36 @@ void GetDims(HWND hWnd, int resizeType)
             scaleX = savedScaleX;
         else
         {
-            oldWd = savedWd;
-            scaleX = wd / oldWd;
+            //oldWd = savedWd;
+            scaleX = wd / savedWd;
         }
 
         if (oldHt == savedHt)
             scaleY = savedScaleY;
         else
         {
-            oldHt = savedHt;
-            scaleY = ht / oldHt;
+            //oldHt = savedHt;
+            scaleY = ht / savedHt;
+            /*
+            RECT rectBtmp = RectCl().RectCl(hWndButton, hWnd, 2);
+            RECT rectOpt1tmp = RectCl().RectCl(hWndOpt1, hWnd, 3);
+            GetWindowRect(hWndButton, &rectBtmp); //get window rect of control relative to screen
+            SetLastError(0);
+            if (!MapWindowPoints(NULL, hWnd, (LPPOINT)&rectBtmp, 2))
+                if (GetLastError())
+                    ReportErr(L"MapWindowPoints: Fail.");;
+            float curScaleY = (float)(rectOpt1tmp.top - rectBtmp.top) / startCtrlHt;
+            if (scaleY > 1)
+            {
+                if (scaleY > curScaleY)
+                    scaleY = curScaleY;
+            }
+            else
+            {
+                if (scaleY < curScaleY)
+                    scaleY = curScaleY;
+            }
+            */
         }
     }
     break;
@@ -1494,7 +1528,7 @@ void GetDims(HWND hWnd, int resizeType)
         scaleY = ht / oldHt;
     }
     break;
-    default:
+    default: // SIZE_MINIMIZED
     {
         scaleX = oldWd / wd;
         scaleY = oldHt / ht;
@@ -1511,15 +1545,16 @@ void GetDims(HWND hWnd, int resizeType)
     */
 }
 
-void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeType, int scrollOffsetX, int scrollOffsetY)
+void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeType, int scrollOffsetX, int scrollOffsetY, int xNewSize, int yNewSize)
 {
     int opt1Ht = 0, opt2Ht = 0, chkHt = 0, btnWd = 0, btnHt = 0, curFmWd = 0, curFmHt = 0;
     int newHt = 0, newEdgeWd = 0, newWd = 0, newEdgeHt = 0;
 
     //static BOOL 
     static int oldResizeType = 0, oldFmWd = 0, oldFmHt = 0;
-    static int defOpt1Top = 0, defOpt2Top = 0, defChkTop = 0, scrollDefBtnTop = 0, scrollDefOpt1Top = 0, scrollDefOpt2Top = 0, scrolldefChkTop = 0, oldOpt1Top = 0, oldOpt2Top = 0, oldChkTop = 0;
-    static int minWd = 0, minHt = 0, startSizeBtmpLeft = 0, startSizeBtmpTop = 0, startSizeBtmpRight = 0, startSizeBtmpBottom = 0;
+    static int defOpt1Top = 0, defOpt2Top = 0, defChkTop = 0, scrollDefBtnTop = 0, scrollDefOpt1Top = 0, scrollDefOpt2Top = 0, scrolldefChkTop = 0;
+    static int oldBtnLeft = 0, oldBtnTop  = 0, oldOpt1Top = 0, oldOpt2Top = 0, oldChkTop = 0;
+    static int minWd = 0, minHt = 0, startSizeBtmpLeft = 0, startSizeBtmpTop = 0, startSizeBtmpRight = 0, startSizeBtmpBottom = 0, startSizeOpt1Top = 0, startSizeOpt2Top = 0, startSizeChkTop = 0;
 
     if (!minWd)
     {
@@ -1533,7 +1568,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
 
     //Get updated rect for the form
     RECT rectB, rectOpt, rectChk;
-    RECT rect0pt1tmp = {}, rect0pt2tmp = {}, rectChktmp = {}, rectBtmp = {};
+    RECT rectOpt1tmp = {}, rectOpt2tmp = {}, rectChktmp = {}, rectBtmp = {};
 
     RECT recthWndtmp = RectCl().RectCl(0, hWnd, 1);
     curFmWd = RectCl().width(1);
@@ -1551,8 +1586,8 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
     }
 
     rectBtmp = RectCl().RectCl(hWndButton, hWnd, 2);
-    rect0pt1tmp = RectCl().RectCl(hWndOpt1, hWnd, 3);
-    rect0pt2tmp = RectCl().RectCl(hWndOpt2, hWnd, 4);
+    rectOpt1tmp = RectCl().RectCl(hWndOpt1, hWnd, 3);
+    rectOpt2tmp = RectCl().RectCl(hWndOpt2, hWnd, 4);
     rectChktmp = RectCl().RectCl(hWndChk, hWnd, 5);
 
 
@@ -1567,19 +1602,36 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
             scrollOffsetY = 0;
         }
 
-        rectBtmp.top =  - scrollOffsetY;
-        rect0pt1tmp.top = scaleY * defOpt1Top - scrollOffsetY;
-        rect0pt2tmp.top = scaleY * defOpt2Top - scrollOffsetY;
-        rectChktmp.top = scaleY * defChkTop - scrollOffsetY;
-
+        if (oldFmHt != curFmHt)
+        {
+        //rectOpt1tmp.top = startSizeOpt1Top;
+        //rectOpt2tmp.top = startSizeOpt2Top;
+        //rectChktmp.top = startSizeChkTop;
+        btnHt = startSizeBtmpBottom - startSizeBtmpTop;
+        //rectBtmp.top = -scrollOffsetY;
+        rectOpt1tmp.top += scaleY * (rectOpt1tmp.top - startSizeOpt1Top);
+        rectOpt2tmp.top += scaleY * (rectOpt2tmp.top - startSizeOpt2Top);
+        rectChktmp.top += scaleY * (rectChktmp.top - startSizeChkTop);
+        //rectOpt1tmp.top = scaleY * defOpt1Top - scrollOffsetY;
+        //rectOpt2tmp.top = scaleY * defOpt2Top - scrollOffsetY;
+        //rectChktmp.top = scaleY * defChkTop - scrollOffsetY;
+            if (oldFmWd == curFmWd)
+                btnWd = minWd;
+            else
+                btnWd = startSizeBtmpRight - startSizeBtmpLeft;
+        }
+        else
+        {
+            btnWd = startSizeBtmpRight - startSizeBtmpLeft;
+            btnHt = minHt;
+        }
 
         rectBtmp.left = startSizeBtmpLeft;
-        rect0pt1tmp.left = startSizeBtmpLeft;
-        rect0pt2tmp.left = startSizeBtmpLeft;
+        rectOpt1tmp.left = startSizeBtmpLeft;
+        rectOpt2tmp.left = startSizeBtmpLeft;
         rectChktmp.left = startSizeBtmpLeft;
 
-        btnWd = startSizeBtmpRight - startSizeBtmpLeft;
-        btnHt = startSizeBtmpBottom - startSizeBtmpTop;
+
     }
     else
     {
@@ -1603,6 +1655,9 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
         if (resizeType == START_SIZE_MOVE)
         {
             startSizeBtmpTop = max(rectBtmp.top, scrollDefBtnTop);
+            startSizeOpt1Top = max(rectOpt1tmp.top, scrollDefOpt1Top);
+            startSizeOpt2Top = max(rectOpt2tmp.top, scrollDefOpt2Top);
+            startSizeChkTop = max(rectChktmp.top, scrolldefChkTop);
             startSizeBtmpLeft = rectBtmp.left;
             startSizeBtmpRight = rectBtmp.right;
             startSizeBtmpBottom = rectBtmp.bottom;
@@ -1661,8 +1716,40 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
         if (resizeType == END_SIZE_MOVE)
         SetWindowPos(hWndButton, NULL, rectBtmp.left, rectBtmp.top, newWd, newHt, NULL);
         else
-        SetWindowPos(hWndButton, NULL, scaleX * rectBtmp.left + scrollOffsetX, scaleY * rectBtmp.top + scrollOffsetY,
-            newWd, newHt, NULL);
+        {
+            // If maximised, scroll value may change- left/top of control may move below zero
+            // so its right side wants to be at wd, and bottom at ht.
+            if (resizeType == SIZE_MAXIMIZED)
+            {
+                oldBtnLeft = rectBtmp.left + scrollOffsetX;
+                //ShowScrollBar(hWnd, SB_HORZ, TRUE);
+                siHORZ.fMask = SIF_PAGE | SIF_POS;
+                siHORZ.nPage = xNewSize;
+                SetScrollInfo(hWnd, SB_HORZ, &siHORZ, TRUE);
+                GetScrollInfo(hWnd, SB_HORZ, &siHORZ);
+                int newScrollOffsetX = siHORZ.nPos;
+
+                oldBtnTop = rectBtmp.top + scrollOffsetY;
+
+                siVERT.fMask = SIF_PAGE | SIF_POS;
+                siVERT.nPage = yNewSize;
+                SetScrollInfo(hWnd, SB_VERT, &siVERT, TRUE);
+                GetScrollInfo(hWnd, SB_VERT, &siVERT);
+                int newScrollOffsetY = siVERT.nPos;
+
+                SetWindowPos(hWndButton, NULL, oldBtnLeft - newScrollOffsetX, oldBtnTop - newScrollOffsetY,
+                    newWd, newHt, NULL);
+            }
+            else
+            {
+                if (oldResizeType == SIZE_MAXIMIZED)
+                    SetWindowPos(hWndButton, NULL, oldBtnLeft - scrollOffsetX, oldBtnTop - scrollOffsetY,
+                        newWd, newHt, NULL);
+                else
+                    SetWindowPos(hWndButton, NULL, scaleX * rectBtmp.left + scrollOffsetX, scaleY * rectBtmp.top + scrollOffsetY,
+                        newWd, newHt, NULL);
+            }
+        }
 
         if (groupboxFlag)
         {
@@ -1672,34 +1759,34 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
         }
 
         GetClientRect(hWndOpt1, &rectOpt);
-
-        if (opt1Ht < minHt / 2)
-            opt1Ht = minHt / 2;
-
+ 
         if (resizeType == SIZE_RESTORED)
         {
+            opt1Ht = scaleY * (rectOpt1tmp.bottom - rectOpt1tmp.top);
+            // Must be adjusted with scroll offsets
             if (curFmHt >= defFmHt)
-                (oldOpt1Top) ? (rect0pt1tmp.top = oldOpt1Top * ((oldResizeType == SIZE_RESTORED) ? scaleY : 1)) : (rect0pt1tmp.top *= scaleY);
+                (oldOpt1Top) ? (rectOpt1tmp.top = oldOpt1Top * ((oldResizeType == SIZE_RESTORED) ? scaleY : 1)) : (rectOpt1tmp.top *= scaleY);
             else
-                rect0pt1tmp.top = oldOpt1Top;
+                rectOpt1tmp.top = oldOpt1Top;
         }
         else
         {
             if (resizeType != END_SIZE_MOVE)
             {
                 opt1Ht = scaleY * (rectOpt.bottom - rectOpt.top);
-                rect0pt1tmp.top *= scaleY;
+                rectOpt1tmp.top *= scaleY;
             }
         }
+        if (opt1Ht < minHt / 2)
+            opt1Ht = minHt / 2;
 
-
-        if (rect0pt1tmp.top < scrollDefOpt1Top)
-            rect0pt1tmp.top = scrollDefOpt1Top;
+        if (rectOpt1tmp.top < scrollDefOpt1Top)
+            rectOpt1tmp.top = scrollDefOpt1Top;
 
         if (resizeType == END_SIZE_MOVE)
-        SetWindowPos(hWndOpt1, NULL, rect0pt1tmp.left, rect0pt1tmp.top, newEdgeWd, opt1Ht, NULL);
+        SetWindowPos(hWndOpt1, NULL, rectOpt1tmp.left, rectOpt1tmp.top, newEdgeWd, opt1Ht, NULL);
         else
-            SetWindowPos(hWndOpt1, NULL, scaleX* (rect0pt1tmp.left) + scrollOffsetX, rect0pt1tmp.top + scrollOffsetY,
+            SetWindowPos(hWndOpt1, NULL, scaleX* (rectOpt1tmp.left) + scrollOffsetX, rectOpt1tmp.top + scrollOffsetY,
                 newEdgeWd, opt1Ht, NULL);
 
 
@@ -1707,18 +1794,18 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
 
         if (resizeType == SIZE_RESTORED)
         {
-            opt2Ht = scaleY * (rect0pt2tmp.bottom - rect0pt2tmp.top);
+            opt2Ht = scaleY * (rectOpt2tmp.bottom - rectOpt2tmp.top);
             if (curFmHt >= defFmHt)
-                (oldOpt2Top) ? (rect0pt2tmp.top = oldOpt2Top * ((oldResizeType == SIZE_RESTORED) ? scaleY : 1)) : (rect0pt2tmp.top *= scaleY);
+                (oldOpt2Top) ? (rectOpt2tmp.top = oldOpt2Top * ((oldResizeType == SIZE_RESTORED) ? scaleY : 1)) : (rectOpt2tmp.top *= scaleY);
             else
-                rect0pt2tmp.top = oldOpt2Top;
+                rectOpt2tmp.top = oldOpt2Top;
         }
         else
         {
             if (resizeType != END_SIZE_MOVE)
             {
                 opt2Ht = scaleY * (rectOpt.bottom - rectOpt.top);
-                rect0pt2tmp.top *= scaleY;
+                rectOpt2tmp.top *= scaleY;
             }
         }
 
@@ -1726,12 +1813,12 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
         if (opt2Ht < minHt / 2)
             opt2Ht = minHt / 2;
 
-        if (rect0pt2tmp.top < scrollDefOpt2Top)
-            rect0pt2tmp.top = scrollDefOpt2Top;
+        if (rectOpt2tmp.top < scrollDefOpt2Top)
+            rectOpt2tmp.top = scrollDefOpt2Top;
         if (resizeType == END_SIZE_MOVE)
-        SetWindowPos(hWndOpt2, NULL, rect0pt2tmp.left, rect0pt2tmp.top, newEdgeWd, opt2Ht, NULL);
+        SetWindowPos(hWndOpt2, NULL, rectOpt2tmp.left, rectOpt2tmp.top, newEdgeWd, opt2Ht, NULL);
         else
-        SetWindowPos(hWndOpt2, NULL, scaleX * (rect0pt2tmp.left) + scrollOffsetX, rect0pt2tmp.top + scrollOffsetY,
+        SetWindowPos(hWndOpt2, NULL, scaleX * (rectOpt2tmp.left) + scrollOffsetX, rectOpt2tmp.top + scrollOffsetY,
             newEdgeWd, opt2Ht, NULL);
 
 
@@ -1798,8 +1885,8 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
 
     if (resizeType == SIZE_RESTORED)
     {
-        oldOpt1Top = rect0pt1tmp.top;
-        oldOpt2Top = rect0pt2tmp.top;
+        oldOpt1Top = rectOpt1tmp.top;
+        oldOpt2Top = rectOpt2tmp.top;
         oldChkTop = rectChktmp.top;
     }
 
@@ -1808,12 +1895,13 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
 int ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollXorY, int& xMaxScroll, int& yMaxScroll, int bmpWidth, int bmpHeight, UINT defFmWd, UINT defFmHt, int yTrackPos, int xMinScroll, int yMinScroll, int xNewSize, int yNewSize)
 {
     int retVal = 0;
-    si.cbSize = sizeof(si);
-    si.nPos = xCurrentScroll;
+    siHORZ.cbSize = sizeof(siHORZ);
+    siHORZ.nPos = xCurrentScroll;
+
     if (scrollXorY == 1)
     {
-        si.fMask = SIF_POS;
-        SetScrollInfo(hWnd, SB_HORZ, &si, TRUE);
+        siHORZ.fMask = SIF_POS;
+        SetScrollInfo(hWnd, SB_HORZ, &siHORZ, TRUE);
         return retVal;
     }
     else
@@ -1825,12 +1913,12 @@ int ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollXo
                 ShowScrollBar(hWnd, SB_HORZ, TRUE);
                 xMaxScroll = max(bmpWidth - xNewSize, 0);
                 xCurrentScroll = min(xCurrentScroll, xMaxScroll);
-                si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
-                si.nMin = xMinScroll;
-                si.nMax = bmpWidth;
-                si.nPage = xNewSize;
-                // Not dealling with xTrackPos.
-                SetScrollInfo(hWnd, SB_HORZ, &si, TRUE);
+                siHORZ.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+                siHORZ.nMin = xMinScroll;
+                siHORZ.nMax = bmpWidth;
+                siHORZ.nPage = xNewSize;
+                // Not dealing with xTrackPos.
+                SetScrollInfo(hWnd, SB_HORZ, &siHORZ, TRUE);
                 retVal = 1;
             }
             else
@@ -1848,11 +1936,13 @@ int ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollXo
     // (bitmap_height) - (client_height). The current vertical 
     // scroll value remains within the vertical scrolling range. 
 
-    si.nPos = yCurrentScroll;
+    siVERT.cbSize = sizeof(siHORZ);
+    siVERT.nPos = yCurrentScroll;
+
     if (scrollXorY == -1)
     {
-        si.fMask = SIF_POS;
-        SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
+        siVERT.fMask = SIF_POS;
+        SetScrollInfo(hWnd, SB_VERT, &siVERT, TRUE);
         return retVal;
     }
     else
@@ -1864,15 +1954,15 @@ int ScrollInfo(HWND hWnd, int& xCurrentScroll, int& yCurrentScroll, int scrollXo
                 ShowScrollBar(hWnd, SB_VERT, TRUE);
                 yMaxScroll = max(bmpHeight - yNewSize, 0);
                 yCurrentScroll = min(yCurrentScroll, yMaxScroll);
-                si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
-                si.nMin = yMinScroll;
+                siVERT.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+                siVERT.nMin = yMinScroll;
                 int x = GetSystemMetrics(21);
-                si.nMax = bmpHeight;
+                siVERT.nMax = bmpHeight;
                 //si.nMax = bmp.bmHeight + ((bmp.bmWidth > defFmWd)? GetSystemMetrics(21) : 0);
-                si.nPage = yNewSize;
-                si.nPos = yCurrentScroll;
-                si.nTrackPos = yTrackPos;
-                SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
+                siVERT.nPage = yNewSize;
+                siVERT.nPos = yCurrentScroll;
+                siVERT.nTrackPos = yTrackPos;
+                SetScrollInfo(hWnd, SB_VERT, &siVERT, TRUE);
                 return ((retVal) ? 3 : 2);
             }
             else
@@ -1906,7 +1996,8 @@ BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm,
 
     if (pgpbm)
         GpStatus gps = GdipDisposeImage(pgpbm);
-    si.cbSize = 0;
+    siHORZ.cbSize = 0;
+    siVERT.cbSize = 0;
     DeleteDC(hdcMem);
     DeleteDC(hdcMemIn);
     DeleteObject(hbmpCompat);
@@ -2017,6 +2108,34 @@ char* VecToArr(std::vector<std::vector<unsigned>> vec)
 
     return bytes;
 }
+BOOL ChangeWindowMsgFilterEx(HWND hWnd, UINT uMsg)
+{
+/*    BOOL ChangeWindowMsgFilterEx(HWND hwnd, UINT Msg);
+    if (!(ChangeWindowMsgFilterEx(hwnd, WM_DROPFILES) && ChangeWindowMsgFilterEx(hwnd, WM_COPYDATA) && ChangeWindowMsgFilterEx(hwnd, WM_COPYGLOBALDATA)))
+    {
+        DisplayError(hwnd, L"ChangeWindowMsgFilterEx: Could not allow message", errCode, 0);
+    }
+*/
+    typedef BOOL(WINAPI* fnChangeWindowMessageFilterEx)(HWND, UINT, DWORD, PCHANGEFILTERSTRUCT);
+    fnChangeWindowMessageFilterEx pfn =
+        reinterpret_cast<fnChangeWindowMessageFilterEx>(
+            reinterpret_cast<void*>(
+                GetProcAddress(GetModuleHandle(L"user32"),
+                    "ChangeWindowMessageFilterEx")));
 
+    if (!(pfn))
+        //use the old function
+    {
+
+        typedef BOOL(WINAPI* fnChangeWindowMessageFilter)(UINT, DWORD);
+        fnChangeWindowMessageFilter pfn =
+            reinterpret_cast<fnChangeWindowMessageFilter>(
+                reinterpret_cast<void*>(
+                    GetProcAddress(GetModuleHandle(L"user32"),
+                        "ChangeWindowMessageFilter")));
+        return pfn(uMsg, MSGFLT_ADD);
+    }
+    return pfn(hWnd, uMsg, MSGFLT_ALLOW, NULL);
+}
 
 
