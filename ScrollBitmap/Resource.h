@@ -2,9 +2,19 @@
 // Microsoft Visual C++ generated include file.
 // Used by ScrollBitmap.rc
 
-#define IDS_APP_TITLE			103
+#define IDS_APP_TITLE			150
 
 #define IDR_MAINFRAME			128
+
+#define SCROLL_RIGHTDOWN	90
+#define SCROLL_LEFTUP	-90
+#define SCROLL_SIZE	91
+#define SCROLL_PAGESIZE	92
+#define UPDATE_HORZSCROLLSIZE_CONTROL	93
+#define UPDATE_VERTSCROLLSIZE_CONTROL	94
+
+
+
 #define IDT_DRAGWINDOW	100
 #define IDD_SCROLLBITMAP_DIALOG	102
 #define IDD_ABOUTBOX			103
