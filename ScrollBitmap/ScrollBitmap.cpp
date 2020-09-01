@@ -21,16 +21,14 @@ using namespace Gdiplus::DllExports;
 
 
 // Global Variables: static can be also applied to these, although not generally recommended
-SCROLLINFO siHORZ = { 0 };
-SCROLLINFO siVERT = { 0 };
+
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // Title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 wchar_t* szFile = nullptr;
 float scrAspect = 0, scaleX = 1, scaleY = 1, resX = 0, resY = 0;
 // wd, ht: button dims
-int tmp = 0, wd = 0, ht = 0, capCallFrmResize = 0;
-UINT xCurrentScroll, yCurrentScroll;
+int tmp = 0, wd = 0, ht = 0, capCallFrmResize = 0, xCurrentScroll, yCurrentScroll;
 HWND hWndGroupBox = 0, hWndButton = 0, hWndOpt1 = 0, hWndOpt2 = 0, hWndChk = 0;
 BOOL optChk = TRUE, chkChk = FALSE, groupboxFlag = FALSE, isLoading = TRUE;
 
@@ -225,8 +223,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     {
         timDragWindow = 1;
         // Start Gdiplus
-        siHORZ.cbSize = 0;
-        siVERT.cbSize = 0;
+
         SMOOTHSCROLL_SPEED = 0X00000002;
         ulScrollLines = 0;
 
@@ -509,7 +506,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 // (bitmap_width) - (client_width). The current horizontal 
                 // scroll value remains within the horizontal scrolling range. 
             }
-            ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, 0, xMaxScroll, yMaxScroll, bmpWidth, bmpHeight, defFmWd, defFmHt, yTrackPos, xMinScroll, yMinScroll, xNewSize, yNewSize);
+            ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight, defFmWd, defFmHt);
         }
         return 0;
     }
@@ -682,7 +679,11 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         // necessary to call UpdateWindow in order to repaint the 
         // rectangle of pixels that were invalidated.) 
 
-
+        int xDelta = ScrollInfo(hWnd, HORZ_SCROLL, LOWORD(wParam), HIWORD(wParam), xNewSize, yNewSize, bmpWidth, bmpHeight, defFmWd, defFmHt);
+        // If the current position does not change, do not scroll.
+        if (!xDelta)
+            return 0;
+        fScroll = 1;
         if (optChk)
         {
             /*
@@ -694,7 +695,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             rect.right = bmp.bmWidth;
             ScrollWindow(hWnd, -xDelta, -yDelta, (CONST RECT*) NULL, &rect);
             */
-            ScrollWindow(hWnd, -xDelta, 0, (CONST RECT*) NULL, (CONST RECT*) NULL);
+            if (!ScrollWindow(hWnd, -xDelta, 0, (CONST RECT*) NULL, (CONST RECT*) NULL))
+                ReportErr(L"ScrollWindow Failed!");
         }
         else
         {
@@ -703,21 +705,27 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             UpdateWindow(hWnd);
         }
         // Reset the scroll bar. 
-        ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, 1, xMaxScroll, yMaxScroll, bmpWidth, bmpHeight);
-        fScroll = 1;
+        ScrollInfo(hWnd, UPDATE_HORZSCROLLSIZE, 0, 0);
         return 0;
 
     }
     break;
     case WM_VSCROLL:
     {
+        int yDelta = ScrollInfo(hWnd, VERT_SCROLL, LOWORD(wParam), HIWORD(wParam), xNewSize, yNewSize, bmpWidth, bmpHeight, defFmWd, defFmHt);
 
-        // Scroll the window. (The system repaints most of the 
-        // client area when ScrollWindow(Ex) is called; however, it is 
-        // necessary to call UpdateWindow in order to repaint the 
-        // rectangle of pixels that were invalidated.) 
+        // Scroll the window. (The system repaints most of the
+        // client area when ScrollWindow(Ex) is called; however, it is
+        // necessary to call UpdateWindow in order to repaint the
+        // rectangle of pixels that were invalidated.)
+        if (!yDelta)
+            return 0;
+        fScroll = -1;
         if (optChk)
-            ScrollWindow(hWnd, 0, -yDelta, (CONST RECT*) NULL, (CONST RECT*) NULL);
+        {
+            if (!ScrollWindow(hWnd, 0, -yDelta, (CONST RECT*) NULL, (CONST RECT*) NULL))
+                ReportErr(L"ScrollWindow Failed!");
+        }
         else
         {
             ScrollWindowEx(hWnd, 0, -yDelta, (CONST RECT*) NULL,
@@ -726,8 +734,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         }
 
         // Reset scroll bar. 
-        ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, -1, xMaxScroll, yMaxScroll, bmpWidth, bmpHeight);
-        fScroll = -1;
+        ScrollInfo(hWnd, UPDATE_VERTSCROLLSIZE, 0, 0);
         return 0;
     }
     break;
@@ -835,7 +842,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     //SizeControls(bmp, hWnd, defFmWd, defFmHt, -1, xCurrentScroll, yCurrentScroll);
                     xCurrentScroll ? fScroll = 1 : fScroll = -1;
                     szFile[0] = L'*'; // Set to deal with WM_SIZE issues
-                    scrollStat = ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, 0, xMaxScroll, yMaxScroll, bmpWidth, bmpHeight, defFmWd, defFmHt, yTrackPos, xMinScroll, yMinScroll, xNewSize, yNewSize);
+                    scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight, defFmWd, defFmHt);
                     szFile[0] = L'X';
                     xCurrentScroll = 0;
                     yCurrentScroll = 0;
@@ -953,10 +960,11 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         if (!AdjustImage(isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWin, hdcWinCl, bmpWidth, bmpHeight, xCurrentScroll, 2, 0))
             ReportErr(L"AdjustImage detected a problem with the image!");
         xCurrentScroll ? fScroll = 1 : fScroll = -1;
-        scrollStat = SetWindowOrgEx(hdcWinCl, -xCurrentScroll, yCurrentScroll, NULL);
+        if (!SetWindowOrgEx(hdcWinCl, -xCurrentScroll, yCurrentScroll, NULL))
+            ReportErr(L"SetWindowOrgEx failed!");
         //xCurrentScroll = 0;
         //yCurrentScroll = 0;
-        ScrollInfo(hWnd, xCurrentScroll, yCurrentScroll, 0, xMaxScroll, yMaxScroll, bmpWidth, bmpHeight, defFmWd, defFmHt, yTrackPos, xMinScroll, yMinScroll, xNewSize, yNewSize);
+        scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight, defFmWd, defFmHt);
 
 
         switch (scrollStat)
@@ -1458,12 +1466,6 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
     if (resizeType == END_SIZE_MOVE)
     {
 
-        if (yCurrentScroll < 0)
-        {
-            xCurrentScroll = 0;
-            yCurrentScroll = 0;
-        }
-
         if (oldFmHt != curFmHt)
         {
         //rectOpt1tmp.top = startSizeOpt1Top;
@@ -1786,15 +1788,6 @@ int ScrollIt(HWND hWnd, int scrollType, int scrollDrag, int currentScroll, int m
     newPos = max(0, newPos);
     newPos = min(maxScroll, newPos);
 
-    // If the current position does not change, do not scroll.
-    if (newPos == currentScroll)
-        return 0;
-
-
-
-
-    
-
     return newPos;
 }
 int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xNewSize, int yNewSize, int bmpWidth, int bmpHeight, UINT defFmWd, UINT defFmHt)
@@ -1802,23 +1795,26 @@ int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xN
     int newPos, retVal = 0;
 
     // int bmpWidth, int bmpHeight UINT defFmWd, UINT defFmHt as property or global
+    
+
         // These variables are required for horizontal scrolling.
     static int xMinScroll = 0;      // minimum horizontal scroll value (starts at 0 so rarely adjusted)
+    static int xMaxScroll = 0;      // maximum HORZ scroll value
+    static int xTrackPos = 0;   // current scroll drag value
 
     // These variables are required for vertical scrolling.
     static int yMinScroll = 0;      // minimum vertical scroll value
-
-    static int xMaxScroll = 0;      // maximum HORZ scroll value
     static int yMaxScroll = 0;      // maximum VERT scroll value
-    static int xTrackPos = 0;   // current scroll drag value
     static int yTrackPos = 0;
-    siHORZ.cbSize = sizeof(siHORZ);
-    siVERT.cbSize = sizeof(siVERT);
-#define UPDATE_HORZSCROLLSIZE_CONTROL	93
-#define UPDATE_VERTSCROLLSIZE_CONTROL	94
+
+    static SCROLLINFO siHORZ = { 0 };
+    static SCROLLINFO siVERT = { 0 };
+
+
 
     if (scrollXorY == UPDATE_HORZSCROLLSIZE_CONTROL) // called from SizeControls
     {
+        siHORZ.cbSize = sizeof(siHORZ);
         //ShowScrollBar(hWnd, SB_HORZ, TRUE);
         siHORZ.fMask = SIF_PAGE | SIF_POS;
         siHORZ.nPage = xNewSize;
@@ -1832,6 +1828,7 @@ int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xN
     {
         if (scrollXorY == UPDATE_VERTSCROLLSIZE_CONTROL)
         {
+            siVERT.cbSize = sizeof(siVERT);
             siVERT.fMask = SIF_PAGE | SIF_POS;
             siVERT.nPage = yNewSize;
             SetScrollInfo(hWnd, SB_VERT, &siVERT, TRUE);
@@ -1841,16 +1838,17 @@ int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xN
         }
     }
 
-    if (scrollXorY == SCROLL_RIGHTDOWN) // scrollXorY > 0 HORZ scroll, < 0 VERT scroll
+    if (scrollXorY == HORZ_SCROLL) // scrollXorY > 0 HORZ scroll, < 0 VERT scroll
     {
-
+        siHORZ.cbSize = sizeof(siHORZ);
         siHORZ.fMask = SIF_TRACKPOS;
         GetScrollInfo(hWnd, SB_HORZ, &siHORZ);
         xTrackPos = siHORZ.nTrackPos;
 
         // Reset the current scroll position
         newPos = ScrollIt(hWnd, scrollType, scrollDrag, xCurrentScroll, xMinScroll,  xMaxScroll, xTrackPos);
-
+        if (newPos == xCurrentScroll)
+            return 0;
         // Determine the amount scrolled (in pixels). 
         retVal = newPos - xCurrentScroll; // delta = new_pos - current_pos  
             // Reset the current scroll position. 
@@ -1860,14 +1858,17 @@ int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xN
     }
     else
     {
-        if (scrollXorY == SCROLL_LEFTUP)
+        if (scrollXorY == VERT_SCROLL)
         {
-
+            siVERT.cbSize = sizeof(siVERT);
             siVERT.fMask = SIF_TRACKPOS;
             GetScrollInfo(hWnd, SB_VERT, &siVERT);
             yTrackPos = siVERT.nTrackPos;
 
             newPos = ScrollIt(hWnd, scrollType, scrollDrag, yCurrentScroll, yMinScroll, yMaxScroll, yTrackPos);
+            // If the current position does not change, return 0 and do not scroll.
+            if (newPos == yCurrentScroll)
+                return 0;
             retVal = newPos - yCurrentScroll;
             yCurrentScroll = newPos;
             return retVal;
@@ -1878,10 +1879,10 @@ int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xN
 
 
 
-
+siHORZ.cbSize = sizeof(siHORZ);
 siHORZ.nPos = xCurrentScroll;
 
-    if (scrollXorY == 1)
+    if (scrollXorY == UPDATE_HORZSCROLLSIZE)
     {
         siHORZ.fMask = SIF_POS;
         SetScrollInfo(hWnd, SB_HORZ, &siHORZ, TRUE);
@@ -1906,6 +1907,8 @@ siHORZ.nPos = xCurrentScroll;
             }
             else
             {
+                if (isLoading)
+                    siHORZ.cbSize = 0;
                 xCurrentScroll = 0;
                 //si.fMask = SIF_DISABLENOSCROLL;
                 if (IsThemeActive())
@@ -1919,12 +1922,15 @@ siHORZ.nPos = xCurrentScroll;
     // (bitmap_height) - (client_height). The current vertical 
     // scroll value remains within the vertical scrolling range. 
 
-
+    siVERT.cbSize = sizeof(siVERT);
     siVERT.nPos = yCurrentScroll;
 
-    if (scrollXorY == -1)
+    if (scrollXorY == UPDATE_VERTSCROLLSIZE)
     {
+
         siVERT.fMask = SIF_POS;
+
+        siVERT.nPos = yCurrentScroll;
         SetScrollInfo(hWnd, SB_VERT, &siVERT, TRUE);
         return retVal;
     }
@@ -1950,6 +1956,8 @@ siHORZ.nPos = xCurrentScroll;
             }
             else
             {
+                if (isLoading)
+                    siVERT.cbSize = 0;
                 yCurrentScroll = 0;
                 if (IsThemeActive())
                     SetWindowTheme(hWnd, NULL, _T("Scrollbar"));
@@ -1979,8 +1987,6 @@ BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm,
 
     if (pgpbm)
         GpStatus gps = GdipDisposeImage(pgpbm);
-    siHORZ.cbSize = 0;
-    siVERT.cbSize = 0;
     DeleteDC(hdcMem);
     DeleteDC(hdcMemIn);
     DeleteObject(hbmpCompat);
