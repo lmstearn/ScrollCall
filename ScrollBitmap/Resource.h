@@ -33,6 +33,7 @@
 #define START_SIZE_MOVE			16
 #define END_SIZE_MOVE			12
 #define MAX_TO_MIN			8
+#define OPT_HEIGHT			10
 #define IDC_MYICON				2
 #ifndef IDC_STATIC
 #define IDC_STATIC				-1
