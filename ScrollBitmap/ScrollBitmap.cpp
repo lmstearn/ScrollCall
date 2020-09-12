@@ -28,8 +28,6 @@ WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 wchar_t* szFile = nullptr;
 float scrAspect = 0, scaleX = 1, scaleY = 1, resX = 0, resY = 0;
 
-int fScroll;             // 1 if horz scrolling, -1 vert scrolling, 0 for WM_SIZE
-BOOL fSize;          // TRUE if WM_SIZE 
 // wd, ht: button dims
 int tmp = 0, wd = 0, ht = 0, capCallFrmResize = 0, xCurrentScroll, yCurrentScroll;
 HWND hWndGroupBox = 0, hWndButton = 0, hWndOpt1 = 0, hWndOpt2 = 0, hWndChk = 0;
@@ -187,6 +185,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     static HBITMAP hBitmap = { 0 };
     static GpStatus gps = { };
 
+    static int fScroll;             // 1 if horz scrolling, -1 vert scrolling, 0 for WM_SIZE
+    static BOOL fSize;          // TRUE if WM_SIZE 
 
     static HDC hdc; // for WM_PAINT
     static HDC hdcWin;            // DC for window
@@ -263,7 +263,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         hWndOpt1 = CreateWindowEx(WS_EX_WINDOWEDGE,
             L"BUTTON",
             L"Scroll",
-            WS_VISIBLE | WS_CHILD | BS_AUTORADIOBUTTON | WS_GROUP | BS_CENTER,  // <---- WS_GROUP group the following radio buttons 1st,2nd button 
+            WS_VISIBLE | WS_CHILD | BS_AUTORADIOBUTTON | WS_GROUP | BS_CENTER,  // <---- WS_GROUP group the 1st and 2nd radio buttons.
             2, ht + OPT_HEIGHT,
             wd - 2, ht / 2,
             hWnd, //<----- Use main window handle
@@ -504,6 +504,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     if (fSize && (wParam == SIZE_RESTORED))
                         timDragWindow = 0;
                     fSize = TRUE;
+                    fScroll = 0;
                     // The horizontal scrolling range is defined by 
                 // (bitmap_width) - (client_width). The current horizontal 
                 // scroll value remains within the horizontal scrolling range. 
@@ -619,26 +620,24 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             {
                 if (fSize)
                 {
-                    //if (!capCallFrmResize)
-
+                    if (!capCallFrmResize)
+                        fSize = FALSE;
                     BitBlt(ps.hdc,
                         //0, 0,
-                        -xCurrentScroll, -yCurrentScroll,
+                        xCurrentScroll, yCurrentScroll,
                         bmpWidth, bmpHeight,
                         hdcWinCl,
                         0, 0,
                         //xCurrentScroll, yCurrentScroll,
                         SRCCOPY);
-                    //UpdateWindow(hWnd);
-                    if (!capCallFrmResize)
-                        fSize = FALSE;
-                    if (!groupboxFlag) // Paint sections
+                    if (!groupboxFlag)
                     {
+                    // Paint sections
                         if (xCurrentScroll < wd)
                         {
                             PRECT prect;
                             prect = &ps.rcPaint;
-                            if (prect->left <  wd - 1) // Issue when form is sized small horizontally
+                            if (prect->left < wd - 1) // Issue when form is sized small horizontally
                             {
                                 RECT rect;
                                 rect.top = prect->top;
@@ -650,10 +649,10 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                                 rect.right = prect->left + tmp - xCurrentScroll;
                                 FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
                             }
-
-                            //UpdateWindow(hWnd);
                         }
+                        //UpdateWindow(hWnd);
                     }
+
                 }
                 else
                     if (!isLoading && scrollStat)
@@ -686,6 +685,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         if (!xDelta)
             return 0;
         fScroll = 1;
+        fSize = FALSE;
         if (optChk)
         {
             /*
@@ -723,6 +723,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         if (!yDelta)
             return 0;
         fScroll = -1;
+        fSize = FALSE;
         if (optChk)
         {
             if (!ScrollWindow(hWnd, 0, -yDelta, (CONST RECT*) NULL, (CONST RECT*) NULL))
@@ -877,7 +878,6 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     ReportErr(L"Cannot open bitmap!");
             }
             free(szFile);
-            fSize = FALSE;
             isSizing = FALSE;
             return (INT_PTR)TRUE;
         }
@@ -985,6 +985,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         }
         break;
         default:
+            fScroll = 0;
         break;
         }
 
@@ -992,7 +993,6 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
 
         ReleaseDC(hWnd, hdcWin);
-        fSize = FALSE;
         isSizing = FALSE;
         return 0;
         break;
@@ -1033,10 +1033,12 @@ LRESULT CALLBACK staticSubClass(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     {
     case WM_PAINT:
     {
-        //If wParam is non-NULL, the common control may assume the value is an HDCand paints using that device context.
+        //"If wParam is non-NULL, the common control may assume the value is an HDC and paints using that device context."
         if (wParam == 0)
         {
+            //if (isSizing)
             /*// Supposed to "halve" the flickering in scrolling. No perceivable difference.
+
             if (fScroll)
             {
                 savefScroll = fScroll;
@@ -1662,8 +1664,8 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
         if (!isSizing && groupboxFlag)
         {
             // Too much flicker due to the repaint in sizing
-            SetWindowPos(hWndGroupBox, NULL, -xCurrentScroll, -yCurrentScroll,
-                newWd, bmp.bmHeight, NULL);
+            SetWindowPos(hWndGroupBox, HWND_BOTTOM, -xCurrentScroll, -yCurrentScroll,
+                newWd, bmp.bmHeight, SWP_NOMOVE | SWP_DEFERERASE | SWP_NOZORDER | SWP_NOREDRAW | SWP_NOACTIVATE );
         }
 
         if (oldOpt1Top > oldOpt2Top)
