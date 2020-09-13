@@ -463,6 +463,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     case WM_EXITSIZEMOVE:
     {
         fSize = TRUE;
+        isSizing = FALSE;
         //InvalidateRect(hWnd, 0, TRUE);
         KillTimer(hWnd, IDT_DRAGWINDOW);
         if (windowMoved)
@@ -551,8 +552,9 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                         prect->top + yCurrentScroll,
                         SRCCOPY);
 
-                    if (!groupboxFlag) // Paint sections
+                    if (!groupboxFlag)
                     {
+                        // Paint sections
                         if (xCurrentScroll < wd)
                         {
                             // consider test like RectCl().width(1) - prect->left > wd
@@ -1287,9 +1289,9 @@ BOOL AdjustImage(BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, H
 }
 void GetDims(HWND hWnd, int resizeType)
 {
-    static float firstWd = 0, firstHt = 0, savedWd = 0, savedHt = 0, savedScaleX = 1, savedScaleY = 1, oldWd = 0, oldHt = 0;
+    static float firstWd = 0, firstHt = 0, wdBefMax = 0, htBefMax = 0, savedWd = 0, savedHt = 0, savedScaleX = 1, savedScaleY = 1, oldWd = 0, oldHt = 0;
     // int will not compute
-    static int startCtrlHt = 0;
+    static int startCtrlHt = 0, oldResizeType = 0;
     static BOOL firstSizeAfterSTART_SIZE_MOVE = FALSE;
 
 
@@ -1345,11 +1347,29 @@ void GetDims(HWND hWnd, int resizeType)
     {
     case SIZE_RESTORED: // 0
     {
+        //if (oldResizeType == SIZE_MAXIMIZED)
         if (firstSizeAfterSTART_SIZE_MOVE)
-            oldWd = oldWd;
-        oldWd ? (scaleX = wd / oldWd) : scaleX = 1;
-        oldHt ? (scaleY = ht / oldHt) : scaleY = 1;
-        firstSizeAfterSTART_SIZE_MOVE = FALSE;
+        {
+            if (wdBefMax)
+            {
+                scaleX = wd /wdBefMax;
+                scaleY = ht / htBefMax;
+                wdBefMax = 0;
+                htBefMax = 0;
+            }
+            else
+            {
+                scaleX = wd / oldWd;
+                scaleY = ht / oldHt;
+            }
+            firstSizeAfterSTART_SIZE_MOVE = FALSE;
+        }
+        else
+        {
+            oldWd ? (scaleX = wd / oldWd) : scaleX = 1;
+            oldHt ? (scaleY = ht / oldHt) : scaleY = 1;
+        }
+
     }
     break;
     case START_SIZE_MOVE:
@@ -1413,6 +1433,8 @@ void GetDims(HWND hWnd, int resizeType)
     {
         scaleX = wd / oldWd;
         scaleY = ht / oldHt;
+        wdBefMax = oldWd;
+        htBefMax = oldHt;
     }
     break;
     default: // SIZE_MINIMIZED
@@ -1423,7 +1445,7 @@ void GetDims(HWND hWnd, int resizeType)
         ht = oldHt;
     }
 
-
+    oldResizeType = resizeType;
     }
     /*For screen
     sizefactorX = 1, sizefactorY = 1
@@ -1541,6 +1563,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
             startFmHt = curFmHt;
             oldxScroll = xCurrentScroll;
             oldyScroll = yCurrentScroll;
+            oldResizeType = resizeType;
             // Unfortunately, applying SetWindowPos here causes more sizing loops,
             // and the size and position of the controls is even worse than current.
             procEnd = TRUE; 
@@ -1551,16 +1574,9 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
     //rectB.top += BOX_HEIGHT;
     if (btnWd >= minWd && btnHt >= minHt) // button size determines scale
     {
-        if (oldResizeType == END_SIZE_MOVE)
-        {
-            newWd = btnWd;
-            newHt = btnHt;
-        }
-        else
-        {
-            newWd = scaleX * btnWd;
-            newHt = scaleY * btnHt;
-        }
+
+        newWd = scaleX * btnWd;
+        newHt = scaleY * btnHt;
         //Extra edging for the wd - 2
         newEdgeWd = scaleX * (btnWd - 2);
         newEdgeHt = scaleY * (btnHt - 2);
