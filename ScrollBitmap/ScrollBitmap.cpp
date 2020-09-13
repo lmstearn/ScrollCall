@@ -512,6 +512,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             }
             ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight, defFmWd, defFmHt);
         }
+        windowMoved = FALSE;
         return 0;
     }
     break;
@@ -1347,7 +1348,6 @@ void GetDims(HWND hWnd, int resizeType)
     {
     case SIZE_RESTORED: // 0
     {
-        //if (oldResizeType == SIZE_MAXIMIZED)
         if (firstSizeAfterSTART_SIZE_MOVE)
         {
             if (wdBefMax)
@@ -1366,8 +1366,18 @@ void GetDims(HWND hWnd, int resizeType)
         }
         else
         {
-            oldWd ? (scaleX = wd / oldWd) : scaleX = 1;
-            oldHt ? (scaleY = ht / oldHt) : scaleY = 1;
+            if (oldResizeType == SIZE_MAXIMIZED)
+            {
+                scaleX = wd / oldWd;
+                scaleY = ht / oldHt;
+                wdBefMax = 0;
+                htBefMax = 0;
+            }
+            else
+            {
+                oldWd ? (scaleX = wd / oldWd) : scaleX = 1;
+                oldHt ? (scaleY = ht / oldHt) : scaleY = 1;
+            }
         }
 
     }
@@ -1382,10 +1392,8 @@ void GetDims(HWND hWnd, int resizeType)
         //don't care about scale, but without it, controls revert to default sizes
         scaleX = wd / oldWd;
         scaleY = ht / oldHt;
-        if (wd != oldWd)
-        savedScaleX = scaleX;
-        if (ht != oldHt)
-        savedScaleY = scaleY;
+        (wd == oldWd)? savedScaleX = 1: savedScaleX = scaleX;
+        (ht == oldHt)? savedScaleY = 1: savedScaleY = scaleY;
         firstSizeAfterSTART_SIZE_MOVE = TRUE;
 
     }
@@ -1431,10 +1439,18 @@ void GetDims(HWND hWnd, int resizeType)
     break;
     case SIZE_MAXIMIZED:
     {
-        scaleX = wd / oldWd;
-        scaleY = ht / oldHt;
-        wdBefMax = oldWd;
-        htBefMax = oldHt;
+        if (wdBefMax)
+        {
+            scaleX = wd / wdBefMax;
+            scaleY = ht / htBefMax;
+        }
+        else
+        {
+            scaleX = wd / oldWd;
+            scaleY = ht / oldHt;
+            wdBefMax = oldWd;
+            htBefMax = oldHt;
+        }
     }
     break;
     default: // SIZE_MINIMIZED
@@ -1445,8 +1461,8 @@ void GetDims(HWND hWnd, int resizeType)
         ht = oldHt;
     }
 
-    oldResizeType = resizeType;
     }
+    oldResizeType = resizeType;
     /*For screen
     sizefactorX = 1, sizefactorY = 1
     sizefactorX = GetSystemMetrics(0) / (3 * wd);
@@ -1483,8 +1499,10 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
 
 
     if (oldResizeType == SIZE_MAXIMIZED && resizeType == SIZE_MINIMIZED)
-        resizeType = MAX_TO_MIN;
-
+    {
+        procEnd = TRUE;
+        return;
+    }
     //Get updated rect for the form
 
     RECT rectBtn = {}, rectOpt1 = {}, rectOpt2 = {}, rectChk = {};
@@ -1547,9 +1565,9 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
         {
             if (!startSizeOpt1Top) //initialise once
             {
-                oldOpt1Top = rectOpt1.top - yCurrentScroll;
-                oldOpt2Top = rectOpt2.top - yCurrentScroll;
-                oldChkTop = rectChk.top - yCurrentScroll;
+                oldOpt1Top = rectOpt1.top;
+                oldOpt2Top = rectOpt2.top;
+                oldChkTop = rectChk.top;
             }
 
             startSizeBtnTop = max(rectBtn.top, scrollDefBtnTop);
@@ -1566,7 +1584,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
             oldResizeType = resizeType;
             // Unfortunately, applying SetWindowPos here causes more sizing loops,
             // and the size and position of the controls is even worse than current.
-            procEnd = TRUE; 
+            procEnd = TRUE;
             return;
         }
 
@@ -1681,7 +1699,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
         {
             // Too much flicker due to the repaint in sizing
             SetWindowPos(hWndGroupBox, HWND_BOTTOM, -xCurrentScroll, -yCurrentScroll,
-                newWd, bmp.bmHeight, SWP_NOMOVE | SWP_DEFERERASE | SWP_NOZORDER | SWP_NOREDRAW | SWP_NOACTIVATE );
+                newWd, bmp.bmHeight, SWP_DEFERERASE | SWP_NOZORDER | SWP_NOREDRAW | SWP_NOACTIVATE );
         }
 
         if (oldOpt1Top > oldOpt2Top)
