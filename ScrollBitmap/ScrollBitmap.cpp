@@ -56,7 +56,7 @@ void GetDims(HWND hWnd, int resizeType = 0);
 void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeType = -1, int xNewSize = 0, int yNewSize = 0);
 int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xNewSize = 0, int yNewSize = 0, int bmpWidth = 0, int bmpHeight = 0, UINT defFmWd = 0, UINT defFmHt = 0);
 BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcWinCl);
-int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeType, int oldResizeType, int scrollDefOptTop, int updatedxCurrentScroll, int updatedyCurrentScroll, int newCtrlSizeTriggerHt, int currScrollBtnLeft, int currScrollBtnTop, int newEdgeWd, int newWd, int minHt);
+int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeType, int oldResizeType, int scrollDefOptTop, int updatedxCurrentScroll, int updatedyCurrentScroll, int newCtrlSizeTriggerHt, int currScrollBtnLeft, int newEdgeWd, int newWd, int minHt);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
@@ -1359,8 +1359,8 @@ void GetDims(HWND hWnd, int resizeType)
             }
             else
             {
-                scaleX = wd / oldWd;
-                scaleY = ht / oldHt;
+                scaleX = 1;
+                scaleY = 1;
             }
             firstSizeAfterSTART_SIZE_MOVE = FALSE;
         }
@@ -1400,56 +1400,32 @@ void GetDims(HWND hWnd, int resizeType)
     break;
     case END_SIZE_MOVE:
     {
-        if (wd == savedWd)
-            scaleX = savedScaleX;
-        else
-        {
-            //oldWd = savedWd;
-            scaleX = wd / savedWd;
-        }
+        scaleX = wd / savedWd;
 
-        if (oldHt == savedHt)
-            scaleY = savedScaleY;
-        else
-        {
-            //oldHt = savedHt;
-            scaleY = ht / savedHt;
-            /*
-            RECT rectBtn = RectCl().RectCl(hWndButton, hWnd, 2);
-            RECT rectOpt1 = RectCl().RectCl(hWndOpt1, hWnd, 3);
-            GetWindowRect(hWndButton, &rectBtn); //get window rect of control relative to screen
-            SetLastError(0);
-            if (!MapWindowPoints(NULL, hWnd, (LPPOINT)&rectBtn, 2))
-                if (GetLastError())
-                    ReportErr(L"MapWindowPoints: Fail.");;
-            float curScaleY = (float)(rectOpt1.top - rectBtn.top) / startCtrlHt;
-            if (scaleY > 1)
-            {
-                if (scaleY > curScaleY)
-                    scaleY = curScaleY;
-            }
-            else
-            {
-                if (scaleY < curScaleY)
-                    scaleY = curScaleY;
-            }
-            */
-        }
+        scaleY = ht / savedHt;
     }
     break;
     case SIZE_MAXIMIZED:
     {
-        if (wdBefMax)
+        if (oldResizeType == SIZE_MAXIMIZED) //SIZE_MINIMIZED step skipped if MAX_TO_MIN
         {
-            scaleX = wd / wdBefMax;
-            scaleY = ht / htBefMax;
+            scaleX = 1;
+            scaleY = 1;
         }
         else
         {
-            scaleX = wd / oldWd;
-            scaleY = ht / oldHt;
-            wdBefMax = oldWd;
-            htBefMax = oldHt;
+            if (wdBefMax)
+            {
+                scaleX = wd / wdBefMax;
+                scaleY = ht / htBefMax;
+            }
+            else
+            {
+                scaleX = wd / oldWd;
+                scaleY = ht / oldHt;
+                wdBefMax = oldWd;
+                htBefMax = oldHt;
+            }
         }
     }
     break;
@@ -1610,8 +1586,11 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
             {
                 if (curFmWd < defFmWd)
                 {
-                    newEdgeWd = minWd - 2;
-                    newWd = minWd;
+                    if (resizeType != SIZE_MINIMIZED)
+                    {
+                        newEdgeWd = minWd - 2;
+                        newWd = minWd;
+                    }
                 }
             }
 
@@ -1624,8 +1603,11 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
             {
                 if (curFmHt < defFmHt)
                 {
-                    newEdgeHt = minHt - 2;
-                    newHt = minHt;
+                    if (resizeType != SIZE_MINIMIZED)
+                    {
+                        newEdgeHt = minHt - 2;
+                        newHt = minHt;
+                    }
                 }
             }
         }
@@ -1704,13 +1686,14 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
 
         if (oldOpt1Top > oldOpt2Top)
             oldOpt2Top = oldOpt2Top;
-
-        oldOpt1Top = delegateSizeControl(rectOpt1, hWndOpt1, oldOpt1Top, resizeType, oldResizeType, scrollDefOpt1Top, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, currScrollBtnLeft, currScrollBtnTop, newEdgeWd, newWd, minHt);
-       //_RPTF4(_CRT_WARN, "yCurrentScroll = %d,  newCtrlSizeTriggerHt = %d,  rectOpt1.top= %d, oldOpt1Top= %d\n", yCurrentScroll, newCtrlSizeTriggerHt, rectOpt1.top, oldOpt1Top);
-       // No full path :https://stackoverflow.com/questions/8487986/file-macro-shows-full-path/54335644#54335644
-        oldOpt2Top = delegateSizeControl(rectOpt2, hWndOpt2, oldOpt2Top, resizeType, oldResizeType, scrollDefOpt2Top, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, currScrollBtnLeft, currScrollBtnTop, newEdgeWd, newWd, minHt);
-        oldChkTop = delegateSizeControl(rectChk, hWndChk, oldChkTop, resizeType, oldResizeType, scrollDefChkTop, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, currScrollBtnLeft, currScrollBtnTop, newEdgeWd, newWd, minHt);
-
+        if (resizeType != SIZE_MINIMIZED)
+        {
+            oldOpt1Top = delegateSizeControl(rectOpt1, hWndOpt1, oldOpt1Top, resizeType, oldResizeType, scrollDefOpt1Top, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, currScrollBtnLeft, newEdgeWd, newWd, minHt);
+            //_RPTF4(_CRT_WARN, "yCurrentScroll = %d,  newCtrlSizeTriggerHt = %d,  rectOpt1.top= %d, oldOpt1Top= %d\n", yCurrentScroll, newCtrlSizeTriggerHt, rectOpt1.top, oldOpt1Top);
+            // No full path :https://stackoverflow.com/questions/8487986/file-macro-shows-full-path/54335644#54335644
+            oldOpt2Top = delegateSizeControl(rectOpt2, hWndOpt2, oldOpt2Top, resizeType, oldResizeType, scrollDefOpt2Top, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, currScrollBtnLeft, newEdgeWd, newWd, minHt);
+            oldChkTop = delegateSizeControl(rectChk, hWndChk, oldChkTop, resizeType, oldResizeType, scrollDefChkTop, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, currScrollBtnLeft, newEdgeWd, newWd, minHt);
+        }
 
     }
     else
@@ -1740,9 +1723,10 @@ void SizeControls(BITMAP bmp, HWND hWnd, UINT defFmWd, UINT defFmHt, int resizeT
     oldResizeType = resizeType;
     procEnd = TRUE;
 }
-int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeType, int oldResizeType, int scrollDefOptTop, int updatedxCurrentScroll, int updatedyCurrentScroll, int newCtrlSizeTriggerHt, int currScrollBtnLeft, int currScrollBtnTop, int newEdgeWd, int newWd, int minHt)
+int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeType, int oldResizeType, int scrollDefOptTop, int updatedxCurrentScroll, int updatedyCurrentScroll, int newCtrlSizeTriggerHt, int currScrollBtnLeft, int newEdgeWd, int newWd, int minHt)
 {
     int optHt = 0;
+    static int yOldScroll = 0;
     if (resizeType == SIZE_RESTORED)
     {
         optHt = scaleY * (rectOpt.bottom - rectOpt.top);
@@ -1750,10 +1734,10 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
         if (oldOptTop)
         {
             if (oldResizeType == SIZE_MAXIMIZED)
-                rectOpt.top = scaleY * (rectOpt.top - currScrollBtnTop + yCurrentScroll);
+                rectOpt.top = oldOptTop + yOldScroll - updatedyCurrentScroll;
             else
             {
-                if (oldResizeType != END_SIZE_MOVE)
+                if (oldResizeType != END_SIZE_MOVE) // sizing
                 rectOpt.top += scaleY * (rectOpt.top - oldOptTop + newCtrlSizeTriggerHt);
                 if (!rectOpt.top)
                 {
@@ -1773,18 +1757,16 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
     {
         if (resizeType != END_SIZE_MOVE)
         {
-            tmp = rectOpt.top;
             optHt = scaleY * (rectOpt.bottom - rectOpt.top);
+            oldOptTop = rectOpt.top;
+            if (resizeType == SIZE_MAXIMIZED)
+                yOldScroll = yCurrentScroll;
 
             //rectOpt.top = scaleY * (rectOpt.top - oldOptTop + yCurrentScroll);
             //The following does not preserve vertical scale for rectOpt.top afte SIZE_MAXIMIZED, so want update
-            rectOpt.top = scaleY * (rectOpt.top - currScrollBtnTop + yCurrentScroll);
+            rectOpt.top = scaleY * (rectOpt.top + yCurrentScroll) - updatedyCurrentScroll;
 
 
-            if (resizeType == SIZE_MAXIMIZED)
-                oldOptTop = tmp + yCurrentScroll;
-            else
-                oldOptTop = tmp + yCurrentScroll;
         }
     }
 
@@ -1800,13 +1782,13 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
     {
         if (resizeType == SIZE_MAXIMIZED)
         {
-            SetWindowPos(hWndOpt, NULL, currScrollBtnLeft - updatedxCurrentScroll, rectOpt.top - updatedyCurrentScroll,
+            SetWindowPos(hWndOpt, NULL, currScrollBtnLeft - updatedxCurrentScroll, rectOpt.top,
                 newWd, optHt, NULL);
         }
         else
         {
             if (oldResizeType == SIZE_MAXIMIZED)
-                SetWindowPos(hWndOpt, NULL, currScrollBtnLeft - xCurrentScroll, oldOptTop - yCurrentScroll,
+                SetWindowPos(hWndOpt, NULL, currScrollBtnLeft - xCurrentScroll, rectOpt.top,
                     newWd, optHt, NULL);
             else
                 SetWindowPos(hWndOpt, NULL, scaleX * currScrollBtnLeft - xCurrentScroll, rectOpt.top,
