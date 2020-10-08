@@ -27,7 +27,7 @@ WCHAR szTitle[MAX_LOADSTRING];                  // Title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 wchar_t* szFile = nullptr;
 float scrAspect = 0, scaleX = 1, scaleY = 1, resX = 0, resY = 0;
-SIZE scrDims = {0};
+SIZE scrDims = {0}, scrEdge = {0};
 // wd, ht: button dims
 int tmp = 0, wd = 0, ht = 0, capCallFrmResize = 0, xCurrentScroll, yCurrentScroll;
 HWND hWndGroupBox = 0, hWndButton = 0, hWndOpt1 = 0, hWndOpt2 = 0, hWndChk = 0;
@@ -58,6 +58,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
 int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xNewSize = 0, int yNewSize = 0, int bmpWidth = 0, int bmpHeight = 0);
 BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm, HDC hdcMemDefault, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcWinCl, BOOL noExit = FALSE);
 int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeType, int oldResizeType, int scrollDefOptTop, int updatedxCurrentScroll, int updatedyCurrentScroll, int newCtrlSizeTriggerHt, int newEdgeWd, int newWd, int minHt);
+BOOL CreateToolTipForRect(HWND hwndParent, int toolType = 0);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
@@ -206,7 +207,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     static int scrollStat;      // 0: None, 1: SB_HORZ, 2: SB_VERT, 3: SB_BOTH
 
 
-
+    static BOOL toolTipOn;
 
     static int  iDeltaPerLine;      // for mouse wheel logic
     static int iAccumDelta;
@@ -231,8 +232,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         if (groupboxFlag)
         {
 
-            hWndGroupBox = CreateWindowEx(0, TEXT("BUTTON"),
-                TEXT(""),
+            hWndGroupBox = CreateWindowExW(0, L"BUTTON",
+                L"",
                 WS_VISIBLE | WS_CHILD | BS_GROUPBOX | WS_CLIPSIBLINGS, //consider  WS_CLIPCHILDREN
                 // also MSDN: Do not combine the BS_OWNERDRAW style with any other button styles!
                 0, 0, wd, RectCl().height(1),
@@ -256,7 +257,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
         // Radio Option
 
-        hWndOpt1 = CreateWindowEx(WS_EX_WINDOWEDGE,
+        hWndOpt1 = CreateWindowExW(WS_EX_WINDOWEDGE,
             L"BUTTON",
             L"Scroll",
             WS_VISIBLE | WS_CHILD | BS_AUTORADIOBUTTON | WS_GROUP | BS_CENTER,  // <---- WS_GROUP group the 1st and 2nd radio buttons.
@@ -265,7 +266,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             hWnd, //<----- Use main window handle
             (HMENU)IDC_OPT1,
             (HINSTANCE)NULL, NULL);
-        hWndOpt2 = CreateWindowEx(WS_EX_WINDOWEDGE,
+        hWndOpt2 = CreateWindowExW(WS_EX_WINDOWEDGE,
             L"BUTTON",
             L"ScrollEx",
             WS_VISIBLE | WS_CHILD | BS_AUTORADIOBUTTON | BS_CENTER,  // Styles 
@@ -274,10 +275,10 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             hWnd,
             (HMENU)IDC_OPT2,
             (HINSTANCE)NULL, NULL);
-        SendMessage(hWndOpt1, BM_SETCHECK, BST_CHECKED, 0);
+        SendMessageW(hWndOpt1, BM_SETCHECK, BST_CHECKED, 0);
 
 
-        hWndChk = CreateWindowEx(WS_EX_WINDOWEDGE,
+        hWndChk = CreateWindowExW(WS_EX_WINDOWEDGE,
             L"BUTTON",
             L"Stretch",
             WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX | BS_CENTER,  // Styles 
@@ -365,6 +366,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
         }
         */
+        toolTipOn = FALSE;
         windowMoved = FALSE;
         return 0;
         break;
@@ -468,7 +470,16 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         //InvalidateRect(hWnd, 0, TRUE);
         KillTimer(hWnd, IDT_DRAGWINDOW);
         if (windowMoved)
-        windowMoved = FALSE;
+        {
+            windowMoved = FALSE;
+            RECT recthWndtmp = RectCl().RectCl(0, hWnd, 0);
+            if (!(recthWndtmp.left < scrEdge.cx || recthWndtmp.right >(scrEdge.cx + scrDims.cx) || recthWndtmp.top < scrEdge.cy || recthWndtmp.bottom >(scrEdge.cy + scrDims.cy)))
+            {
+                if (toolTipOn)
+                    toolTipOn = CreateToolTipForRect(hWnd);
+            }
+
+        }
         else
         {
             timDragWindow = 0;
@@ -626,6 +637,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             {
                 if (fSize)
                 {
+                    if (toolTipOn)
+                        toolTipOn = CreateToolTipForRect(hWnd);
                     if (!capCallFrmResize)
                         fSize = FALSE;
                     if (!isSizing)
@@ -663,7 +676,10 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 }
                 else
                     if (!isLoading && scrollStat)
-                        ReportErr(L"Cannot get here, fSize should be set...");
+                    {
+                        if (!toolTipOn)
+                            toolTipOn = CreateToolTipForRect(hWnd, 1);
+                    }
             }
 
             EndPaint(hWnd, &ps);
@@ -756,13 +772,13 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         iAccumDelta += (short)HIWORD(wParam);     // 120 or -120
         while (iAccumDelta >= iDeltaPerLine)
         {
-            SendMessage(hWnd, WM_VSCROLL, SB_LINEUP, 0);
+            SendMessageW(hWnd, WM_VSCROLL, SB_LINEUP, 0);
             iAccumDelta -= iDeltaPerLine;
         }
 
         while (iAccumDelta <= -iDeltaPerLine)
         {
-            SendMessage(hWnd, WM_VSCROLL, SB_LINEDOWN, 0);
+            SendMessageW(hWnd, WM_VSCROLL, SB_LINEDOWN, 0);
             iAccumDelta += iDeltaPerLine;
         }
         return 0;
@@ -786,20 +802,20 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         case IDC_OPT1:
         {
             if (wmEvent == BN_CLICKED)
-                optChk = (SendMessage((HWND)lParam, BM_GETCHECK, 0, 0) == BST_CHECKED);
+                optChk = (SendMessageW((HWND)lParam, BM_GETCHECK, 0, 0) == BST_CHECKED);
         }
         break;
         case IDC_OPT2:
         {
             if (wmEvent == BN_CLICKED)
-                optChk = (SendMessage((HWND)lParam, BM_GETCHECK, 0, 0) != BST_CHECKED);
+                optChk = (SendMessageW((HWND)lParam, BM_GETCHECK, 0, 0) != BST_CHECKED);
             // Also BST_INDETERMINATE, BST_UNCHECKED
         }
         break;
         case IDC_CHK:
         {
             if (wmEvent == BN_CLICKED)
-                chkChk = (SendMessage((HWND)lParam, BM_GETCHECK, 0, 0) == BST_CHECKED);
+                chkChk = (SendMessageW((HWND)lParam, BM_GETCHECK, 0, 0) == BST_CHECKED);
             // Also BST_INDETERMINATE, BST_UNCHECKED
         }
         break;
@@ -1198,7 +1214,7 @@ void PrintWindow(HWND hWnd, HBITMAP hBitmap, HDC hdcMemDefault)
     //HGDIOBJ hOld = GetCurrentObject(hDCMem, OBJ_BITMAP); //hBmpObj =>handle to bitmap (HBITMAP)
 
     SelectObject(hDCMem, hBitmap);
-    SendMessage(hWnd, WM_PRINT, (WPARAM)hDCMem,  PRF_CLIENT | PRF_ERASEBKGND | PRF_NONCLIENT);
+    SendMessageW(hWnd, WM_PRINT, (WPARAM)hDCMem,  PRF_CLIENT | PRF_ERASEBKGND | PRF_NONCLIENT);
     //Sleep(50);
 
     SelectObject(hdcMemDefault, hBitmap);
@@ -1210,8 +1226,6 @@ void DoMonInfo()
     HMONITOR hMon = MonitorFromWindow(GetDesktopWindow(), MONITOR_DEFAULTTOPRIMARY);
     MONITORINFO monInfo = {};
     monInfo.cbSize = sizeof(MONITORINFO);
-    scrDims.cx = monInfo.rcWork.right - monInfo.rcWork.left;
-    scrDims.cy = monInfo.rcWork.bottom - monInfo.rcWork.top;
     if (GetMonitorInfoW(hMon, &monInfo))
     {
         if (monInfo.dwFlags != MONITORINFOF_PRIMARY)
@@ -1219,7 +1233,10 @@ void DoMonInfo()
     }
     else
         ReportErr(L"GetMonitorInfo: Cannot get info.");
-
+    scrEdge.cx = monInfo.rcWork.left;
+    scrEdge.cy = monInfo.rcWork.top;
+    scrDims.cx = monInfo.rcWork.right - monInfo.rcWork.left;
+    scrDims.cy = monInfo.rcWork.bottom - monInfo.rcWork.top;
 }
 BOOL AdjustImage(HWND hWnd, BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC& hdcMem, HDC& hdcMemIn, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, int curFmWd, int curFmHt, int updatedxCurrentScroll, int updatedyCurrentScroll, int resizePic, BOOL maxMin)
 {
@@ -2145,6 +2162,40 @@ BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm,
     if (!noExit)
     DestroyWindow(hWnd);
     return true;
+}
+
+BOOL CreateToolTipForRect(HWND hwndParent, int toolType)
+{
+    static HWND hwndTT = 0; 
+    wchar_t off[1] = { L'\0' };
+    wchar_t offScreen[37] = {L'f', L'S', L'i', L'z', L'e', L' ', L'n', L'o', L't', L' ', L's', L'e', L't', L':', L' ', L'N', L'o', L' ', L'P', L'a', L'i', L'n', L't', L'.', L' ', L'O', L'f', L'f', L' ', L'S', L'c', L'r', L'e', L'e', L'n',  L'?', L'\0' };
+    // Create a tooltip.
+    if (!hwndTT)
+    hwndTT = CreateWindowExW(WS_EX_TOPMOST, TOOLTIPS_CLASS, NULL,
+        WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
+        CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+        hwndParent, NULL, hInst, NULL);
+
+    SetWindowPos(hwndTT, HWND_TOPMOST, 0, 0, 0, 0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+
+    // Set up "tool" information. In this case, the "tool" is the entire parent window.
+
+    TOOLINFOW ti = { 0 };
+    ti.cbSize = sizeof(TOOLINFOW);
+    ti.uFlags = TTF_SUBCLASS;
+    ti.hwnd = hwndParent;
+    ti.hinst = hInst;
+    ti.lpszText = (LPWSTR)((toolType) ? offScreen: off);
+
+    GetClientRect(hwndParent, &ti.rect);
+
+    SendMessageW(hwndTT, TTM_SETMAXTIPWIDTH, 0, 150);
+
+    // Associate the tooltip with the "tool" window.
+    SendMessageW(hwndTT, TTM_ADDTOOL, 0, (LPARAM)(LPTOOLINFO)&ti);
+
+    return (BOOL)toolType;
 }
 //**************************************************************
 // Functions for possible later use
