@@ -473,7 +473,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
             windowMoved = FALSE;
             RECT recthWndtmp = RectCl().RectCl(0, hWnd, 0);
-            if (!(recthWndtmp.left < scrEdge.cx || recthWndtmp.right >(scrEdge.cx + scrDims.cx) || recthWndtmp.top < scrEdge.cy || recthWndtmp.bottom >(scrEdge.cy + scrDims.cy)))
+            if (recthWndtmp.left < scrEdge.cx || recthWndtmp.right >(scrEdge.cx + scrDims.cx) || recthWndtmp.top < scrEdge.cy || recthWndtmp.bottom >(scrEdge.cy + scrDims.cy))
+            {
+                if (!toolTipOn)
+                    toolTipOn = CreateToolTipForRect(hWnd, 1);
+            }
+            else
             {
                 if (toolTipOn)
                     toolTipOn = CreateToolTipForRect(hWnd);
@@ -535,7 +540,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         if (wParam == 0)
         {
             PAINTSTRUCT ps;
-            hdc = BeginPaint(hWnd, &ps);
+            if (!(hdc = BeginPaint(hWnd, &ps)))
+                return 0;
 
 
             // If scrolling has occurred, use the following call to 
@@ -677,8 +683,13 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 else
                     if (!isLoading && scrollStat)
                     {
-                        if (!toolTipOn)
-                            toolTipOn = CreateToolTipForRect(hWnd, 1);
+
+                        RECT recthWndtmp = RectCl().RectCl(0, hWnd, 0);
+                        if (recthWndtmp.left < scrEdge.cx || recthWndtmp.right >(scrEdge.cx + scrDims.cx) || recthWndtmp.top < scrEdge.cy || recthWndtmp.bottom >(scrEdge.cy + scrDims.cy))
+                        {
+                            if (!toolTipOn)
+                                toolTipOn = CreateToolTipForRect(hWnd, 1);
+                        }
                     }
             }
 
