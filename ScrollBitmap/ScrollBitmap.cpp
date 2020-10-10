@@ -35,7 +35,7 @@ BOOL optChk = TRUE, chkChk = FALSE, groupboxFlag = FALSE,  procEndWMSIZE = TRUE;
 BOOL scrollHORZChanged = TRUE, scrollVERTChanged = TRUE, isLoading = TRUE, isSizing = FALSE, scrShtOrBmpLoad = FALSE; // False on PrintWindow
 
 // Timer
-int timDragWindow;
+int timDragWindow, timPaintBitmap;
 
 
 // Forward declarations of functions included in this code module:
@@ -414,13 +414,15 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     break;
     case WM_TIMER:
     {
-        if (wParam == IDT_DRAGWINDOW)
+        switch (wParam)
+        {
+        case IDT_DRAGWINDOW:
         {
             tmp = KillTimer(hWnd, IDT_DRAGWINDOW);
             if (tmp)
             {
                 /*
-                // The following causes excess drawing + painting && thus unecessary
+                // The following causes excess drawing + painting && thus unnecessary
                 SizeControls(bmp, hWnd, defFmWd, defFmHt, 0);
                 hdcWin = GetWindowDC(hWnd);
                 if (!AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xCurrentScroll, 1 + chkChk, 0))
@@ -430,9 +432,22 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 */
                 capCallFrmResize = 0;
             }
-            else
-                ReportErr(L"Problem with timer termination.");
         }
+        break;
+        case IDT_PAINTBITMAP:
+        {
+            tmp = KillTimer(hWnd, IDT_PAINTBITMAP);
+            timPaintBitmap = 0;
+            if (!AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, (chkChk) ? 2 : 0, (wParam != SIZE_RESTORED)))
+                ReportErr(L"AdjustImage detected a problem with the image!");
+
+            //mPaintBitmap
+        }
+        break;
+        }
+
+        if (!tmp)
+            ReportErr(L"Problem with timer termination.");
         return 0;
     }
     break;
@@ -2092,6 +2107,13 @@ int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xN
                         //si.fMask = SIF_DISABLENOSCROLL;
                         if (IsThemeActive()) //SetWindowTheme shows a hidden HORZ scrollbar if run twice.
                             setWindowThemeRunFlag = (SetWindowTheme(hWnd, NULL, _T("Scrollbar")) == S_OK);
+
+                        if (!(timPaintBitmap = SetTimer(hWnd,
+                            IDT_PAINTBITMAP,
+                            10,
+                            (TIMERPROC)NULL)))
+                            ReportErr(L"No timer is available.");
+
                         if (!ShowScrollBar(hWnd, SB_HORZ, FALSE))
                             ReportErr(L"SB_HORZ: ShowScrollBar failed!");
                     }
@@ -2144,7 +2166,14 @@ int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xN
                     if (scrollStat == 2 || scrollStat == 3)
                     {
                         if (IsThemeActive() && !setWindowThemeRunFlag)
+                        {
                             SetWindowTheme(hWnd, NULL, _T("Scrollbar"));
+                            if (!timPaintBitmap && !(timPaintBitmap = SetTimer(hWnd,
+                                IDT_PAINTBITMAP,
+                                10,
+                                (TIMERPROC)NULL)))
+                                ReportErr(L"No timer is available.");
+                        }
 
                         if (!ShowScrollBar(hWnd, SB_VERT, FALSE))
                             ReportErr(L"SB_VERT: ShowScrollBar failed!");
@@ -2166,10 +2195,6 @@ int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xN
     }
 
     return retVal;
-
-
-
-
 
 
 }
