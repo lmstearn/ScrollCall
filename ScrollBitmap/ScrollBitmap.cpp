@@ -29,10 +29,10 @@ wchar_t* szFile = nullptr;
 float scrAspect = 0, scaleX = 1, scaleY = 1, resX = 0, resY = 0;
 SIZE scrDims = {0}, scrEdge = {0};
 // wd, ht: button dims
-int tmp = 0, wd = 0, ht = 0, capCallFrmResize = 0, xCurrentScroll, yCurrentScroll;
+int tmp = 0, wd = 0, ht = 0, capCallFrmResize = 0, xCurrentScroll, yCurrentScroll, scrShtOrBmpLoad;
 HWND hWndGroupBox = 0, hWndButton = 0, hWndOpt1 = 0, hWndOpt2 = 0, hWndChk = 0;
 BOOL optChk = TRUE, chkChk = FALSE, groupboxFlag = FALSE,  procEndWMSIZE = TRUE;
-BOOL scrollHORZChanged = TRUE, scrollVERTChanged = TRUE, isLoading = TRUE, isSizing = FALSE, scrShtOrBmpLoad = FALSE; // False on PrintWindow
+BOOL scrollHORZChanged = TRUE, scrollVERTChanged = TRUE, isLoading = TRUE, isSizing = FALSE; // False on PrintWindow
 
 // Timer
 int timDragWindow, timPaintBitmap;
@@ -277,7 +277,6 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             (HINSTANCE)NULL, NULL);
         SendMessageW(hWndOpt1, BM_SETCHECK, BST_CHECKED, 0);
 
-
         hWndChk = CreateWindowExW(WS_EX_WINDOWEDGE,
             L"BUTTON",
             L"Stretch",
@@ -366,6 +365,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
         }
         */
+        scrShtOrBmpLoad = 0;
         toolTipOn = FALSE;
         windowMoved = FALSE;
         return 0;
@@ -530,7 +530,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             
             SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, wParam, xNewSize, yNewSize);
 
-            if (scrShtOrBmpLoad)
+            if (scrShtOrBmpLoad > 1)
             {
                 if (!isLoading)
                 {
@@ -706,7 +706,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     // Gets here on !scrShtOrBmpLoad, or on a successive WM_MOVE
                     // when a paint is required when form is moved either off screen
                     // or behind another shown HWND_TOPMOST form.
-                    if (!isLoading)
+                    if (scrShtOrBmpLoad && !isLoading)
                     {
                         RECT recthWndtmp = RectCl().RectCl(0, hWnd, 0);
                         if (recthWndtmp.left < scrEdge.cx || recthWndtmp.right >(scrEdge.cx + scrDims.cx) || recthWndtmp.top < scrEdge.cy || recthWndtmp.bottom >(scrEdge.cy + scrDims.cy))
@@ -859,13 +859,6 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
             //https://social.msdn.microsoft.com/Forums/sqlserver/en-US/76441f64-a7f2-4483-ad6d-f51b40464d6b/how-to-get-both-width-and-height-of-bitmap-in-gdiplus-flat-api?forum=windowsgeneraldevelopmentissues
 
-            if (hdcMemDefault)
-                Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMemDefault, hdcMem, hdcMemIn, hdcWinCl, TRUE);
-            else
-                hdcMemDefault = CreateCompatibleDC(hdcWinCl);
-
-            Color clr;
-
             szFile = (wchar_t*)calloc(MAX_LOADSTRING, sizeof(wchar_t));
             wcscpy_s(szFile, MAX_LOADSTRING, FileOpener(hWnd));
 
@@ -874,7 +867,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
            // GetEncoderClsid(L"image/png", &pngClsid);
             if (szFile[0] != L'*')
             {
+                if (hdcMemDefault)
+                    Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMemDefault, hdcMem, hdcMemIn, hdcWinCl, TRUE);
+                else
+                    hdcMemDefault = CreateCompatibleDC(hdcWinCl);
 
+                Color clr;
                 //wd = RectCl().width(2);
                 //ht = RectCl().height(1);
                 const std::vector<std::vector<unsigned>>resultPixels;
@@ -907,7 +905,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                         scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
                         szFile[0] = L'X';
 
-                        scrShtOrBmpLoad = TRUE;
+                        scrShtOrBmpLoad = 3;
                         //SetWindowOrgEx(hdcWinCl, xCurrentScroll, yCurrentScroll, NULL);
 
                         switch (scrollStat)
@@ -928,6 +926,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                         if (!AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, xCurrentScroll, yCurrentScroll))
                             ReportErr(L"AdjustImage detected a problem with the image!");
                         UpdateWindow(hWnd);
+                        EnableWindow(hWndChk, TRUE);
                     }
                     else
                         ReportErr(L"hBitmap: Cannot create bitmap!!");
@@ -966,7 +965,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             if (!hdcMemDefault)
                 hdcMemDefault = CreateCompatibleDC(hdcWinCl);
             hdcMem = CreateCompatibleDC(hdcWinCl);
-            scrShtOrBmpLoad = FALSE;
+            scrShtOrBmpLoad = 1;
             bmpWidth = (scaleX * RectCl().width(1)) - wd;
             bmpHeight = scaleY * (RectCl().height(1));
 
@@ -982,6 +981,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     ReportErr(L"Bad BitBlt from hdcMem!");
 
                 scrollStat = ScrollInfo(hWnd, 0, 0, 0, 0, 0, bmpWidth, bmpHeight);
+                EnableWindow(hWndChk, TRUE);
             }
             else
                 ReportErr(L"CreateCompatibleBitmap: Unable to create bitmap!");
@@ -1026,7 +1026,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         si.nPos = yCurrentScroll;
         tmp = SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
         */
-        scrShtOrBmpLoad = TRUE;
+        scrShtOrBmpLoad = 2;
 
         if (!AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, xCurrentScroll, yCurrentScroll, 2, FALSE, TRUE))
             ReportErr(L"AdjustImage detected a problem with the image!");
@@ -1057,6 +1057,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         break;
         }
 
+        EnableWindow(hWndChk, FALSE);
         //SetWindowOrgEx(hdcWinCl, xCurrentScroll, yCurrentScroll, NULL);
         }
         else
@@ -2105,9 +2106,13 @@ int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xN
                     if (scrollStat == 1 || scrollStat == 3) // else not shown
                     {
                         //si.fMask = SIF_DISABLENOSCROLL;
-                        if (IsThemeActive()) //SetWindowTheme shows a hidden HORZ scrollbar if run twice.
+                        if (IsThemeActive()) //SetWindowTheme reveals the hidden HORZ scrollbar if called twice.
                             setWindowThemeRunFlag = (SetWindowTheme(hWnd, NULL, _T("Scrollbar")) == S_OK);
-
+                        // For some reason yet to be determined, SetWindowTheme
+                        // also removes the painted bitmap on SIZE_MAXIMIZED
+                        // thus a timer is required to repaint it.
+                        // Curious, as after this function returns, WM_PAINT is actually
+                        // sent by the system to repaint, with no effect!
                         if (!(timPaintBitmap = SetTimer(hWnd,
                             IDT_PAINTBITMAP,
                             10,
