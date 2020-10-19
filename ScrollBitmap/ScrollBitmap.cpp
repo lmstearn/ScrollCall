@@ -32,7 +32,7 @@ SIZE scrDims = {0}, scrEdge = {0};
 int tmp = 0, wd = 0, ht = 0, capCallFrmResize = 0, xCurrentScroll, yCurrentScroll, scrShtOrBmpLoad;
 HWND hWndGroupBox = 0, hWndButton = 0, hWndOpt1 = 0, hWndOpt2 = 0, hWndChk = 0;
 BOOL optChk = TRUE, chkChk = FALSE, groupboxFlag = FALSE,  procEndWMSIZE = TRUE;
-BOOL isLoading = TRUE, isSizing = FALSE; // False on PrintWindow
+BOOL isLoading = TRUE, windowMoved,  isSizing = FALSE, restoreFromMax = FALSE;; // False on PrintWindow
 
 // Timer
 int timDragWindow = 0, timPaintBitmap = 0;
@@ -156,9 +156,14 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
     //SetWindowTheme(m_hWnd, L" ", L" ");
     //Or SetThemeAppProperties(STAP_ALLOW_CONTROLS | STAP_ALLOW_WEBCONTENT);
     //SetThemeAppProperties(0);
+    
     if (!m_hWnd)
+    {
+        ReportErr(L"Cannot create window! Quitting...");
         return FALSE;
-
+    }
+    // Old style theme
+    // SetWindowTheme(m_hWnd, L" ", L" ");
 
     ShowWindow(m_hWnd, nCmdShow);
     UpdateWindow(m_hWnd);
@@ -199,7 +204,6 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     static BITMAP bmp;          // bitmap data structure
     static UINT bmpWidth = 0;
     static UINT bmpHeight = 0;
-    static BOOL windowMoved;
     static BOOL isScreenshot;
     static int updatedxCurrentScroll, updatedyCurrentScroll; // updates on WM_SIZE
     static int xNewSize; // updates on WM_SIZE
@@ -507,11 +511,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
             timDragWindow = 0;
             capCallFrmResize = 0;
-            ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
+            scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
             SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, END_SIZE_MOVE, xNewSize, yNewSize);
+            UpdateWindow(hWnd);
             // The following causes flicker but may clip controls in certain circumstances
-            //if (!AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, 1 + chkChk))
-            //    ReportErr(L"AdjustImage detected a problem with the image!");
+            if (!scrollStat && !AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, 2, FALSE, SIZE_MAXIMIZED))
+                ReportErr(L"AdjustImage detected a problem with the image!");
         }
         return 0;
     }
@@ -548,8 +553,11 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 // (bitmap_width) - (client_width). The current horizontal 
                 // scroll value remains within the horizontal scrolling range. 
                 }
-                if (scrollStat && !isSizing)
-                ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
+                if ((scrollStat && !isSizing) || restoreFromMax || (wParam == SIZE_MAXIMIZED))
+                {
+                    restoreFromMax = (wParam == SIZE_MAXIMIZED);
+                    scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
+                }
             }
         }
         windowMoved = FALSE;
@@ -887,7 +895,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                         hdcMemIn = CreateCompatibleDC(hdcWinCl);
                         hdcMem = CreateCompatibleDC(hdcWinCl);
                         isScreenshot = FALSE;
-                        if (!AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, xCurrentScroll, yCurrentScroll, 1, FALSE, SIZE_MAXIMIZED))
+                        if (!AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, xCurrentScroll, yCurrentScroll, 2, FALSE, SIZE_MAXIMIZED))
                             ReportErr(L"AdjustImage detected a problem with the image!");
                         //SizeControls(bmp, hWnd, defFmWd, defFmHt, -1, xCurrentScroll, yCurrentScroll);
                         xCurrentScroll ? fScroll = 1 : fScroll = -1; //initialise for ScrollInfo below
@@ -913,8 +921,6 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                                 fScroll = 0;
                             break;
                             }
-                        if (!AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, xCurrentScroll, yCurrentScroll))
-                            ReportErr(L"AdjustImage detected a problem with the image!");
                         UpdateWindow(hWnd);
                         EnableWindow(hWndChk, TRUE);
                     }
@@ -1302,6 +1308,15 @@ BOOL AdjustImage(HWND hWnd, BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpSt
         else
             ReportErr(L"AdjustImage: Unable to size bitmap!");
 
+       /*
+       // If for some reason the bmp dims want not to exceed screen dims:
+       int maxBmpWd = scrDims.cx - wd;
+        int maxBmpHt = scrDims.cy - RectCl().ClMenuandTitle(hWnd);
+        if (bmpWidth > maxBmpWd)
+            bmpWidth = maxBmpWd;
+        if (bmpHeight > maxBmpHt)
+            bmpHeight = maxBmpHt;
+        */
         if (!ReleaseDC(hWnd, hdcWin))
             ReportErr(L"hdcWin: Not released!");
 
@@ -1333,18 +1348,11 @@ BOOL AdjustImage(HWND hWnd, BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpSt
                         bmpHeight, hdcScreenCompat, oldWd, 0, bmpWidth, bmpHeight, SRCCOPY);
                 else
                     retVal = (BOOL)BitBlt(hdcWinCl, wd - updatedxCurrentScroll, -updatedyCurrentScroll, bmpWidth, bmpHeight, hdcScreenCompat, oldWd, 0, SRCCOPY); //Blt at wd method
-                //(curFmWd / startFmWd)
-            // + startFmWd - curFmWd
             }
-            //retVal = (BOOL)BitBlt(hdcScreenCompat, wd, 0, bmp.bmWidth,
-                //bmp.bmHeight, hdcScreen, 0, 0, SRCCOPY);
-            // Copy the compatible DC to the client area.
-            //retVal = (BOOL)BitBlt(hdcWinCl, wd, 0, bmp.bmWidth, bmp.bmHeight, hdcScreenCompat, 0, 0, SRCCOPY); //Blt at zero method causes problems with horz scrolling
-
         }
         else
         {
-            if (resizePic || minMaxRestore == SIZE_MAXIMIZED)
+            if (resizePic || minMaxRestore == SIZE_MAXIMIZED || restoreFromMax)
             {
                 retVal = (BOOL)FillRect(hdcWinCl, &rect, (HBRUSH)(COLOR_WINDOW + 1)); //SetBkColor(hdcWinCl, COLOR_WINDOW + 1) causes flickering in the scrolling
 
@@ -1361,13 +1369,15 @@ BOOL AdjustImage(HWND hWnd, BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpSt
                         ReportErr(L"hdcMemIn: Cannot use bitmap!");
 
                     if (resizePic == 2)
-                        retVal = StretchBlt(hdcMem, wd, 0, bmpWidth - wd, bmpHeight, hdcMemIn, 0, 0, bmpWidth, bmpHeight, SRCCOPY);
+                        retVal = StretchBlt(hdcMem, wd, 0, bmpWidth, bmpHeight, hdcMemIn, 0, 0, bmpWidth, bmpHeight, SRCCOPY);
                     else
                         retVal = (BOOL)BitBlt(hdcMem, wd, 0, bmpWidth, bmpHeight, hdcMemIn, 0, 0, SRCCOPY); //Blt at wd method
 
                     if (retVal)
                     {
                     retVal = (BOOL)BitBlt(hdcWinCl, -updatedxCurrentScroll, -updatedyCurrentScroll, bmpWidth + wd, bmpHeight, hdcMem, 0, 0, SRCCOPY); //Blt at wd method
+                    if (!retVal)
+                        ReportErr(L"BitBlt to client failed!");
                     RECT rectTmp = rect;
                     (updatedxCurrentScroll > wd)? rectTmp.right = 0: rectTmp.right = wd - updatedxCurrentScroll;
                     retVal = (BOOL)FillRect(hdcWinCl, &rectTmp, (HBRUSH)(COLOR_WINDOW + 1)); //SetBkColor(hdcWinCl, COLOR_WINDOW + 1) causes flickering in the scrolling
@@ -1384,8 +1394,8 @@ BOOL AdjustImage(HWND hWnd, BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpSt
             else
             {
                 if (minMaxRestore == SIZE_RESTORED)
-                    retVal = (BOOL)BitBlt(hdcWinCl, wd - updatedxCurrentScroll, -updatedyCurrentScroll, bmpWidth, bmpHeight, hdcMem, oldWd, 0, SRCCOPY); //Blt at wd method
-                else
+                    retVal = (BOOL)BitBlt(hdcWinCl, -updatedxCurrentScroll, -updatedyCurrentScroll, bmpWidth, bmpHeight, hdcMem, oldWd, 0, SRCCOPY); //Blt at wd method
+                else // SIZE_MINIMIZED or not used
                     retVal = StretchBlt(hdcWinCl, wd - updatedxCurrentScroll, -updatedyCurrentScroll, bmpWidth,
                         bmpHeight, hdcMem, oldWd, 0, bmpWidth, bmpHeight, SRCCOPY);
 
@@ -1408,7 +1418,7 @@ void GetDims(HWND hWnd, int resizeType, int oldResizeType)
 
         if (resizeType != SIZE_MINIMIZED && resizeType != MAX_TO_MIN)
         {
-            if (resizeType != START_SIZE_MOVE && !firstSizeAfterSTART_SIZE_MOVE)
+            if ((resizeType != START_SIZE_MOVE && !firstSizeAfterSTART_SIZE_MOVE) || (firstSizeAfterSTART_SIZE_MOVE && windowMoved))
             {
                 oldWd = wd;
                 oldHt = ht;
@@ -1457,18 +1467,29 @@ void GetDims(HWND hWnd, int resizeType, int oldResizeType)
     {
         if (firstSizeAfterSTART_SIZE_MOVE)
         {
-            if (wdBefMax)
+            if (windowMoved)
             {
-                scaleX = wd /wdBefMax;
-                scaleY = ht / htBefMax;
+                scaleX = wd / oldWd;
+                scaleY = ht / oldHt;
                 wdBefMax = 0;
                 htBefMax = 0;
             }
             else
             {
-                scaleX = 1;
-                scaleY = 1;
+                if (wdBefMax)
+                {
+                    scaleX = wd / wdBefMax;
+                    scaleY = ht / htBefMax;
+                    wdBefMax = 0;
+                    htBefMax = 0;
+                }
+                else
+                {
+                    scaleX = 1;
+                    scaleY = 1;
+                }
             }
+
             firstSizeAfterSTART_SIZE_MOVE = FALSE;
         }
         else
@@ -1659,6 +1680,8 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
             (curFmHt < defFmHt) ? startFmHt = defFmHt : startFmHt = curFmHt;
             oldxScroll = xCurrentScroll;
             oldyScroll = yCurrentScroll;
+
+
             oldResizeType = resizeType;
             // Unfortunately, applying SetWindowPos here causes more sizing loops,
             // and the size and position of the controls is even worse than current.
@@ -1724,7 +1747,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
 
 
         if (resizeType == END_SIZE_MOVE)
-        SetWindowPos(hWndButton, NULL, rectBtn.left, rectBtn.top, newWd, newHt, NULL);
+        SetWindowPos(hWndButton, NULL, rectBtn.left, rectBtn.top, newWd, newHt, SWP_NOREDRAW | SWP_NOACTIVATE);
         else
         {
             // If maximised, scroll value may change- left/top of control may move below zero
@@ -2109,6 +2132,9 @@ switch (scrollXorY)
                         // the image when the scroll changes.
                         if (!ShowScrollBar(hWnd, SB_HORZ, FALSE))
                             ReportErr(L"SB_HORZ: ShowScrollBar failed!");
+                        if (scrollStat == 1) // the other scrollbar re-appears!
+                            ShowScrollBar(hWnd, SB_VERT, FALSE);
+
                         (scrollStat == 3) ? scrollStat = 2 : scrollStat = 0;
                     }
                 }
@@ -2160,12 +2186,12 @@ switch (scrollXorY)
                     if (scrollStat == 2 || scrollStat == 3)
                     {
                         scrollChanged = TRUE;
-                        if (IsThemeActive() && !setWindowThemeRunFlag)
+                        if (!setWindowThemeRunFlag && IsThemeActive())
                             SetWindowTheme(hWnd, NULL, _T("Scrollbar"));
 
                         if (!ShowScrollBar(hWnd, SB_VERT, FALSE))
                             ReportErr(L"SB_VERT: ShowScrollBar failed!");
-                        (scrollStat == 2) ? scrollStat = 0 : scrollStat = 1;
+                        (scrollStat == 3) ? scrollStat = 1 : scrollStat = 0;
                     }
 
                     //RedrawWindow(hWnd, NULL, NULL, RDW_FRAME | RDW_INVALIDATE | RDW_UPDATENOW);
