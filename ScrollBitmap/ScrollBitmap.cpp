@@ -59,6 +59,7 @@ int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xN
 BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm, HDC hdcMemDefault, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcWinCl, BOOL noExit = FALSE);
 int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeType, int oldResizeType, int defOptTop, int updatedxCurrentScroll, int updatedyCurrentScroll, int newCtrlSizeTriggerHt, int newEdgeWd, int newWd, int minHt);
 BOOL CreateToolTipForRect(HWND hwndParent, int toolType = 0);
+BOOL IsAllFormInWindow(HWND hWnd, BOOL toolTipOn, BOOL isMaximized = FALSE);
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
@@ -212,6 +213,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
 
     static BOOL toolTipOn;
+    static BOOL isMaximized;
+
 
     static int  iDeltaPerLine;      // for mouse wheel logic
     static int iAccumDelta;
@@ -433,8 +436,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 hdcWin = GetWindowDC(hWnd);
                 if (!AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xCurrentScroll, 1 + chkChk, 0))
                     ReportErr(L"AdjustImage detected a problem with the image!");
-               //ReportErr(L"AdjustImage detected a problem with the image!");
-                ReleaseDC(hWnd, hdcWin);
+-                ReleaseDC(hWnd, hdcWin);
                 */
                 capCallFrmResize = 0;
             }
@@ -446,8 +448,6 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             timPaintBitmap = 0;
             if (!AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, (chkChk) ? 2 : 0, SIZE_MAXIMIZED))
                 ReportErr(L"AdjustImage detected a problem with the image!");
-
-            //mPaintBitmap
         }
         break;
         }
@@ -476,10 +476,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         KillTimer(hWnd, IDT_DRAGWINDOW);
         SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, START_SIZE_MOVE, xNewSize, yNewSize);
         //InvalidateRect(hWnd, 0, TRUE);
-        timDragWindow = SetTimer(hWnd,             // handle to main window 
-            IDT_DRAGWINDOW,                   // timer identifier 
-            10,                           // millisecond interval 
-            (TIMERPROC)NULL);               // no timer callback 
+        if (scrShtOrBmpLoad > 1)
+            timDragWindow = SetTimer(hWnd,             // handle to main window 
+                IDT_DRAGWINDOW,                   // timer identifier 
+                10,                           // millisecond interval 
+                (TIMERPROC)NULL);               // no timer callback 
+
         return 0;
     }
     break;
@@ -488,24 +490,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         if (!scrShtOrBmpLoad)
             return 0;
         fSize = TRUE;
-        isSizing = FALSE;
         //InvalidateRect(hWnd, 0, TRUE);
         KillTimer(hWnd, IDT_DRAGWINDOW);
         if (windowMoved)
         {
             windowMoved = FALSE;
-            RECT recthWndtmp = RectCl().RectCl(0, hWnd, 0);
-            if (recthWndtmp.left < scrEdge.cx || recthWndtmp.right >(scrEdge.cx + scrDims.cx) || recthWndtmp.top < scrEdge.cy || recthWndtmp.bottom >(scrEdge.cy + scrDims.cy))
-            {
-                if (!toolTipOn)
-                    toolTipOn = CreateToolTipForRect(hWnd, 1);
-            }
-            else
-            {
-                if (toolTipOn)
-                    toolTipOn = CreateToolTipForRect(hWnd);
-            }
-
+            toolTipOn = IsAllFormInWindow(hWnd, toolTipOn);
         }
         else
         {
@@ -515,9 +505,19 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, END_SIZE_MOVE, xNewSize, yNewSize);
             UpdateWindow(hWnd);
             // The following causes flicker but may clip controls in certain circumstances
-            if (!scrollStat && !AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, 2, FALSE, SIZE_MAXIMIZED))
-                ReportErr(L"AdjustImage detected a problem with the image!");
+            if (scrShtOrBmpLoad == 1)
+            {
+                scrShtOrBmpLoad = 1;
+                if (!BitBlt(hdcWinCl, wd, RectCl().ClMenuandTitle(hWnd), bmpWidth, bmpHeight, hdcMem, 0, RectCl().ClMenuandTitle(hWnd), SRCCOPY))
+                    ReportErr(L"Bad BitBlt from hdcMem!");
+            }
+            else
+            {
+                if (!scrollStat && !AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, 2, FALSE, SIZE_MAXIMIZED))
+                    ReportErr(L"AdjustImage detected a problem with the image!");
+            }
         }
+        isSizing = FALSE;
         return 0;
     }
     break;
@@ -526,8 +526,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     {
         if (!procEndWMSIZE)
             return 0;
-
-        BOOL maxMinSize = (wParam == SIZE_MINIMIZED || wParam == SIZE_MAXIMIZED);
+        isMaximized = (wParam == SIZE_MAXIMIZED);
+        BOOL maxMinSize = (wParam == SIZE_MINIMIZED || isMaximized);
         // WM_SIZE called for each child control (no subclass)
 
         if (!(szFile && (szFile[0] == L'*')) && (!capCallFrmResize || !timDragWindow || maxMinSize))
@@ -535,7 +535,10 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
             xNewSize = LOWORD(lParam);
             yNewSize = HIWORD(lParam);
-            
+
+            if (restoreFromMax || isMaximized)
+                toolTipOn = IsAllFormInWindow(hWnd, toolTipOn, isMaximized);
+
             SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, wParam, xNewSize, yNewSize);
 
             if (scrShtOrBmpLoad > 1)
@@ -553,12 +556,21 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 // (bitmap_width) - (client_width). The current horizontal 
                 // scroll value remains within the horizontal scrolling range. 
                 }
-                if ((scrollStat && !isSizing) || restoreFromMax || (wParam == SIZE_MAXIMIZED))
+                if (scrollStat && !isSizing)
                 {
-                    restoreFromMax = (wParam == SIZE_MAXIMIZED);
+                    restoreFromMax = isMaximized;
                     scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
                 }
             }
+            else
+                if (scrShtOrBmpLoad == 1)
+                {
+                    if (!isSizing && !BitBlt(hdcWinCl, wd, RectCl().ClMenuandTitle(hWnd), bmpWidth, bmpHeight, hdcMem, 0, RectCl().ClMenuandTitle(hWnd), SRCCOPY))
+                        ReportErr(L"Bad BitBlt from hdcMem!");
+                    fSize = TRUE;
+
+                    restoreFromMax = isMaximized;
+                }
         }
         windowMoved = FALSE;
         return 0;
@@ -619,26 +631,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                             //UpdateWindow(hWnd);
                     }
 
-/* If the window has been resized and the user has
-// captured the screen, use the following call to
-// BitBlt to paint the window's client area.
-    x
-    The x - coordinate, in logical units, of the upper - left corner of the destination rectangle.
-    y
-    The y - coordinate, in logical units, of the upper - left corner of the destination rectangle.
-    cx
-    The width, in logical units, of the source and destination rectangles.
-    cy
-    The height, in logical units, of the source and the destination rectangles.
-    hdcSrc
-    A handle to the source device context.
-    x1
-    The x - coordinate, in logical units, of the upper - left corner of the source rectangle.
-    y1
-    The y - coordinate, in logical units, of the upper - left corner of the source rectangle.
-    */
-
-                    }
+                }
                 else
                     BitBlt(ps.hdc,
                         //prect->left + (isScreenshot ? 0 : ((fScroll == 1) ? 0 : -wd)),
@@ -659,22 +652,18 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             {
                 if (fSize)
                 {
-                    if (toolTipOn)
-                        toolTipOn = CreateToolTipForRect(hWnd);
                     if (!capCallFrmResize)
                         fSize = FALSE;
                     if (!isSizing)
                     {
                         if (!BitBlt(ps.hdc,
-                            //0, 0,
                             -xCurrentScroll, -yCurrentScroll,
                             bmpWidth, bmpHeight,
                             hdcWinCl,
                             0, 0,
-                            //xCurrentScroll, yCurrentScroll,
                             SRCCOPY))
                             ReportErr(L"BitBlt failed!");
-                    }
+
                     if (!groupboxFlag)
                     {
                     // Paint sections
@@ -697,6 +686,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                         }
                         //UpdateWindow(hWnd);
                     }
+                    }
 
                 }
                 else
@@ -705,14 +695,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     // when a paint is required when form is moved either off screen
                     // or behind another shown HWND_TOPMOST form.
                     if (scrShtOrBmpLoad && !isLoading)
-                    {
-                        RECT recthWndtmp = RectCl().RectCl(0, hWnd, 0);
-                        if (recthWndtmp.left < scrEdge.cx || recthWndtmp.right >(scrEdge.cx + scrDims.cx) || recthWndtmp.top < scrEdge.cy || recthWndtmp.bottom >(scrEdge.cy + scrDims.cy))
-                        {
-                            if (!toolTipOn)
-                                toolTipOn = CreateToolTipForRect(hWnd, 1);
-                        }
-                    }
+                        toolTipOn = IsAllFormInWindow(hWnd, toolTipOn);
                 }
             }
 
@@ -923,6 +906,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                             }
                         UpdateWindow(hWnd);
                         EnableWindow(hWndChk, TRUE);
+                        toolTipOn = IsAllFormInWindow(hWnd, toolTipOn);
                     }
                     else
                         ReportErr(L"hBitmap: Cannot create bitmap!!");
@@ -930,6 +914,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 else
                     ReportErr(L"GPS: Cannot open bitmap!");
             }
+
+
             free(szFile);
             isSizing = FALSE;
             return (INT_PTR)TRUE;
@@ -974,16 +960,18 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 if (!BitBlt(hdcWinCl, wd, RectCl().ClMenuandTitle(hWnd), bmpWidth, bmpHeight, hdcMem, 0, RectCl().ClMenuandTitle(hWnd), SRCCOPY))
                     ReportErr(L"Bad BitBlt from hdcMem!");
 
-                scrollStat = ScrollInfo(hWnd, 0, 0, 0, 0, 0, bmpWidth, bmpHeight);
+                scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
                 EnableWindow(hWndChk, TRUE);
+                toolTipOn = IsAllFormInWindow(hWnd, toolTipOn);
             }
             else
                 ReportErr(L"CreateCompatibleBitmap: Unable to create bitmap!");
         }
         else
             ReportErr(L"GetDCEx: Failed to get DC!");
-            isScreenshot = FALSE;
-
+    
+        isScreenshot = FALSE;
+        isSizing = FALSE;
         return 0;
     }
     break;
@@ -1053,6 +1041,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
         EnableWindow(hWndChk, FALSE);
         //SetWindowOrgEx(hdcWinCl, xCurrentScroll, yCurrentScroll, NULL);
+        toolTipOn = IsAllFormInWindow(hWnd, toolTipOn);
         }
         else
             ReportErr(L"GetDCEx: Failed to get DC!");
@@ -2202,7 +2191,7 @@ switch (scrollXorY)
         }
         if (scrollChanged == TRUE)
         {
-            if (!timPaintBitmap && !(timPaintBitmap = SetTimer(hWnd,
+            if ((scrShtOrBmpLoad > 1) && !timPaintBitmap && !(timPaintBitmap = SetTimer(hWnd,
                 IDT_PAINTBITMAP,
                 10,
                 (TIMERPROC)NULL)))
@@ -2270,6 +2259,23 @@ BOOL CreateToolTipForRect(HWND hwndParent, int toolType)
     SendMessageW(hwndTT, TTM_ADDTOOL, 0, (LPARAM)(LPTOOLINFO)&ti);
 
     return (BOOL)toolType;
+}
+
+BOOL IsAllFormInWindow(HWND hWnd, BOOL toolTipOn, BOOL isMaximized)
+{ 
+    RECT recthWndtmp = RectCl().RectCl(0, hWnd, 0);
+    if (!isMaximized && (recthWndtmp.left < scrEdge.cx || recthWndtmp.right > scrEdge.cx + scrDims.cx || recthWndtmp.top + RectCl().ClMenuandTitle(hWnd) < scrEdge.cy || recthWndtmp.bottom > scrEdge.cy + scrDims.cy))
+    {
+        if (!toolTipOn)
+            toolTipOn = CreateToolTipForRect(hWnd, 1);
+    }
+    else
+    {
+        if (toolTipOn)
+            toolTipOn = CreateToolTipForRect(hWnd);
+    }
+
+    return toolTipOn;
 }
 //**************************************************************
 // Functions for possible later use
