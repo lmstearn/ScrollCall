@@ -32,7 +32,7 @@ SIZE scrDims = {0}, scrEdge = {0};
 int tmp = 0, wd = 0, ht = 0, capCallFrmResize = 0, xCurrentScroll, yCurrentScroll, scrShtOrBmpLoad;
 HWND hWndGroupBox = 0, hWndButton = 0, hWndOpt1 = 0, hWndOpt2 = 0, hWndChk = 0;
 BOOL optChk = TRUE, chkChk = FALSE, groupboxFlag = FALSE,  procEndWMSIZE = TRUE;
-BOOL isLoading = TRUE, windowMoved,  isSizing = FALSE, restoreFromMax = FALSE;; // False on PrintWindow
+BOOL isLoading = TRUE, windowMoved,  isSizing = FALSE, restoreFromMax = FALSE;; // False on PrintTheWindow
 
 // Timer
 int timDragWindow = 0, timPaintBitmap = 0;
@@ -47,19 +47,21 @@ LRESULT CALLBACK staticSubClassButton(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 INT_PTR CALLBACK About(HWND, UINT, WPARAM, LPARAM);
 wchar_t* FileOpener(HWND hWnd);
 void ReportErr(const wchar_t* format, ...);
-void PrintWindow(HWND hWnd, HBITMAP hBmp, HDC hdcMemDefault);
-//Functions for later use
-BOOL BitmapFromPixels(Bitmap& myBitmap, const std::vector<std::vector<unsigned>>resultPixels, int width, int height);
+void PrintTheWindow(HWND hWnd, HBITMAP hBmp, HDC hdcMemDefault);
 void DoMonInfo();
 char* VecToArr(std::vector<std::vector<unsigned>> vec);
 BOOL AdjustImage(HWND hWnd, BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC& hdcMem, HDC& hdcMemIn, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, int xNewSize, int yNewSize, int updatedxCurrentScroll, int updatedyCurrentScroll, int resizePic = 0, int minMaxRestore = 0, BOOL newPic = FALSE);
 void GetDims(HWND hWnd, int resizeType = 0, int oldResizeType = 0);
 void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& updatedyCurrentScroll, int resizeType = -1, int curFmWd = 0, int curFmHt = 0);
 int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xNewSize = 0, int yNewSize = 0, int bmpWidth = 0, int bmpHeight = 0);
-BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm, HDC hdcMemDefault, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcWinCl, BOOL noExit = FALSE);
+BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm, HDC hdcMemDefault, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcWinCl, int typeOfDC = 0, BOOL noExit = FALSE);
 int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeType, int oldResizeType, int defOptTop, int updatedxCurrentScroll, int updatedyCurrentScroll, int newCtrlSizeTriggerHt, int newEdgeWd, int newWd, int minHt);
 BOOL CreateToolTipForRect(HWND hwndParent, int toolType = 0);
 BOOL IsAllFormInWindow(HWND hWnd, BOOL toolTipOn, BOOL isMaximized = FALSE);
+
+//Functions for later use
+//
+
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
@@ -389,8 +391,9 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         // Remove the above "return" to find that:
         // Custom painting during the sizing might have been a good idea,
         // except that the system invalidates the window with COLOR_WINDOW + 1
-        //after each bitblt, which causes flicker.
-        // Thus capCallFrmResize remains zero throughout.
+        // after each bitblt, which causes some flicker. Better handling of the timer
+        // in this case is also necessary to avoid other unwanted visual effects.
+        // Otherwise capCallFrmResize remains zero throughout.
         if (!timDragWindow || (capCallFrmResize == 5))
         {
             timDragWindow = SetTimer(hWnd,             // handle to main window 
@@ -503,20 +506,20 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             capCallFrmResize = 0;
             scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
             SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, END_SIZE_MOVE, xNewSize, yNewSize);
-            UpdateWindow(hWnd);
-            // The following causes flicker but may clip controls in certain circumstances
+            //UpdateWindow(hWnd);
+        }
+            // The following may causes flicker and clip controls in certain circumstances
             if (scrShtOrBmpLoad == 1)
             {
-                scrShtOrBmpLoad = 1;
-                if (!BitBlt(hdcWinCl, wd, RectCl().ClMenuandTitle(hWnd), bmpWidth, bmpHeight, hdcMem, 0, RectCl().ClMenuandTitle(hWnd), SRCCOPY))
+                if (!BitBlt(hdcWinCl, wd, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
                     ReportErr(L"Bad BitBlt from hdcMem!");
             }
             else
             {
+                // scrollStat because of timPaintBitmap set
                 if (!scrollStat && !AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, 2, FALSE, SIZE_MAXIMIZED))
                     ReportErr(L"AdjustImage detected a problem with the image!");
             }
-        }
         isSizing = FALSE;
         return 0;
     }
@@ -547,7 +550,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 {
                     if (!AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, (chkChk) ? 2 : 0, wParam))
                         ReportErr(L"AdjustImage detected a problem with the image!");
-
+                    restoreFromMax = isMaximized;
                     if (fSize && (wParam == SIZE_RESTORED))
                         timDragWindow = 0;
                     fSize = TRUE;
@@ -557,15 +560,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 // scroll value remains within the horizontal scrolling range. 
                 }
                 if (scrollStat && !isSizing)
-                {
-                    restoreFromMax = isMaximized;
                     scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
-                }
             }
             else
                 if (scrShtOrBmpLoad == 1)
                 {
-                    if (!isSizing && !BitBlt(hdcWinCl, wd, RectCl().ClMenuandTitle(hWnd), bmpWidth, bmpHeight, hdcMem, 0, RectCl().ClMenuandTitle(hWnd), SRCCOPY))
+                    if (!isSizing && !BitBlt(hdcWinCl, wd, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
                         ReportErr(L"Bad BitBlt from hdcMem!");
                     fSize = TRUE;
 
@@ -684,8 +684,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                                 FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
                             }
                         }
-                        //UpdateWindow(hWnd);
                     }
+                    //UpdateWindow(hWnd);
                     }
 
                 }
@@ -849,14 +849,15 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             if (szFile[0] != L'*')
             {
                 if (hdcMemDefault)
-                    Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMemDefault, hdcMem, hdcMemIn, hdcWinCl, TRUE);
+                    Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMemDefault, hdcMem, hdcMemIn, hdcWinCl, 1, TRUE);
                 else
                     hdcMemDefault = CreateCompatibleDC(hdcWinCl);
 
                 Color clr;
                 //wd = RectCl().width(2);
                 //ht = RectCl().height(1);
-                const std::vector<std::vector<unsigned>>resultPixels;
+
+                // const std::vector<std::vector<unsigned>>resultPixels; // for GetPixels
 
                 gps = GdipCreateBitmapFromFile(szFile, &pgpbm);
                 if (gps == Ok)
@@ -937,7 +938,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     case WM_LBUTTONDBLCLK:
     {
         if (hdcMemDefault)
-            Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMemDefault, hdcMem, hdcMemIn, hdcWinCl, TRUE);
+            Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMemDefault, hdcMem, hdcMemIn, hdcWinCl, 2, TRUE);
 
 
         if (hdcWinCl = GetDCEx(hWnd, (HRGN)NULL, DCX_CACHE | DCX_CLIPCHILDREN))
@@ -953,14 +954,15 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             hBitmap = CreateCompatibleBitmap(hdcWinCl, bmpWidth, bmpHeight);
             if (hBitmap)
             {
-                PrintWindow(hWnd, hBitmap, hdcMemDefault);
+                scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
+
+                PrintTheWindow(hWnd, hBitmap, hdcMemDefault);
                 SelectObject(hdcMem, hBitmap);
 
-
-                if (!BitBlt(hdcWinCl, wd, RectCl().ClMenuandTitle(hWnd), bmpWidth, bmpHeight, hdcMem, 0, RectCl().ClMenuandTitle(hWnd), SRCCOPY))
+                // can exclude RectCl().ClMenuandTitle(hWnd)
+                if (!BitBlt(hdcWinCl, wd, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
                     ReportErr(L"Bad BitBlt from hdcMem!");
 
-                scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
                 EnableWindow(hWndChk, TRUE);
                 toolTipOn = IsAllFormInWindow(hWnd, toolTipOn);
             }
@@ -978,7 +980,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     case WM_RBUTTONDOWN:
     {
         if (hdcMemDefault)
-            Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMemDefault, hdcMem, hdcMemIn, hdcWinCl, TRUE);
+            Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMemDefault, hdcMem, hdcMemIn, hdcWinCl, 3, TRUE);
 
 
         isScreenshot = TRUE;
@@ -1238,7 +1240,7 @@ void ReportErr(const wchar_t* format, ...)
         MessageBoxW(0, L"MessageBox: Out of memory!", L"Error", 0);
 }
 
-void PrintWindow(HWND hWnd, HBITMAP hBitmap, HDC hdcMemDefault)
+void PrintTheWindow(HWND hWnd, HBITMAP hBitmap, HDC hdcMemDefault)
 {
     HDC hDCMem = CreateCompatibleDC(NULL);
     //HGDIOBJ hOld = GetCurrentObject(hDCMem, OBJ_BITMAP); //hBmpObj =>handle to bitmap (HBITMAP)
@@ -1298,7 +1300,7 @@ BOOL AdjustImage(HWND hWnd, BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpSt
             ReportErr(L"AdjustImage: Unable to size bitmap!");
 
        /*
-       // If for some reason the bmp dims want not to exceed screen dims:
+       // If for some reason the bmp dims are required not to exceed screen dims:
        int maxBmpWd = scrDims.cx - wd;
         int maxBmpHt = scrDims.cy - RectCl().ClMenuandTitle(hWnd);
         if (bmpWidth > maxBmpWd)
@@ -1341,9 +1343,11 @@ BOOL AdjustImage(HWND hWnd, BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpSt
         }
         else
         {
-            if (resizePic || minMaxRestore == SIZE_MAXIMIZED || restoreFromMax)
+            if (resizePic || (minMaxRestore == SIZE_MAXIMIZED) || restoreFromMax)
             {
-                retVal = (BOOL)FillRect(hdcWinCl, &rect, (HBRUSH)(COLOR_WINDOW + 1)); //SetBkColor(hdcWinCl, COLOR_WINDOW + 1) causes flickering in the scrolling
+                //SetBkColor(hdcWinCl, COLOR_WINDOW + 1) causes flickering in the scrolling
+                if (!(retVal = (BOOL)FillRect(hdcWinCl, &rect, (HBRUSH)(COLOR_WINDOW + 1))))
+                    ReportErr(L"FillRect: Paint failed!");
 
                 //retVal = (int)SelectObject(hdcMem, hBitmap);
                 HBITMAP hBmp = CreateCompatibleBitmap(hdcWinCl, bmpWidth + wd, bmpHeight);
@@ -1383,7 +1387,7 @@ BOOL AdjustImage(HWND hWnd, BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpSt
             else
             {
                 if (minMaxRestore == SIZE_RESTORED)
-                    retVal = (BOOL)BitBlt(hdcWinCl, -updatedxCurrentScroll, -updatedyCurrentScroll, bmpWidth, bmpHeight, hdcMem, oldWd, 0, SRCCOPY); //Blt at wd method
+                    retVal = (BOOL)BitBlt(hdcWinCl, wd - updatedxCurrentScroll, -updatedyCurrentScroll, bmpWidth, bmpHeight, hdcMem, oldWd, 0, SRCCOPY); //Blt at wd method
                 else // SIZE_MINIMIZED or not used
                     retVal = StretchBlt(hdcWinCl, wd - updatedxCurrentScroll, -updatedyCurrentScroll, bmpWidth,
                         bmpHeight, hdcMem, oldWd, 0, bmpWidth, bmpHeight, SRCCOPY);
@@ -2206,24 +2210,51 @@ switch (scrollXorY)
 
 
 }
-BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm, HDC hdcMemDefault, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcWinCl, BOOL noExit)
+BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm, HDC hdcMemDefault, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcWinCl, int typeOfDC, BOOL noExit)
 {
+    HGDIOBJ hOldBmp = {};
+    static BOOL exitOnceFlag = FALSE;
+    if (exitOnceFlag)
+        return TRUE;
     if (hdcWinCl && !ReleaseDC(hWnd, hdcWinCl) && noExit)
         ReportErr(L"hdcWinCl: Not released!");
-    if (pgpbm)
-        GpStatus gps = GdipDisposeImage(pgpbm); //No return value
-    if (hdcMemDefault)
-        SelectObject(hdcMemDefault, hBitmap);
+    if (typeOfDC < 2)
+    {
+        if (pgpbm)
+            GpStatus gps = GdipDisposeImage(pgpbm); //No return value
+        if (hBitmap)
+        {
+            if (hdcMemDefault)
+            {
+                hOldBmp = GetCurrentObject(hdcMemIn, OBJ_BITMAP);
+                if (hOldBmp)
+                    SelectObject(hdcMemDefault, hOldBmp);
+                else
+                    if (noExit)
+                        ReportErr(L"hOldBmp: Not valid!");
+            }
+            if (hdcMemIn && !DeleteDC(hdcMemIn) && noExit)
+                ReportErr(L"hdcMemIn: DeleteDC failed!");
+            if (hBitmap && !DeleteObject(hBitmap) && noExit)
+                ReportErr(L"hBitmap: Cannot delete bitmap object!");
+        }
+    }
+    if (typeOfDC != 3)
+    {
     if (hdcMem && !DeleteDC(hdcMem) && noExit)
-        ReportErr(L"hdcMem: DeleteDC failed!");
-    if (hdcMemIn && !DeleteDC(hdcMemIn) && noExit)
-        ReportErr(L"hdcMemIn: DeleteDC failed!");
-    if (hbmpCompat && !DeleteObject(hbmpCompat) && noExit)
-        ReportErr(L"hbmpCompat: Not deleted!");
-    if (hBitmap && !DeleteObject(hBitmap) && noExit)
-        ReportErr(L"hBitmap: Cannot delete bitmap object!");
+            ReportErr(L"hdcMem: DeleteDC failed!");
+    }
+    if (typeOfDC == 3 || !typeOfDC)
+    {
+        if (hbmpCompat && !DeleteObject(hbmpCompat) && noExit)
+            ReportErr(L"hbmpCompat: Not deleted!");
+    }
     if (!noExit)
-    DestroyWindow(hWnd);
+    {
+        exitOnceFlag = TRUE;
+        DestroyWindow(hWnd);
+    }
+
     return true;
 }
 
@@ -2280,6 +2311,49 @@ BOOL IsAllFormInWindow(HWND hWnd, BOOL toolTipOn, BOOL isMaximized)
 //**************************************************************
 // Functions for possible later use
 //**************************************************************
+
+BOOL SetDragFullWindow(BOOL dragFullWindow = FALSE, BOOL restoreDef = FALSE)
+{
+    //https://devblogs.microsoft.com/oldnewthing/20050310-00/?p=36233
+    static int defDragFullWindow = -1;
+
+    if (restoreDef)
+    {
+        if (SystemParametersInfoW(SPI_SETDRAGFULLWINDOWS,
+            defDragFullWindow,
+            NULL,
+            NULL))
+            SendNotifyMessageW(HWND_BROADCAST, WM_SETTINGCHANGE,
+                SPI_GETDRAGFULLWINDOWS, 0);
+        else
+            ReportErr(L"SPI_SETDRAGFULLWINDOWS: Cannot restore.");
+    }
+    else
+    {
+        if (defDragFullWindow < 0)
+        {
+            if (!SystemParametersInfoW(SPI_GETDRAGFULLWINDOWS,
+                NULL, &defDragFullWindow, 0))
+                {
+                    defDragFullWindow = 0;
+                    ReportErr(L"SPI_SETDRAGFULLWINDOWS: Cannot get info.");
+                }
+        }
+        else
+        {
+            if (SystemParametersInfoW(SPI_SETDRAGFULLWINDOWS,
+                dragFullWindow,
+                NULL,
+                NULL))
+                SendNotifyMessageW(HWND_BROADCAST, WM_SETTINGCHANGE,
+                    SPI_GETDRAGFULLWINDOWS, 0);
+            else
+                ReportErr(L"SPI_SETDRAGFULLWINDOWS: Cannot set info.");
+        }
+    }
+    return dragFullWindow;
+}
+
 //https://stackoverflow.com/a/39654760/2128797
 std::vector<std::vector<unsigned>> getPixels(Gdiplus::Bitmap bitmap, int& width, int& height) {
 
