@@ -47,14 +47,14 @@ LRESULT CALLBACK staticSubClassButton(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 INT_PTR CALLBACK About(HWND, UINT, WPARAM, LPARAM);
 wchar_t* FileOpener(HWND hWnd);
 void ReportErr(const wchar_t* format, ...);
-void PrintTheWindow(HWND hWnd, HBITMAP hBmp, HDC hdcMemDefault);
+void PrintTheWindow(HWND hWnd, HBITMAP hBmp);
 void DoMonInfo();
 char* VecToArr(std::vector<std::vector<unsigned>> vec);
 BOOL AdjustImage(HWND hWnd, BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC& hdcMem, HDC& hdcMemIn, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, int xNewSize, int yNewSize, int updatedxCurrentScroll, int updatedyCurrentScroll, int resizePic = 0, int minMaxRestore = 0, BOOL newPic = FALSE);
 void GetDims(HWND hWnd, int resizeType = 0, int oldResizeType = 0);
 void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& updatedyCurrentScroll, int resizeType = -1, int curFmWd = 0, int curFmHt = 0);
 int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xNewSize = 0, int yNewSize = 0, int bmpWidth = 0, int bmpHeight = 0);
-BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm, HDC hdcMemDefault, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcWinCl, int typeOfDC = 0, BOOL noExit = FALSE);
+BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcWinCl, int typeOfDC = 0, BOOL noExit = FALSE);
 int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeType, int oldResizeType, int defOptTop, int updatedxCurrentScroll, int updatedyCurrentScroll, int newCtrlSizeTriggerHt, int newEdgeWd, int newWd, int minHt);
 BOOL CreateToolTipForRect(HWND hwndParent, int toolType = 0);
 BOOL IsAllFormInWindow(HWND hWnd, BOOL toolTipOn, BOOL isMaximized = FALSE);
@@ -197,7 +197,6 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     static BOOL fSize;          // TRUE if WM_SIZE 
 
     static HDC hdcWinCl;            // client area of DC for window
-    static HDC hdcMemDefault;            // Default dummy Mem DC
     static HDC hdcMem;            // Mem DC
     static HDC hdcMemIn;            // Mem DC
     static HDC hdcScreen;           // DC for entire screen
@@ -417,7 +416,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 if (capCallFrmResize > 5)
                 {
                     ReportErr(L"Timer var incorrect!");
-                    Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMemDefault, hdcMem, hdcMemIn, hdcWinCl);
+                    Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMem, hdcMemIn, hdcWinCl);
                     PostQuitMessage(0);
                 }
         }
@@ -848,10 +847,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
            // GetEncoderClsid(L"image/png", &pngClsid);
             if (szFile[0] != L'*')
             {
-                if (hdcMemDefault)
-                    Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMemDefault, hdcMem, hdcMemIn, hdcWinCl, 1, TRUE);
-                else
-                    hdcMemDefault = CreateCompatibleDC(hdcWinCl);
+                Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMem, hdcMemIn, hdcWinCl, 1, TRUE);
 
                 Color clr;
                 //wd = RectCl().width(2);
@@ -926,7 +922,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
         break;
         case IDM_EXIT:
-            Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMemDefault, hdcMem, hdcMemIn, hdcWinCl);
+            Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMem, hdcMemIn, hdcWinCl);
         break;
         default:
             return DefWindowProc(hWnd, uMsg, wParam, lParam);
@@ -937,14 +933,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     break;
     case WM_LBUTTONDBLCLK:
     {
-        if (hdcMemDefault)
-            Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMemDefault, hdcMem, hdcMemIn, hdcWinCl, 2, TRUE);
+
+        Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMem, hdcMemIn, hdcWinCl, 2, TRUE);
 
 
         if (hdcWinCl = GetDCEx(hWnd, (HRGN)NULL, DCX_CACHE | DCX_CLIPCHILDREN))
         {
-            if (!hdcMemDefault)
-                hdcMemDefault = CreateCompatibleDC(hdcWinCl);
             hdcMem = CreateCompatibleDC(hdcWinCl);
             scrShtOrBmpLoad = 1;
             bmpWidth = (scaleX * RectCl().width(1)) - wd;
@@ -956,7 +950,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             {
                 scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
 
-                PrintTheWindow(hWnd, hBitmap, hdcMemDefault);
+                PrintTheWindow(hWnd, hBitmap);
                 SelectObject(hdcMem, hBitmap);
 
                 // can exclude RectCl().ClMenuandTitle(hWnd)
@@ -979,16 +973,14 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     break;
     case WM_RBUTTONDOWN:
     {
-        if (hdcMemDefault)
-            Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMemDefault, hdcMem, hdcMemIn, hdcWinCl, 3, TRUE);
+        Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMem, hdcMemIn, hdcWinCl, 3, TRUE);
 
 
         isScreenshot = TRUE;
         // Get the compatible DC of the client area. 
         if (hdcWinCl = GetDCEx(hWnd, (HRGN)NULL, DCX_CACHE | DCX_CLIPCHILDREN))
         {
-        if (!hdcMemDefault)
-        hdcMemDefault = CreateCompatibleDC(hdcWinCl);
+
         //SizeControls(bmp, hWnd, defFmWd, defFmHt, -1, xCurrentScroll, yCurrentScroll);
 
         /*
@@ -1058,7 +1050,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
         case VK_ESCAPE:
         {
-            Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMemDefault, hdcMem, hdcMemIn, hdcWinCl);
+            Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMem, hdcMemIn, hdcWinCl);
             PostQuitMessage(0);
         }
         break;
@@ -1069,7 +1061,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     break;
     case WM_DESTROY:
     {
-        Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMemDefault, hdcMem, hdcMemIn, hdcWinCl);
+        Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMem, hdcMemIn, hdcWinCl);
         PostQuitMessage(0);
     }
     break;
@@ -1240,7 +1232,7 @@ void ReportErr(const wchar_t* format, ...)
         MessageBoxW(0, L"MessageBox: Out of memory!", L"Error", 0);
 }
 
-void PrintTheWindow(HWND hWnd, HBITMAP hBitmap, HDC hdcMemDefault)
+void PrintTheWindow(HWND hWnd, HBITMAP hBitmap)
 {
     HDC hDCMem = CreateCompatibleDC(NULL);
     //HGDIOBJ hOld = GetCurrentObject(hDCMem, OBJ_BITMAP); //hBmpObj =>handle to bitmap (HBITMAP)
@@ -1249,7 +1241,6 @@ void PrintTheWindow(HWND hWnd, HBITMAP hBitmap, HDC hdcMemDefault)
     SendMessageW(hWnd, WM_PRINT, (WPARAM)hDCMem,  PRF_CLIENT | PRF_ERASEBKGND | PRF_NONCLIENT);
     //Sleep(50);
 
-    SelectObject(hdcMemDefault, hBitmap);
     DeleteDC(hDCMem);
 }
 void DoMonInfo()
@@ -2210,9 +2201,9 @@ switch (scrollXorY)
 
 
 }
-BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm, HDC hdcMemDefault, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcWinCl, int typeOfDC, BOOL noExit)
+BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcWinCl, int typeOfDC, BOOL noExit)
 {
-    HGDIOBJ hOldBmp = {};
+    static HGDIOBJ hOldBmp = {};
     static BOOL exitOnceFlag = FALSE;
     if (exitOnceFlag)
         return TRUE;
@@ -2224,26 +2215,42 @@ BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm,
             GpStatus gps = GdipDisposeImage(pgpbm); //No return value
         if (hBitmap)
         {
-            if (hdcMemDefault)
+            if (hdcMemIn)
             {
+                // Replacing old object with new to free the DC: check memory.
                 hOldBmp = GetCurrentObject(hdcMemIn, OBJ_BITMAP);
                 if (hOldBmp)
-                    SelectObject(hdcMemDefault, hOldBmp);
+                    SelectObject(hdcMemIn, hOldBmp);
                 else
+                {
                     if (noExit)
                         ReportErr(L"hOldBmp: Not valid!");
+                }
+                if (!DeleteDC(hdcMemIn) && noExit)
+                    ReportErr(L"hdcMemIn: DeleteDC failed!");
+                if (hBitmap && !DeleteObject(hBitmap) && noExit)
+                    ReportErr(L"hBitmap: Cannot delete bitmap object!");
             }
-            if (hdcMemIn && !DeleteDC(hdcMemIn) && noExit)
-                ReportErr(L"hdcMemIn: DeleteDC failed!");
-            if (hBitmap && !DeleteObject(hBitmap) && noExit)
-                ReportErr(L"hBitmap: Cannot delete bitmap object!");
-        }
+            }
     }
     if (typeOfDC != 3)
     {
-    if (hdcMem && !DeleteDC(hdcMem) && noExit)
-            ReportErr(L"hdcMem: DeleteDC failed!");
-    }
+        if (hdcMem)
+        {
+            hOldBmp = GetCurrentObject(hdcMem, OBJ_BITMAP);
+            if (hOldBmp)
+                SelectObject(hdcMem, hOldBmp);
+            else
+            {
+                if (noExit)
+                    ReportErr(L"hOldBmp: Not valid!");
+            }
+            if (!DeleteDC(hdcMem) && noExit)
+                ReportErr(L"hdcMem: DeleteDC failed!");
+            if ((typeOfDC == 2) && hBitmap && !DeleteObject(hBitmap) && noExit)
+                ReportErr(L"hBitmap: Cannot delete bitmap object!");
+        }
+        }
     if (typeOfDC == 3 || !typeOfDC)
     {
         if (hbmpCompat && !DeleteObject(hbmpCompat) && noExit)
@@ -2252,6 +2259,8 @@ BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm,
     if (!noExit)
     {
         exitOnceFlag = TRUE;
+        if (hOldBmp && DeleteObject(hOldBmp))
+            ReportErr(L"hOldBmp: DC flushed, yet DeleteObject succeeded!");
         DestroyWindow(hWnd);
     }
 
