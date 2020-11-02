@@ -28,6 +28,7 @@ WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 wchar_t* szFile = nullptr;
 float scrAspect = 0, scaleX = 1, scaleY = 1, resX = 0, resY = 0;
 SIZE scrDims = {0}, scrEdge = {0};
+const UINT WM_USERACTION = WM_APP + 1;
 // wd, ht: button dims
 int tmp = 0, wd = 0, ht = 0, capCallFrmResize = 0, xCurrentScroll, yCurrentScroll, scrShtOrBmpLoad;
 HWND hWndGroupBox = 0, hWndButton = 0, hWndOpt1 = 0, hWndOpt2 = 0, hWndChk = 0;
@@ -36,6 +37,16 @@ BOOL isLoading = TRUE, windowMoved,  isSizing = FALSE, restoreFromMax = FALSE;; 
 
 // Timer
 int timDragWindow = 0, timPaintBitmap = 0;
+
+
+const UINT valMin = 0;          // The range of values for the Up-Down control.
+const UINT valMax = 100;
+// Handles to the controls.
+HWND m_hWnd = NULL;
+HWND hDlg = NULL;
+HWND hwndLabel = NULL;
+HWND hwndUpDnEdtBdy = NULL;
+HWND hwndUpDnCtl = NULL;
 
 
 // Forward declarations of functions included in this code module:
@@ -58,7 +69,8 @@ BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm,
 int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeType, int oldResizeType, int defOptTop, int updatedxCurrentScroll, int updatedyCurrentScroll, int newCtrlSizeTriggerHt, int newEdgeWd, int newWd, int minHt);
 BOOL CreateToolTipForRect(HWND hwndParent, int toolType = 0);
 BOOL IsAllFormInWindow(HWND hWnd, BOOL toolTipOn, BOOL isMaximized = FALSE);
-
+INT_PTR CALLBACK UpDownDialogProc(HWND, UINT, WPARAM, LPARAM);
+HWND UpDownCreate(HWND hWndParent, BOOL ctrlType = 0);
 //Functions for later use
 //
 
@@ -80,21 +92,22 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     // Perform application initialization:
     if (!InitInstance(hInstance, nCmdShow))
-        return FALSE;
+        return (INT_PTR)FALSE;
 
 
 
-    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SCROLLBITMAP));
+    HACCEL hAccelTable = LoadAcceleratorsW(hInstance, MAKEINTRESOURCEW(IDC_SCROLLBITMAP));
 
     MSG msg;
-
+    BOOL a;
     // Main message loop:
     while (GetMessage(&msg, nullptr, 0, 0))
     {
-        if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
+        a = (hDlg == NULL) ? 0 : IsDialogMessageW(hDlg, &msg);
+        if (!a && !TranslateAcceleratorW(msg.hwnd, hAccelTable, &msg))
         {
             TranslateMessage(&msg);
-            DispatchMessage(&msg);
+            DispatchMessageW(&msg);
         }
     }
 
@@ -119,12 +132,12 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.cbClsExtra = 0;
     wcex.cbWndExtra = 0;
     wcex.hInstance = hInstance;
-    wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_SCROLLBITMAP));
+    wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCEW(IDI_SCROLLBITMAP));
     wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
     wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     wcex.lpszMenuName = MAKEINTRESOURCEW(IDC_SCROLLBITMAP);
     wcex.lpszClassName = szWindowClass;
-    wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
+    wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCEW(IDI_SMALL));
 
     return RegisterClassExW(&wcex);
 }
@@ -145,7 +158,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
     int msgboxID = MessageBoxW(NULL, L"Use GroupBox?", L"GroupBox", MB_YESNOCANCEL | MB_ICONQUESTION);
     if (msgboxID == IDCANCEL)
-        return 0;
+        return (INT_PTR)FALSE;
     else
     {
         if (msgboxID == IDYES)
@@ -153,7 +166,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
         DoMonInfo();
     }
 
-    HWND m_hWnd = CreateWindowW(szWindowClass, szTitle, WS_HSCROLL | WS_VSCROLL | WS_OVERLAPPEDWINDOW | (groupboxFlag ? NULL : WS_CLIPCHILDREN),
+    m_hWnd = CreateWindowW(szWindowClass, szTitle, WS_HSCROLL | WS_VSCROLL | WS_OVERLAPPEDWINDOW | (groupboxFlag ? NULL : WS_CLIPCHILDREN),
         CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
     // Old style
     //SetWindowTheme(m_hWnd, L" ", L" ");
@@ -163,7 +176,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
     if (!m_hWnd)
     {
         ReportErr(L"Cannot create window! Quitting...");
-        return FALSE;
+        return (INT_PTR)FALSE;
     }
     // Old style theme
     // SetWindowTheme(m_hWnd, L" ", L" ");
@@ -171,7 +184,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
     ShowWindow(m_hWnd, nCmdShow);
     UpdateWindow(m_hWnd);
     isLoading = FALSE;
-    return TRUE;
+    return (INT_PTR)TRUE;
 }
 
 //
@@ -249,7 +262,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 0, 0, wd, RectCl().height(1),
                 hWnd,
                 (HMENU)IDC_GROUPBOX,
-                GetModuleHandle(NULL),
+                hInst,
                 NULL);
         }
         hWndButton = CreateWindowW(
@@ -354,14 +367,14 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
         if (groupboxFlag)
         {
-            if (!SetWindowSubclass(hWndGroupBox, staticSubClass, 1, 0))
+            if (!SetWindowSubclass(hWndGroupBox, staticSubClass, IDS_GRPSUBCLASS, 0))
                 // uIdSubclass is 1 and incremented for each new subclass implemented
                 // dwRefData is 0 and has no explicit use
             {
                 //std::cerr << "Failed to subclass list\n";
-                ReportErr(L"Cannot subclass control! Quitting...");
+                ReportErr(L"Cannot subclass Groupbox control! Quitting...");
                 DestroyWindow(hWndGroupBox);
-                return NULL;
+                return (LRESULT)FALSE;
 
             }
         }
@@ -375,18 +388,29 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
         }
         */
+        UpDownCreate(hWnd);
         scrShtOrBmpLoad = 0;
         toolTipOn = FALSE;
         windowMoved = FALSE;
-        return 0;
+        return (LRESULT)FALSE;
         break;
     }
+    		case WM_GETDLGCODE:
+                if (lParam)
+                {
+                    MSG* pMsg = reinterpret_cast<MSG*>(lParam);
+                    if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_RETURN)
+                    {
+                        return DLGC_WANTMESSAGE;
+                    }
+                }
+                break;
     case WM_SIZING:
     {
         fScroll = 0;
         fSize = TRUE;
         isSizing = TRUE;
-        return TRUE;
+        return (LRESULT)TRUE;
         // Remove the above "return" to find that:
         // Custom painting during the sizing might have been a good idea,
         // except that the system invalidates the window with COLOR_WINDOW + 1
@@ -420,7 +444,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     PostQuitMessage(0);
                 }
         }
-        return TRUE;
+        return (LRESULT)TRUE;
     }
     break;
     case WM_TIMER:
@@ -456,7 +480,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
         if (!tmp)
             ReportErr(L"Problem with timer termination.");
-        return 0;
+        return (LRESULT)FALSE;
     }
     break;
     case WM_MOVE:
@@ -468,13 +492,13 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             KillTimer(hWnd, IDT_DRAGWINDOW);
             timDragWindow = 0;
         }
-        return 0;
+        return (LRESULT)FALSE;
     }
     break;
     case WM_ENTERSIZEMOVE:
     {
         if (!scrShtOrBmpLoad)
-            return 0;
+            return (LRESULT)FALSE;
         KillTimer(hWnd, IDT_DRAGWINDOW);
         SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, START_SIZE_MOVE, xNewSize, yNewSize);
         //InvalidateRect(hWnd, 0, TRUE);
@@ -484,13 +508,13 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 10,                           // millisecond interval 
                 (TIMERPROC)NULL);               // no timer callback 
 
-        return 0;
+        return (LRESULT)FALSE;
     }
     break;
     case WM_EXITSIZEMOVE:
     {
         if (!scrShtOrBmpLoad)
-            return 0;
+            return (LRESULT)FALSE;
         fSize = TRUE;
         //InvalidateRect(hWnd, 0, TRUE);
         KillTimer(hWnd, IDT_DRAGWINDOW);
@@ -510,7 +534,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             // The following may causes flicker and clip controls in certain circumstances
             if (scrShtOrBmpLoad == 1)
             {
-                if (!BitBlt(hdcWinCl, wd, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
+                    if (!BitBlt(hdcWinCl, wd, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
                     ReportErr(L"Bad BitBlt from hdcMem!");
             }
             else
@@ -520,14 +544,14 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     ReportErr(L"AdjustImage detected a problem with the image!");
             }
         isSizing = FALSE;
-        return 0;
+        return (LRESULT)FALSE;
     }
     break;
 
     case WM_SIZE:
     {
         if (!procEndWMSIZE)
-            return 0;
+            return (LRESULT)FALSE;
         isMaximized = (wParam == SIZE_MAXIMIZED);
         BOOL maxMinSize = (wParam == SIZE_MINIMIZED || isMaximized);
         // WM_SIZE called for each child control (no subclass)
@@ -572,7 +596,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 }
         }
         windowMoved = FALSE;
-        return 0;
+        return (LRESULT)FALSE;
     }
     break;
     case WM_PAINT:
@@ -581,7 +605,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
             PAINTSTRUCT ps;
             if (!(hdc = BeginPaint(hWnd, &ps)))
-                return 0;
+                return (LRESULT)FALSE;
 
 
             // If scrolling has occurred, use the following call to 
@@ -673,9 +697,9 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                             if (prect->left < wd - 1) // Issue when form is sized small horizontally
                             {
                                 RECT rect;
+                                rect.left = prect->left;
                                 rect.top = prect->top;
                                 rect.bottom = prect->bottom;
-                                rect.left = prect->left;
                                 tmp = RectCl().width(0);
                                 if (tmp < wd)
                                     tmp = wd;
@@ -702,7 +726,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         }
         else
             RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_INTERNALPAINT);
-        return 0;
+        return (LRESULT)FALSE;
     }
     break;
     case WM_GETMINMAXINFO:
@@ -722,7 +746,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         int xDelta = ScrollInfo(hWnd, HORZ_SCROLL, LOWORD(wParam), HIWORD(wParam), xNewSize, yNewSize, bmpWidth, bmpHeight);
         // If the current position does not change, do not scroll.
         if (!xDelta)
-            return 0;
+            return (LRESULT)FALSE;
         fScroll = 1;
         fSize = FALSE;
         if (optChk)
@@ -747,7 +771,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         }
         // Reset the scroll bar. 
         ScrollInfo(hWnd, UPDATE_HORZSCROLLSIZE, 0, 0);
-        return 0;
+        return (LRESULT)FALSE;
 
     }
     break;
@@ -760,7 +784,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         // necessary to call UpdateWindow in order to repaint the
         // rectangle of pixels that were invalidated.)
         if (!yDelta)
-            return 0;
+            return (LRESULT)FALSE;
         fScroll = -1;
         fSize = FALSE;
         if (optChk)
@@ -777,13 +801,13 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
         // Reset scroll bar. 
         ScrollInfo(hWnd, UPDATE_VERTSCROLLSIZE, 0, 0);
-        return 0;
+        return (LRESULT)FALSE;
     }
     break;
     case WM_MOUSEWHEEL:
     {
         if (iDeltaPerLine == 0)
-            return 0;
+            return (LRESULT)FALSE;
 
         iAccumDelta += (short)HIWORD(wParam);     // 120 or -120
         while (iAccumDelta >= iDeltaPerLine)
@@ -797,7 +821,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             SendMessageW(hWnd, WM_VSCROLL, SB_LINEDOWN, 0);
             iAccumDelta += iDeltaPerLine;
         }
-        return 0;
+        return (LRESULT)FALSE;
     }
     break;
     case WM_COMMAND: // WM_PARENTNOTIFY if hWndGroupBox is parent to controls (not the case here)
@@ -815,6 +839,11 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
         switch (wmId) //(GetWindowLong(hwndButton, GWL_ID))
         {
+        case IDM_RUN_UPDOWN:
+        {
+            DialogBoxW(hInst, MAKEINTRESOURCEW(IDD_UPDOWN), hWnd, UpDownDialogProc);
+        }
+        break;
         case IDC_OPT1:
         {
             if (wmEvent == BN_CLICKED)
@@ -867,6 +896,15 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     // black = (bits == 0);   alpha=255 => 0xFF000000
                     if (hBitmap)
                     {
+                        // clear existing DC first
+                        RECT rect;
+                        rect.left = 0;
+                        rect.top = 0;
+                        rect.right = bmpWidth + wd;
+                        rect.bottom = bmpHeight;
+                        if (!((BOOL)FillRect(hdcWinCl, &rect, (HBRUSH)(COLOR_WINDOW + 1))))
+                            ReportErr(L"FillRect failed to clear old image!");
+
                         gps = GdipGetImageWidth(pgpbm, &bmpWidth);
                         gps = GdipGetImageHeight(pgpbm, &bmpHeight);
                         //HBITMAP hBmpCopy = (HBITMAP)CopyImage(hBitmap, IMAGE_BITMAP, 0, 0, LR_DEFAULTSIZE);
@@ -901,7 +939,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                                 fScroll = 0;
                             break;
                             }
-                        UpdateWindow(hWnd);
+                        //UpdateWindow(hWnd);
                         EnableWindow(hWndChk, TRUE);
                         toolTipOn = IsAllFormInWindow(hWnd, toolTipOn);
                     }
@@ -915,11 +953,11 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
             free(szFile);
             isSizing = FALSE;
-            return (INT_PTR)TRUE;
+            return (LRESULT)TRUE;
         }
         break;
         case IDM_ABOUT:
-            DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+            DialogBox(hInst, MAKEINTRESOURCEW(IDD_ABOUTBOX), hWnd, About);
         break;
         case IDM_EXIT:
             Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMem, hdcMemIn, hdcWinCl);
@@ -941,8 +979,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
             hdcMem = CreateCompatibleDC(hdcWinCl);
             scrShtOrBmpLoad = 1;
-            bmpWidth = (scaleX * RectCl().width(1)) - wd;
-            bmpHeight = scaleY * (RectCl().height(1));
+            bmpWidth = RectCl().width(1) - wd;
+            bmpHeight = RectCl().height(1);
 
 
             hBitmap = CreateCompatibleBitmap(hdcWinCl, bmpWidth, bmpHeight);
@@ -968,7 +1006,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     
         isScreenshot = FALSE;
         isSizing = FALSE;
-        return 0;
+        return (LRESULT)FALSE;
     }
     break;
     case WM_RBUTTONDOWN:
@@ -1041,7 +1079,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             ReportErr(L"GetDCEx: Failed to get DC!");
 
         isSizing = FALSE;
-        return 0;
+        return (LRESULT)FALSE;
     }
     break;
     case WM_KEYDOWN:
@@ -1069,7 +1107,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         return DefWindowProc(hWnd, uMsg, wParam, lParam);
     break;
     }
-return 0;
+return (LRESULT)FALSE;
 }
 
 LRESULT CALLBACK staticSubClass(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
@@ -1106,14 +1144,14 @@ LRESULT CALLBACK staticSubClass(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         }
         else
             RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_INTERNALPAINT);
-        return TRUE;
+        return (LRESULT)TRUE;
     }
     break;
     case WM_NCDESTROY:
     {
         // NOTE: this requirement is NOT stated in the documentation, but it is stated in Raymond Chen's blog article...
         RemoveWindowSubclass(hWnd, staticSubClass, uIdSubclass);
-        return 0;
+        return (LRESULT)FALSE;
     }
     break;
     default:
@@ -1134,7 +1172,7 @@ LRESULT CALLBACK staticSubClassButton(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
     {
         // NOTE: this requirement is NOT stated in the documentation, but it is stated in Raymond Chen's blog article...
         RemoveWindowSubclass(hWnd, staticSubClassButton, uIdSubclass);
-        return 0;
+        return (LRESULT)FALSE;
     }
     break;
     default:
@@ -1146,7 +1184,7 @@ LRESULT CALLBACK staticSubClassButton(HWND hWnd, UINT uMsg, WPARAM wParam, LPARA
 
 
 // Message handler for about box.
-INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+INT_PTR CALLBACK About(HWND hAboutDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER(lParam);
     switch (message)
@@ -1158,7 +1196,7 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
         {
             if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
             {
-                EndDialog(hDlg, LOWORD(wParam));
+                EndDialog(hAboutDlg, LOWORD(wParam));
                 return (INT_PTR)TRUE;
             }
             else
@@ -1169,6 +1207,161 @@ INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
             return (INT_PTR)FALSE;
         break;
         }
+}
+
+INT_PTR CALLBACK UpDownDialogProc(HWND hUpDownDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    static const int ctlUpDownIncrement = 5;
+    UINT nCode;
+    int iPos, iPosIndicated, upOrDown = 0;
+    LPNMUPDOWN lpnmud = {};
+
+    switch (message)
+    {
+    case WM_INITDIALOG:
+    {
+
+        hwndUpDnCtl = UpDownCreate(hDlg, 1);
+        hwndUpDnEdtBdy = UpDownCreate(hDlg, 2);
+        SendMessage(hwndUpDnCtl, UDM_SETBUDDY, (WPARAM)hwndUpDnEdtBdy, 0);
+        /*
+        GetClientRect(hDlg, &rcClient);
+
+        cyVScroll = GetSystemMetrics(SM_CYVSCROLL);
+
+        hwndGroupBox = CreateGroupBox(hDlg);   // Group the controls.
+        hwndLabel = CreateLabel(hDlg);      // Create a label for the Up-Down control.
+        hwndUpDnEdtBdy = CreateUpDnBuddy(hDlg);  // Create an buddy window (an Edit control).
+        hwndUpDnCtl = CreateUpDnCtl(hDlg);    // Create an Up-Down control.
+        hwndProgBar = CreateProgBar(hDlg);    // Create a Progress bar,
+                                                 // to reflect the state of the Up-down control.
+*/
+        hDlg = hUpDownDlg;
+        ShowWindow(m_hWnd, SW_SHOWDEFAULT);
+        return (INT_PTR)TRUE;
+
+    }
+        break;
+    case WM_NOTIFY:
+    {
+        nCode = ((LPNMHDR)lParam)->code;
+
+        switch (nCode)
+        {
+            case UDN_DELTAPOS:
+            {
+                lpnmud = (LPNMUPDOWN)lParam;
+                upOrDown = lpnmud->iDelta;
+                //lpnmud->iDelta < 0 is up else down;
+            }
+            break;
+            default:
+            break;
+        }
+    }
+    break;
+    case WM_USERACTION:
+    {
+        if (upOrDown)
+        {
+            iPos = GetDlgItemInt(hwndUpDnEdtBdy, IDD_UPDOWNBUDDY, FALSE, FALSE);
+            if (upOrDown < 0)
+            {
+                if (iPos < valMax)
+                {
+                    iPos += ctlUpDownIncrement;
+                    SetDlgItemInt(hwndUpDnEdtBdy, IDD_UPDOWNBUDDY, iPos, FALSE);
+                }
+            }
+            else
+            {
+                if (iPos > valMin)
+                {
+                    iPos -= ctlUpDownIncrement;
+                    SetDlgItemInt(hwndUpDnEdtBdy, IDD_UPDOWNBUDDY, iPos, FALSE);
+                }
+            }
+            upOrDown = 0;
+        }
+    }
+    break;
+    case WM_COMMAND:
+    {
+        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+        {
+            EndDialog(hUpDownDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+        }
+    }
+    break;
+    default:
+        return (INT_PTR)FALSE;
+    break;
+    }
+    return (INT_PTR)FALSE;
+}
+HWND UpDownCreate(HWND hWndParent, BOOL ctrlType)
+{
+    HWND hControl = NULL;
+    int classVar = 0;
+        if (ctrlType == 1)
+            classVar = ICC_STANDARD_CLASSES;
+        if (ctrlType == 2)
+            classVar = ICC_UPDOWN_CLASS;
+
+
+    static const INITCOMMONCONTROLSEX commonCtrls =
+    {
+    sizeof(INITCOMMONCONTROLSEX),
+    classVar
+    };
+
+    switch (ctrlType)
+    {
+    case 0:
+    {
+        //hControl = CreateDialogParamW(hInst, MAKEINTRESOURCEW(IDD_UPDOWN), hWndParent, UpDownDialogProc, NULL);
+        if (!DialogBoxParamW(hInst, MAKEINTRESOURCEW(IDD_UPDOWN), hWndParent, UpDownDialogProc, NULL))
+            ReportErr(L"UpDown Control: Cannot create!");
+        //CreateDialogIndirectW(hInst, (LPCDLGTEMPLATEW)MAKEINTRESOURCEW(IDD_UPDOWN), hWndParent, UpDownDialogProc);
+        ShowWindow(hDlg, SW_SHOWDEFAULT);
+    }
+    break;
+    case 1:
+    {
+        hControl = CreateWindowExW(WS_EX_LEFT | WS_EX_LTRREADING,
+        UPDOWN_CLASS,
+        NULL,
+        WS_CHILDWINDOW | WS_VISIBLE
+        | UDS_AUTOBUDDY | UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_HOTTRACK,
+        2, 4 * ht,
+        0, 0,          // Set to zero to automatically size to fit the buddy window.
+        hWndParent,
+        NULL,
+        hInst,
+        NULL);
+
+    SendMessage(hControl, UDM_SETRANGE, 0, MAKELPARAM(valMax, valMin));    // Sets the controls direction 
+                                                                           // and range.
+    }
+    break;
+    case 2:
+        hControl = CreateWindowExW(WS_EX_LEFT | WS_EX_CLIENTEDGE | WS_EX_CONTEXTHELP,    //Extended window styles.
+        WC_STATIC,
+        NULL,
+        WS_CHILDWINDOW | WS_VISIBLE | WS_BORDER    // Window styles.
+        | SS_EDITCONTROL,                     // Label control style.
+        2, 4 * ht,
+        wd / 2 - 1, ht / 2,
+        hWndParent,
+        NULL,
+        hInst,
+        NULL);
+    break;
+    }
+
+
+    return FALSE;
 }
 
 wchar_t* FileOpener(HWND hWnd)
@@ -1304,8 +1497,8 @@ BOOL AdjustImage(HWND hWnd, BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpSt
 
         rect.left = 0;
         rect.top = 0;
-        rect.bottom = bmpHeight;
         rect.right = bmpWidth;
+        rect.bottom = bmpHeight;
     }
 
         if (isScreenshot)

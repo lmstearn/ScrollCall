@@ -16,12 +16,14 @@
 #include <gdiplusflat.h>
 
 #include "resource.h"
+
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "gdiplus.lib" )
 #pragma comment(lib, "UxTheme.lib")
 #pragma warning( disable : 4018 )
 #pragma warning( disable : 4996 )
 
+//#pragma comment(lib, "C:\\Program Files\\Microsoft SDKs\\Windows\\vX.Y\\Lib\\ComCtl32.Lib")
 #pragma comment(linker,"\"/manifestdependency:type='win32' \
 name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
 processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")

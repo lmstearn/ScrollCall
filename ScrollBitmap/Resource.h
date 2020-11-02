@@ -26,11 +26,16 @@
 #define IDI_SCROLLBITMAP			107
 #define IDI_SMALL				108
 #define IDC_SCROLLBITMAP			109
+#define IDM_RUN_UPDOWN	83
+#define IDD_UPDOWN			82
+#define IDC_UPDOWN		81
+#define IDS_GRPSUBCLASS			80
 #define ID_OPENBITMAP			40
 #define IDC_OPT1			41
 #define IDC_OPT2			42
 #define IDC_CHK			43
 #define IDC_GROUPBOX	44
+#define IDD_UPDOWNBUDDY	45
 #define START_SIZE_MOVE			16
 #define END_SIZE_MOVE			12
 #define MAX_TO_MIN			8
