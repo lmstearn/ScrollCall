@@ -3,6 +3,7 @@ RECT RectCl::rectOut1 = {};
 RECT RectCl::rectOut2 = {};
 RECT RectCl::rectOut3 = {};
 RECT RectCl::rectOut4 = {};
+RECT RectCl::rectOut5 = {};
 HWND RectCl::ownerHwnd = 0;
 RECT RectCl::initRectOwnerHwnd = {};
 RECT RectCl::rectOwnerHwnd = {};
@@ -31,7 +32,8 @@ SIZE scrDims = {0}, scrEdge = {0};
 const UINT WM_USERACTION = WM_APP + 1;
 // wd, ht: button dims
 int tmp = 0, wd = 0, ht = 0, capCallFrmResize = 0, xCurrentScroll, yCurrentScroll, scrShtOrBmpLoad;
-HWND hWndGroupBox = 0, hWndButton = 0, hWndOpt1 = 0, hWndOpt2 = 0, hWndChk = 0;
+HWND m_hWnd = NULL, hDlg = NULL, hWndGroupBox = 0;
+HWND hWndButton = 0, hWndOpt1 = 0, hWndOpt2 = 0, hWndChk = 0;
 BOOL optChk = TRUE, chkChk = FALSE, groupboxFlag = FALSE,  procEndWMSIZE = TRUE;
 BOOL isLoading = TRUE, windowMoved,  isSizing = FALSE, restoreFromMax = FALSE;; // False on PrintTheWindow
 
@@ -42,11 +44,7 @@ int timDragWindow = 0, timPaintBitmap = 0;
 const UINT valMin = 0;          // The range of values for the Up-Down control.
 const UINT valMax = 100;
 // Handles to the controls.
-HWND m_hWnd = NULL;
-HWND hDlg = NULL;
-HWND hwndLabel = NULL;
-HWND hwndUpDnEdtBdy = NULL;
-HWND hwndUpDnCtl = NULL;
+HWND hwndLabel = NULL, hwndUpDnEdtBdy = NULL, hwndUpDnCtl = NULL;
 
 
 // Forward declarations of functions included in this code module:
@@ -66,7 +64,7 @@ void GetDims(HWND hWnd, int resizeType = 0, int oldResizeType = 0);
 void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& updatedyCurrentScroll, int resizeType = -1, int curFmWd = 0, int curFmHt = 0);
 int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xNewSize = 0, int yNewSize = 0, int bmpWidth = 0, int bmpHeight = 0);
 BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcWinCl, int typeOfDC = 0, BOOL noExit = FALSE);
-int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeType, int oldResizeType, int defOptTop, int updatedxCurrentScroll, int updatedyCurrentScroll, int newCtrlSizeTriggerHt, int newEdgeWd, int newWd, int minHt);
+int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeType, int oldResizeType, int defOptTop, int updatedxCurrentScroll, int updatedyCurrentScroll, int newCtrlSizeTriggerHt, int newEdgeWd, int newWd, int minHt, HWND buddyHWnd = 0);
 BOOL CreateToolTipForRect(HWND hwndParent, int toolType = 0);
 BOOL IsAllFormInWindow(HWND hWnd, BOOL toolTipOn, BOOL isMaximized = FALSE);
 INT_PTR CALLBACK UpDownDialogProc(HWND, UINT, WPARAM, LPARAM);
@@ -225,6 +223,11 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     static int yNewSize;
     static int scrollStat;      // 0: None, 1: SB_HORZ, 2: SB_VERT, 3: SB_BOTH
 
+    //For UpDown
+    static const int ctlUpDownIncrement = 5;
+    UINT nCode;
+    int iPos, iPosIndicated, upOrDown = 0;
+    LPNMUPDOWN lpnmud = {};
 
     static BOOL toolTipOn;
     static BOOL isMaximized;
@@ -252,6 +255,9 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         RECT recthWndtmp = RectCl().RectCl(0, hWnd, 1); //must be initialised as can be used before WM_SIZE.
         xNewSize = RectCl().width(1);
         yNewSize = RectCl().height(1);
+
+        //hDlg = UpDownCreate(hWnd); //create UpDown dialog early
+
         if (groupboxFlag)
         {
 
@@ -311,6 +317,34 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             (HINSTANCE)NULL, NULL);
 
 
+
+        const wchar_t* initZero = L"0\0";
+        hwndUpDnEdtBdy = CreateWindowExW(WS_EX_LEFT | WS_EX_CLIENTEDGE,    //Extended window styles.
+            WC_STATIC,
+            NULL,
+            WS_CHILDWINDOW | WS_VISIBLE | WS_BORDER | WS_GROUP   // Window styles.
+            | SS_EDITCONTROL,                     // Label control style.
+            0, 0,
+            wd / 2 - 1, ht,
+            hWnd,
+            (HMENU)IDD_UPDOWN_BUDDY,
+            hInst,
+            NULL);
+        SendMessage(hwndUpDnEdtBdy, WM_SETTEXT, 0, (LPARAM)initZero);
+
+        hwndUpDnCtl = CreateWindowExW(WS_EX_LEFT | WS_EX_LTRREADING,
+            UPDOWN_CLASS,
+            NULL,
+            WS_CHILDWINDOW | WS_VISIBLE
+            | UDS_AUTOBUDDY | UDS_SETBUDDYINT | UDS_ALIGNLEFT | UDS_ARROWKEYS | UDS_HOTTRACK,
+            0, 0,
+            wd / 2, ht,          // Or set to zero to automatically size to fit the buddy window.
+            hWnd,
+            (HMENU)IDD_UPDOWN,
+            hInst,
+            NULL);
+
+        SendMessage(hwndUpDnCtl, UDM_SETRANGE, 0, MAKELPARAM(valMax, valMin));    // Sets controls' direction & range.
 
         // Create a normal DC and a memory DC for the entire 
         // screen. The normal DC provides a snapshot of the 
@@ -388,7 +422,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
         }
         */
-        UpDownCreate(hWnd);
+
         scrShtOrBmpLoad = 0;
         toolTipOn = FALSE;
         windowMoved = FALSE;
@@ -735,6 +769,50 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         ((MINMAXINFO*)lParam)->ptMinTrackSize.y = 200;
     }
     break;
+    case WM_NOTIFY:
+    {
+        nCode = ((LPNMHDR)lParam)->code;
+
+        switch (nCode)
+        {
+        case UDN_DELTAPOS:
+        {
+            lpnmud = (LPNMUPDOWN)lParam;
+            upOrDown = lpnmud->iDelta;
+            //lpnmud->iDelta < 0 is up else down;
+            if (upOrDown)
+            {
+                wchar_t iPosStr[4];
+                SendMessage(hwndUpDnEdtBdy, WM_GETTEXT, (WPARAM)4, (LPARAM)iPosStr);
+                iPos = _wtoi(iPosStr);
+                if (upOrDown < 0)
+                {
+                    if (iPos < valMin)
+                    {
+                        iPos += ctlUpDownIncrement;
+                        iPos = wcstol(iPosStr, NULL, 10);
+                        SendMessage(hwndUpDnEdtBdy, WM_SETTEXT, (WPARAM)4, (LPARAM)iPosStr);
+                    }
+                }
+                else
+                {
+                    if (iPos > valMax)
+                    {
+                        iPos -= ctlUpDownIncrement;
+                        iPos = wcstol(iPosStr, NULL, 10);
+                        SendMessage(hwndUpDnEdtBdy, WM_SETTEXT, (WPARAM)4, (LPARAM)iPosStr);
+                    }
+                }
+                upOrDown = 0;
+            }
+
+        }
+        break;
+        default:
+            break;
+        }
+    }
+    break;
     case WM_HSCROLL:
     {
  
@@ -839,7 +917,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
         switch (wmId) //(GetWindowLong(hwndButton, GWL_ID))
         {
-        case IDM_RUN_UPDOWN:
+        case IDD_UPDOWN:
+        {
+            DialogBoxW(hInst, MAKEINTRESOURCEW(IDD_UPDOWN), hWnd, UpDownDialogProc);
+        }
+        break;
+        case IDD_UPDOWN_BUDDY:
         {
             DialogBoxW(hInst, MAKEINTRESOURCEW(IDD_UPDOWN), hWnd, UpDownDialogProc);
         }
@@ -957,7 +1040,16 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         }
         break;
         case IDM_ABOUT:
-            DialogBox(hInst, MAKEINTRESOURCEW(IDD_ABOUTBOX), hWnd, About);
+        {
+            if (hDlg)
+                ShowWindow(hDlg, SW_SHOWDEFAULT);
+            //DialogBox(hInst, MAKEINTRESOURCEW(IDD_ABOUTBOX), hWnd, About);
+            if (hDlg = CreateDialogParamW(hInst, MAKEINTRESOURCEW(IDD_ABOUTBOX), hWnd, About, NULL))
+                ShowWindow(hDlg, SW_SHOWDEFAULT);
+            else
+                ReportErr(L"About: Cannot create!");
+        }
+
         break;
         case IDM_EXIT:
             Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMem, hdcMemIn, hdcWinCl);
@@ -1221,27 +1313,10 @@ INT_PTR CALLBACK UpDownDialogProc(HWND hUpDownDlg, UINT message, WPARAM wParam, 
     case WM_INITDIALOG:
     {
 
-        hwndUpDnCtl = UpDownCreate(hDlg, 1);
-        hwndUpDnEdtBdy = UpDownCreate(hDlg, 2);
-        SendMessage(hwndUpDnCtl, UDM_SETBUDDY, (WPARAM)hwndUpDnEdtBdy, 0);
-        /*
-        GetClientRect(hDlg, &rcClient);
-
-        cyVScroll = GetSystemMetrics(SM_CYVSCROLL);
-
-        hwndGroupBox = CreateGroupBox(hDlg);   // Group the controls.
-        hwndLabel = CreateLabel(hDlg);      // Create a label for the Up-Down control.
-        hwndUpDnEdtBdy = CreateUpDnBuddy(hDlg);  // Create an buddy window (an Edit control).
-        hwndUpDnCtl = CreateUpDnCtl(hDlg);    // Create an Up-Down control.
-        hwndProgBar = CreateProgBar(hDlg);    // Create a Progress bar,
-                                                 // to reflect the state of the Up-down control.
-*/
-        hDlg = hUpDownDlg;
-        ShowWindow(m_hWnd, SW_SHOWDEFAULT);
         return (INT_PTR)TRUE;
 
     }
-        break;
+    break;
     case WM_NOTIFY:
     {
         nCode = ((LPNMHDR)lParam)->code;
@@ -1320,11 +1395,13 @@ HWND UpDownCreate(HWND hWndParent, BOOL ctrlType)
     {
     case 0:
     {
-        //hControl = CreateDialogParamW(hInst, MAKEINTRESOURCEW(IDD_UPDOWN), hWndParent, UpDownDialogProc, NULL);
-        if (!DialogBoxParamW(hInst, MAKEINTRESOURCEW(IDD_UPDOWN), hWndParent, UpDownDialogProc, NULL))
+        //if (!DialogBoxParamW(hInst, MAKEINTRESOURCEW(IDD_UPDOWN), hWndParent, UpDownDialogProc, NULL))
+        //ReportErr(L"UpDown Control: Cannot create!");
+
+        if (hControl = CreateDialogParamW(hInst, MAKEINTRESOURCEW(IDD_UPDOWN), hWndParent, UpDownDialogProc, NULL))
+            ShowWindow(hControl, SW_SHOWDEFAULT);
+        else
             ReportErr(L"UpDown Control: Cannot create!");
-        //CreateDialogIndirectW(hInst, (LPCDLGTEMPLATEW)MAKEINTRESOURCEW(IDD_UPDOWN), hWndParent, UpDownDialogProc);
-        ShowWindow(hDlg, SW_SHOWDEFAULT);
     }
     break;
     case 1:
@@ -1333,35 +1410,38 @@ HWND UpDownCreate(HWND hWndParent, BOOL ctrlType)
         UPDOWN_CLASS,
         NULL,
         WS_CHILDWINDOW | WS_VISIBLE
-        | UDS_AUTOBUDDY | UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_ARROWKEYS | UDS_HOTTRACK,
-        2, 4 * ht,
-        0, 0,          // Set to zero to automatically size to fit the buddy window.
+        | UDS_AUTOBUDDY | UDS_SETBUDDYINT | UDS_ALIGNLEFT | UDS_ARROWKEYS | UDS_HOTTRACK,
+        0, 0,
+        wd/2, ht,          // Or set to zero to automatically size to fit the buddy window.
         hWndParent,
         NULL,
         hInst,
         NULL);
 
-    SendMessage(hControl, UDM_SETRANGE, 0, MAKELPARAM(valMax, valMin));    // Sets the controls direction 
-                                                                           // and range.
+    SendMessage(hControl, UDM_SETRANGE, 0, MAKELPARAM(valMax, valMin));    // Sets controls' direction & range.
     }
     break;
     case 2:
+    {
+        const wchar_t* initZero = L"0\0";
         hControl = CreateWindowExW(WS_EX_LEFT | WS_EX_CLIENTEDGE | WS_EX_CONTEXTHELP,    //Extended window styles.
         WC_STATIC,
         NULL,
         WS_CHILDWINDOW | WS_VISIBLE | WS_BORDER    // Window styles.
         | SS_EDITCONTROL,                     // Label control style.
-        2, 4 * ht,
-        wd / 2 - 1, ht / 2,
+        0, 0,
+        wd / 2 - 1, ht,
         hWndParent,
         NULL,
         hInst,
         NULL);
+        SendMessage(hControl, WM_SETTEXT, 0, (LPARAM)initZero);
+    }
     break;
     }
 
 
-    return FALSE;
+    return hControl;
 }
 
 wchar_t* FileOpener(HWND hWnd)
@@ -1755,9 +1835,9 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
     static UINT defFmWd = 0;
     static int oldResizeType = 0, startFmWd = 0, startFmHt = 0, oldFmWd = 0, oldFmHt = 0;
     static int ctrlSizeTriggerWd = 100, ctrlSizeTriggerHt = 100;
-    static int defOpt1Top = 0, defOpt2Top = 0, defChkTop = 0;
-    static int oldOpt1Top = 0, oldOpt2Top = 0, oldChkTop = 0, oldxScroll = 0, oldyScroll = 0;
-    static int minWd = 0, minHt = 0, startSizeBtnLeft = 0, startSizeBtnTop = 0, startSizeBtnRight = 0, startSizeBtnBottom = 0, startSizeOpt1Top = 0, startSizeOpt2Top = 0, startSizeChkTop = 0;
+    static int defOpt1Top = 0, defOpt2Top = 0, defChkTop = 0, defUpDnTop = 0;
+    static int oldOpt1Top = 0, oldOpt2Top = 0, oldChkTop = 0, oldUpDnTop = 0, oldxScroll = 0, oldyScroll = 0;
+    static int minWd = 0, minHt = 0, startSizeBtnLeft = 0, startSizeBtnTop = 0, startSizeBtnRight = 0, startSizeBtnBottom = 0, startSizeOpt1Top = 0, startSizeOpt2Top = 0, startSizeChkTop = 0, startSizeUpDnTop = 0;
     if (isLoading)
     {
             RECT recthWndtmp = RectCl().RectCl(0, hWnd, 1); //required for wd, ht, below
@@ -1786,7 +1866,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
     }
     //Get updated rect for the form
 
-    RECT rectBtn = {}, rectOpt1 = {}, rectOpt2 = {}, rectChk = {};
+    RECT rectBtn = {}, rectOpt1 = {}, rectOpt2 = {}, rectChk = {}, rectUpDn = {};
 
     GetDims(hWnd, resizeType, oldResizeType);
     
@@ -1801,12 +1881,14 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
     rectOpt1 = RectCl().RectCl(hWndOpt1, hWnd, 3);
     rectOpt2 = RectCl().RectCl(hWndOpt2, hWnd, 4);
     rectChk = RectCl().RectCl(hWndChk, hWnd, 5);
+    rectUpDn = RectCl().RectCl(hwndUpDnCtl, hWnd, 6);
 
     if ((ht > OPT_HEIGHT) && !defOpt1Top) // At Init
     {
         defOpt1Top = ht + OPT_HEIGHT;
         defOpt2Top = 2 * ht;
         defChkTop = 3 * ht;
+        defUpDnTop = 4 * ht;
         defFmWd = RectCl().width(1);
         defFmHt = RectCl().height(1);
     }
@@ -1820,6 +1902,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
         rectOpt1.left = startSizeBtnLeft + oldxScroll - xCurrentScroll;
         rectOpt2.left = startSizeBtnLeft + oldxScroll - xCurrentScroll;
         rectChk.left = startSizeBtnLeft + oldxScroll - xCurrentScroll;
+        rectUpDn.left = startSizeBtnLeft + oldxScroll - xCurrentScroll;
 
 
 
@@ -1829,6 +1912,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
         rectOpt1.top = ((float)curFmHt/ (float)startFmHt) * (startSizeOpt1Top + oldyScroll) - yCurrentScroll;
         rectOpt2.top = ((float)curFmHt/ (float)startFmHt) * (startSizeOpt2Top + oldyScroll) - yCurrentScroll;
         rectChk.top =((float)curFmHt/ (float)startFmHt) * (startSizeChkTop + oldyScroll) - yCurrentScroll;
+        rectUpDn.top =((float)curFmHt/ (float)startFmHt) * (startSizeUpDnTop + oldyScroll) - yCurrentScroll;
         }
 
     }
@@ -1844,6 +1928,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
                 oldOpt1Top = rectOpt1.top;
                 oldOpt2Top = rectOpt2.top;
                 oldChkTop = rectChk.top;
+                oldUpDnTop = rectUpDn.top;
             }
 
             startSizeBtnTop = -yCurrentScroll;
@@ -1851,6 +1936,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
             startSizeOpt1Top = ((float)curFmHt / (float)defFmHt) * defOpt1Top - yCurrentScroll;
             startSizeOpt2Top = ((float)curFmHt / (float)defFmHt) * defOpt2Top - yCurrentScroll;
             startSizeChkTop = ((float)curFmHt / (float)defFmHt) * defChkTop - yCurrentScroll;
+           startSizeUpDnTop = ((float)curFmHt / (float)defFmHt) * defUpDnTop - yCurrentScroll;
             startSizeBtnLeft = rectBtn.left;
             startSizeBtnRight = rectBtn.right;
             (curFmWd < defFmWd) ? startFmWd = defFmWd : startFmWd = curFmWd;
@@ -1991,6 +2077,9 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
             // No full path :https://stackoverflow.com/questions/8487986/file-macro-shows-full-path/54335644#54335644
             oldOpt2Top = delegateSizeControl(rectOpt2, hWndOpt2, oldOpt2Top, resizeType, oldResizeType, defOpt2Top, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, newEdgeWd, newWd, minHt);
             oldChkTop = delegateSizeControl(rectChk, hWndChk, oldChkTop, resizeType, oldResizeType, defChkTop, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, newEdgeWd, newWd, minHt);
+            rectUpDn.right = (rectUpDn.right - abs(rectUpDn.left)) / 2;
+            // must set the buddy pos here as GetWindowRect(hwndUpDnCtl, &rectUpDn) in a WM_SIZE is not reliable
+            oldUpDnTop = delegateSizeControl(rectUpDn, hwndUpDnCtl, oldUpDnTop, resizeType, oldResizeType, defUpDnTop, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, newEdgeWd/2, newWd/2, minHt, hwndUpDnEdtBdy);
         }
 
     }
@@ -2023,7 +2112,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
     oldResizeType = resizeType;
     procEndWMSIZE = TRUE;
 }
-int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeType, int oldResizeType, int defOptTop, int updatedxCurrentScroll, int updatedyCurrentScroll, int newCtrlSizeTriggerHt, int newEdgeWd, int newWd, int minHt)
+int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeType, int oldResizeType, int defOptTop, int updatedxCurrentScroll, int updatedyCurrentScroll, int newCtrlSizeTriggerHt, int newEdgeWd, int newWd, int minHt, HWND buddyHWnd)
 {
     int optHt = 0;
     static int yOldScroll = 0;
@@ -2081,22 +2170,33 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
         rectOpt.top = defOptTop - yCurrentScroll;
 
     if (resizeType == END_SIZE_MOVE)
+    {
         SetWindowPos(hWndOpt, NULL, rectOpt.left, rectOpt.top, newEdgeWd, optHt, NULL);
+        if (buddyHWnd)
+            SetWindowPos(buddyHWnd, NULL, rectOpt.right, rectOpt.top, newEdgeWd, optHt, NULL);
+    }
     else
     {
         if (resizeType == SIZE_MAXIMIZED)
         {
-            SetWindowPos(hWndOpt, NULL, -updatedxCurrentScroll, rectOpt.top,
-                newWd, optHt, NULL);
+            SetWindowPos(hWndOpt, NULL, -updatedxCurrentScroll, rectOpt.top, newWd, optHt, NULL);
+            if (buddyHWnd)
+                SetWindowPos(buddyHWnd, NULL, -updatedxCurrentScroll + newWd, rectOpt.top, newWd, optHt, NULL);
         }
         else
         {
             if (oldResizeType == SIZE_MAXIMIZED)
-                SetWindowPos(hWndOpt, NULL, rectOpt.left, rectOpt.top,
-                    newWd, optHt, NULL);
+            {
+                SetWindowPos(hWndOpt, NULL, rectOpt.left, rectOpt.top, newWd, optHt, NULL);
+                if (buddyHWnd)
+                    SetWindowPos(buddyHWnd, NULL, rectOpt.right, rectOpt.top, newWd, optHt, NULL);
+            }
             else
-                SetWindowPos(hWndOpt, NULL, -updatedxCurrentScroll, rectOpt.top,
-                    newEdgeWd, optHt, NULL);
+            {
+                SetWindowPos(hWndOpt, NULL, -updatedxCurrentScroll, rectOpt.top, newEdgeWd, optHt, NULL);
+                if (buddyHWnd)
+                    SetWindowPos(buddyHWnd, NULL, -updatedxCurrentScroll + newEdgeWd, rectOpt.top, newEdgeWd, optHt, NULL);
+            }
         }
     }
     if (resizeType == SIZE_RESTORED || (resizeType == END_SIZE_MOVE) && (oldResizeType != START_SIZE_MOVE)) // curious case of oldResizeType as  START_SIZE_MOVE on a border click
