@@ -29,7 +29,7 @@ WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 wchar_t* szFile = nullptr;
 float scrAspect = 0, scaleX = 1, scaleY = 1, resX = 0, resY = 0;
 SIZE scrDims = {0}, scrEdge = {0};
-const UINT WM_USERACTION = WM_APP + 1;
+// const UINT WM_USERACTION = WM_APP + 1; //originally considered for UpDown 
 // wd, ht: button dims
 int tmp = 0, wd = 0, ht = 0, capCallFrmResize = 0, xCurrentScroll, yCurrentScroll, scrShtOrBmpLoad;
 HWND m_hWnd = NULL, hDlg = NULL, hWndGroupBox = 0;
@@ -50,7 +50,7 @@ HWND hwndLabel = NULL, hwndUpDnEdtBdy = NULL, hwndUpDnCtl = NULL;
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
-LRESULT CALLBACK    MyBitmapWindowProc(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK MyBitmapWindowProc(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK staticSubClass(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
 LRESULT CALLBACK staticSubClassButton(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
 INT_PTR CALLBACK About(HWND, UINT, WPARAM, LPARAM);
@@ -67,7 +67,6 @@ BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm,
 int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeType, int oldResizeType, int defOptTop, int updatedxCurrentScroll, int updatedyCurrentScroll, int newCtrlSizeTriggerHt, int newEdgeWd, int newWd, int minHt, HWND buddyHWnd = 0);
 BOOL CreateToolTipForRect(HWND hwndParent, int toolType = 0);
 BOOL IsAllFormInWindow(HWND hWnd, BOOL toolTipOn, BOOL isMaximized = FALSE);
-INT_PTR CALLBACK UpDownDialogProc(HWND, UINT, WPARAM, LPARAM);
 HWND UpDownCreate(HWND hWndParent, BOOL ctrlType = 0);
 //Functions for later use
 //
@@ -318,33 +317,9 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
 
 
-        const wchar_t* initZero = L"0\0";
-        hwndUpDnEdtBdy = CreateWindowExW(WS_EX_LEFT | WS_EX_CLIENTEDGE,    //Extended window styles.
-            WC_STATIC,
-            NULL,
-            WS_CHILDWINDOW | WS_VISIBLE | WS_BORDER | WS_GROUP   // Window styles.
-            | SS_EDITCONTROL,                     // Label control style.
-            0, 0,
-            wd / 2 - 1, ht,
-            hWnd,
-            (HMENU)IDD_UPDOWN_BUDDY,
-            hInst,
-            NULL);
-        SendMessage(hwndUpDnEdtBdy, WM_SETTEXT, 0, (LPARAM)initZero);
+        hwndUpDnEdtBdy = UpDownCreate(hWnd);
+        hwndUpDnCtl = UpDownCreate(hWnd, 1);
 
-        hwndUpDnCtl = CreateWindowExW(WS_EX_LEFT | WS_EX_LTRREADING,
-            UPDOWN_CLASS,
-            NULL,
-            WS_CHILDWINDOW | WS_VISIBLE
-            | UDS_AUTOBUDDY | UDS_SETBUDDYINT | UDS_ALIGNLEFT | UDS_ARROWKEYS | UDS_HOTTRACK,
-            0, 0,
-            wd / 2, ht,          // Or set to zero to automatically size to fit the buddy window.
-            hWnd,
-            (HMENU)IDD_UPDOWN,
-            hInst,
-            NULL);
-
-        SendMessage(hwndUpDnCtl, UDM_SETRANGE, 0, MAKELPARAM(valMax, valMin));    // Sets controls' direction & range.
 
         // Create a normal DC and a memory DC for the entire 
         // screen. The normal DC provides a snapshot of the 
@@ -783,24 +758,28 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             if (upOrDown)
             {
                 wchar_t iPosStr[4];
-                SendMessage(hwndUpDnEdtBdy, WM_GETTEXT, (WPARAM)4, (LPARAM)iPosStr);
+                SendMessageW(hwndUpDnEdtBdy, WM_GETTEXT, (WPARAM)4, (LPARAM)iPosStr);
                 iPos = _wtoi(iPosStr);
                 if (upOrDown < 0)
                 {
-                    if (iPos < valMin)
+                    if (iPos > valMin)
                     {
-                        iPos += ctlUpDownIncrement;
-                        iPos = wcstol(iPosStr, NULL, 10);
-                        SendMessage(hwndUpDnEdtBdy, WM_SETTEXT, (WPARAM)4, (LPARAM)iPosStr);
+                        iPos -= ctlUpDownIncrement;
+                        int length = swprintf(NULL, 0, L"%d", iPos) + 1;
+                        swprintf_s(iPosStr, length, L"%d", iPos);
+                        if(!SendMessageW(hwndUpDnEdtBdy, WM_SETTEXT, NULL, (LPARAM)iPosStr))
+                            ReportErr(L"Spin text failed!");
                     }
                 }
                 else
                 {
-                    if (iPos > valMax)
+                    if (iPos < valMax)
                     {
-                        iPos -= ctlUpDownIncrement;
-                        iPos = wcstol(iPosStr, NULL, 10);
-                        SendMessage(hwndUpDnEdtBdy, WM_SETTEXT, (WPARAM)4, (LPARAM)iPosStr);
+                        iPos += ctlUpDownIncrement;
+                        int length = swprintf(NULL, 0, L"%d", iPos) + 1;
+                        swprintf_s(iPosStr, length, L"%d", iPos);
+                        if (!SendMessageW(hwndUpDnEdtBdy, WM_SETTEXT, NULL, (LPARAM)iPosStr))
+                            ReportErr(L"Spin text failed!");
                     }
                 }
                 upOrDown = 0;
@@ -919,14 +898,11 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
         case IDD_UPDOWN:
         {
-            DialogBoxW(hInst, MAKEINTRESOURCEW(IDD_UPDOWN), hWnd, UpDownDialogProc);
+            
         }
         break;
-        case IDD_UPDOWN_BUDDY:
-        {
-            DialogBoxW(hInst, MAKEINTRESOURCEW(IDD_UPDOWN), hWnd, UpDownDialogProc);
-        }
-        break;
+        //Nothing here for case IDD_UPDOWN_BUDDY 
+
         case IDC_OPT1:
         {
             if (wmEvent == BN_CLICKED)
@@ -1301,147 +1277,56 @@ INT_PTR CALLBACK About(HWND hAboutDlg, UINT message, WPARAM wParam, LPARAM lPara
         }
 }
 
-INT_PTR CALLBACK UpDownDialogProc(HWND hUpDownDlg, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    static const int ctlUpDownIncrement = 5;
-    UINT nCode;
-    int iPos, iPosIndicated, upOrDown = 0;
-    LPNMUPDOWN lpnmud = {};
-
-    switch (message)
-    {
-    case WM_INITDIALOG:
-    {
-
-        return (INT_PTR)TRUE;
-
-    }
-    break;
-    case WM_NOTIFY:
-    {
-        nCode = ((LPNMHDR)lParam)->code;
-
-        switch (nCode)
-        {
-            case UDN_DELTAPOS:
-            {
-                lpnmud = (LPNMUPDOWN)lParam;
-                upOrDown = lpnmud->iDelta;
-                //lpnmud->iDelta < 0 is up else down;
-            }
-            break;
-            default:
-            break;
-        }
-    }
-    break;
-    case WM_USERACTION:
-    {
-        if (upOrDown)
-        {
-            iPos = GetDlgItemInt(hwndUpDnEdtBdy, IDD_UPDOWNBUDDY, FALSE, FALSE);
-            if (upOrDown < 0)
-            {
-                if (iPos < valMax)
-                {
-                    iPos += ctlUpDownIncrement;
-                    SetDlgItemInt(hwndUpDnEdtBdy, IDD_UPDOWNBUDDY, iPos, FALSE);
-                }
-            }
-            else
-            {
-                if (iPos > valMin)
-                {
-                    iPos -= ctlUpDownIncrement;
-                    SetDlgItemInt(hwndUpDnEdtBdy, IDD_UPDOWNBUDDY, iPos, FALSE);
-                }
-            }
-            upOrDown = 0;
-        }
-    }
-    break;
-    case WM_COMMAND:
-    {
-        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
-        {
-            EndDialog(hUpDownDlg, LOWORD(wParam));
-            return (INT_PTR)TRUE;
-        }
-    }
-    break;
-    default:
-        return (INT_PTR)FALSE;
-    break;
-    }
-    return (INT_PTR)FALSE;
-}
 HWND UpDownCreate(HWND hWndParent, BOOL ctrlType)
 {
     HWND hControl = NULL;
     int classVar = 0;
-        if (ctrlType == 1)
+        if (ctrlType)
             classVar = ICC_STANDARD_CLASSES;
-        if (ctrlType == 2)
+        else
             classVar = ICC_UPDOWN_CLASS;
-
-
     static const INITCOMMONCONTROLSEX commonCtrls =
     {
     sizeof(INITCOMMONCONTROLSEX),
     classVar
     };
 
-    switch (ctrlType)
+    if (ctrlType)
     {
-    case 0:
-    {
-        //if (!DialogBoxParamW(hInst, MAKEINTRESOURCEW(IDD_UPDOWN), hWndParent, UpDownDialogProc, NULL))
-        //ReportErr(L"UpDown Control: Cannot create!");
-
-        if (hControl = CreateDialogParamW(hInst, MAKEINTRESOURCEW(IDD_UPDOWN), hWndParent, UpDownDialogProc, NULL))
-            ShowWindow(hControl, SW_SHOWDEFAULT);
-        else
-            ReportErr(L"UpDown Control: Cannot create!");
+        if (hControl = CreateWindowExW(WS_EX_LEFT | WS_EX_LTRREADING,
+            UPDOWN_CLASS,
+            NULL,
+            WS_CHILDWINDOW | WS_VISIBLE
+            | UDS_AUTOBUDDY | UDS_ALIGNLEFT | UDS_ARROWKEYS | UDS_HOTTRACK,
+            0, 0,
+            wd / 2, ht,          // Or set to zero to automatically size to fit the buddy window.
+            hWndParent,
+            (HMENU)IDD_UPDOWN,
+            hInst,
+            NULL))
+        SendMessageW(hControl, UDM_SETRANGE, 0, MAKELPARAM(valMax, valMin));    // Sets controls' direction & range.
     }
-    break;
-    case 1:
-    {
-        hControl = CreateWindowExW(WS_EX_LEFT | WS_EX_LTRREADING,
-        UPDOWN_CLASS,
-        NULL,
-        WS_CHILDWINDOW | WS_VISIBLE
-        | UDS_AUTOBUDDY | UDS_SETBUDDYINT | UDS_ALIGNLEFT | UDS_ARROWKEYS | UDS_HOTTRACK,
-        0, 0,
-        wd/2, ht,          // Or set to zero to automatically size to fit the buddy window.
-        hWndParent,
-        NULL,
-        hInst,
-        NULL);
-
-    SendMessage(hControl, UDM_SETRANGE, 0, MAKELPARAM(valMax, valMin));    // Sets controls' direction & range.
-    }
-    break;
-    case 2:
+    else
     {
         const wchar_t* initZero = L"0\0";
-        hControl = CreateWindowExW(WS_EX_LEFT | WS_EX_CLIENTEDGE | WS_EX_CONTEXTHELP,    //Extended window styles.
-        WC_STATIC,
-        NULL,
-        WS_CHILDWINDOW | WS_VISIBLE | WS_BORDER    // Window styles.
-        | SS_EDITCONTROL,                     // Label control style.
-        0, 0,
-        wd / 2 - 1, ht,
-        hWndParent,
-        NULL,
-        hInst,
-        NULL);
-        SendMessage(hControl, WM_SETTEXT, 0, (LPARAM)initZero);
-    }
-    break;
+        if (hControl = CreateWindowExW(WS_EX_LEFT | WS_EX_CLIENTEDGE,    //Extended window styles.
+            WC_STATIC,
+            NULL,
+            WS_CHILDWINDOW | WS_VISIBLE | WS_BORDER | WS_GROUP   // Window styles.
+            | SS_EDITCONTROL,                     // Label control style.
+            0, 0,
+            wd / 2 - 1, ht,
+            hWndParent,
+            (HMENU)IDD_UPDOWN_BUDDY,
+            hInst,
+            NULL))
+        SendMessageW(hControl, WM_SETTEXT, 0, (LPARAM)initZero);
     }
 
-
-    return hControl;
+    if (hControl)
+        return hControl;
+    else
+        ReportErr(L"Problem with UpDown control creation.");
 }
 
 wchar_t* FileOpener(HWND hWnd)
