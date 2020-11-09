@@ -8,8 +8,7 @@ HWND RectCl::ownerHwnd = 0;
 RECT RectCl::initRectOwnerHwnd = {};
 RECT RectCl::rectOwnerHwnd = {};
 
-
-#define MAX_LOADSTRING 255
+// Monitor Dims
 #define FOURTHREEVID					12
 #define WIDESCREENVID				16
 #define UNIVISIUM						18 // e.g. Galaxy Tabs
@@ -225,7 +224,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     //For UpDown
     static const int ctlUpDownIncrement = 5;
     UINT nCode;
-    int iPos, iPosIndicated, upOrDown = 0;
+    int iPos = 0, iPosIndicated, upOrDown = 0;
     LPNMUPDOWN lpnmud = {};
 
     static BOOL toolTipOn;
@@ -419,30 +418,31 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         fScroll = 0;
         fSize = TRUE;
         isSizing = TRUE;
-        return (LRESULT)TRUE;
-        // Remove the above "return" to find that:
-        // Custom painting during the sizing might have been a good idea,
-        // except that the system invalidates the window with COLOR_WINDOW + 1
-        // after each bitblt, which causes some flicker. Better handling of the timer
-        // in this case is also necessary to avoid other unwanted visual effects.
-        // Otherwise capCallFrmResize remains zero throughout.
-        if (!timDragWindow || (capCallFrmResize == 5))
+        if (iPos)
         {
-            timDragWindow = SetTimer(hWnd,             // handle to main window 
-                IDT_DRAGWINDOW,                   // timer identifier 
-                10,                           // millisecond interval 
-                (TIMERPROC)NULL);               // no timer callback 
-
-            if (timDragWindow == 0)
+            // Remove the above "return" to find that:
+            // Custom painting during the sizing might have been a good idea,
+            // except that the system invalidates the window with COLOR_WINDOW + 1
+            // after each bitblt, which causes some flicker. Better handling of the timer
+            // in this case is also necessary to avoid other unwanted visual effects.
+            // Otherwise capCallFrmResize remains zero throughout.
+            if (!timDragWindow || (capCallFrmResize == 5))
             {
-                ReportErr(L"No timer is available.");
-                capCallFrmResize++;
+                timDragWindow = SetTimer(hWnd,             // handle to main window 
+                    IDT_DRAGWINDOW,                   // timer identifier 
+                    iPos,                           // millisecond interval 
+                    (TIMERPROC)NULL);               // no timer callback 
+
+                if (timDragWindow == 0)
+                {
+                    ReportErr(L"No timer is available.");
+                    capCallFrmResize++;
+                }
+                else
+                    capCallFrmResize = 0;
             }
             else
-            capCallFrmResize = 0;
-        }
-        else
-        {
+            {
                 capCallFrmResize++;
                 fScroll = 0;
                 fSize = TRUE;
@@ -452,6 +452,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMem, hdcMemIn, hdcWinCl);
                     PostQuitMessage(0);
                 }
+            }
         }
         return (LRESULT)TRUE;
     }
@@ -512,10 +513,10 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, START_SIZE_MOVE, xNewSize, yNewSize);
         //InvalidateRect(hWnd, 0, TRUE);
         if (scrShtOrBmpLoad > 1)
-            timDragWindow = SetTimer(hWnd,             // handle to main window 
-                IDT_DRAGWINDOW,                   // timer identifier 
-                10,                           // millisecond interval 
-                (TIMERPROC)NULL);               // no timer callback 
+            timDragWindow = SetTimer(hWnd,
+                IDT_DRAGWINDOW,
+                10,
+                (TIMERPROC)NULL);
 
         return (LRESULT)FALSE;
     }
@@ -548,7 +549,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             }
             else
             {
-                // scrollStat because of timPaintBitmap set
+                // The following produces a flicker on the paint- if the !scrollStat condition is omitted (for
+                //  timPaintBitmap set) but in that case the paint is unreliable and also dependent on scroll position.
                 if (!scrollStat && !AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, 2, FALSE, SIZE_MAXIMIZED))
                     ReportErr(L"AdjustImage detected a problem with the image!");
             }
@@ -582,7 +584,6 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 {
                     if (!AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, (chkChk) ? 2 : 0, wParam))
                         ReportErr(L"AdjustImage detected a problem with the image!");
-                    restoreFromMax = isMaximized;
                     if (fSize && (wParam == SIZE_RESTORED))
                         timDragWindow = 0;
                     fSize = TRUE;
@@ -591,10 +592,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 // (bitmap_width) - (client_width). The current horizontal 
                 // scroll value remains within the horizontal scrolling range. 
                 }
-                if (scrollStat && !isSizing)
+                if (!isSizing && (scrollStat || restoreFromMax))
                     scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
+                restoreFromMax = isMaximized;
             }
             else
+            {
                 if (scrShtOrBmpLoad == 1)
                 {
                     if (!isSizing && !BitBlt(hdcWinCl, wd, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
@@ -603,6 +606,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
                     restoreFromMax = isMaximized;
                 }
+            }
         }
         windowMoved = FALSE;
         return (LRESULT)FALSE;
@@ -765,8 +769,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     if (iPos > valMin)
                     {
                         iPos -= ctlUpDownIncrement;
-                        int length = swprintf(NULL, 0, L"%d", iPos) + 1;
-                        swprintf_s(iPosStr, length, L"%d", iPos);
+                        tmp = swprintf(NULL, 0, L"%d", iPos) + 1;
+                        swprintf_s(iPosStr, tmp, L"%d", iPos);
                         if(!SendMessageW(hwndUpDnEdtBdy, WM_SETTEXT, NULL, (LPARAM)iPosStr))
                             ReportErr(L"Spin text failed!");
                     }
@@ -776,8 +780,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     if (iPos < valMax)
                     {
                         iPos += ctlUpDownIncrement;
-                        int length = swprintf(NULL, 0, L"%d", iPos) + 1;
-                        swprintf_s(iPosStr, length, L"%d", iPos);
+                        tmp = swprintf(NULL, 0, L"%d", iPos) + 1;
+                        swprintf_s(iPosStr, tmp, L"%d", iPos);
                         if (!SendMessageW(hwndUpDnEdtBdy, WM_SETTEXT, NULL, (LPARAM)iPosStr))
                             ReportErr(L"Spin text failed!");
                     }
@@ -1366,7 +1370,7 @@ wchar_t* FileOpener(HWND hWnd)
 
 }
 
-//example to use: message("test %s %d %d %d", "str", 1, 2, 3);
+//example to use: ReportErr(L"test %s \n %d %d %d %s %d %d %d", L"str", 1, 2, 3, L"\n", 1, 2, 3);
 void ReportErr(const wchar_t* format, ...)
 {
     if (!format)
@@ -1376,13 +1380,13 @@ void ReportErr(const wchar_t* format, ...)
     va_list args;
     va_start(args, format);
 
-    len = _vscwprintf(format, args) + 1;  //add room for terminating '\0'
+    len = _vscwprintf(format, args) + 2;  //add room for terminating '\0'
     buf = (wchar_t*)malloc(len * sizeof(wchar_t));
     if (buf)
     {
         vswprintf_s(buf, len, format, args);
 
-        MessageBoxW(0, buf, L"Error", 0);
+        MessageBoxW(m_hWnd, buf, L"Error", MB_ICONINFORMATION);
         //OutputDebugStringA(buf);
         free(buf);
     }
@@ -1645,8 +1649,16 @@ void GetDims(HWND hWnd, int resizeType, int oldResizeType)
             }
             else
             {
-                oldWd ? (scaleX = wd / oldWd) : scaleX = 1;
-                oldHt ? (scaleY = ht / oldHt) : scaleY = 1;
+                if (oldResizeType == SIZE_MINIMIZED)
+                {
+                    scaleX = 1;
+                    scaleY = 1;
+                }
+                else
+                {
+                    oldWd ? (scaleX = wd / oldWd) : scaleX = 1;
+                    oldHt ? (scaleY = ht / oldHt) : scaleY = 1;
+                }
             }
         }
 
@@ -1768,6 +1780,16 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
     rectChk = RectCl().RectCl(hWndChk, hWnd, 5);
     rectUpDn = RectCl().RectCl(hwndUpDnCtl, hWnd, 6);
 
+    if (scrShtOrBmpLoad == 3)
+    {
+        ReportErr(L"Values obtained from entry of SizeControls:  \n rectBtn.left: %d rectBtn.right: %d rectBtn.top: %d rectBtn.bottom: %d"
+            "\n rectOpt1.left: %d rectOpt1.right: %d rectOpt1.top: %d rectOpt1.bottom: %d"
+            "\n scrDims.cx: %d scrDims.cy: %d scrEdge.cx: %d scrEdge.cy: %d",
+        rectBtn.left, rectBtn.right, rectBtn.top, rectBtn.bottom, rectOpt1.left, rectOpt1.right, rectOpt1.top, rectOpt1.bottom, scrDims.cx, scrDims.cy, scrEdge.cx, scrEdge.cy);
+        //ReportErr(L"test %s \n : %d : %d : %d %s %d %d %d", L"str", 1, 2, 3, L"\n", 1, 2, 3);
+
+    }
+
     if ((ht > OPT_HEIGHT) && !defOpt1Top) // At Init
     {
         defOpt1Top = ht + OPT_HEIGHT;
@@ -1821,7 +1843,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
             startSizeOpt1Top = ((float)curFmHt / (float)defFmHt) * defOpt1Top - yCurrentScroll;
             startSizeOpt2Top = ((float)curFmHt / (float)defFmHt) * defOpt2Top - yCurrentScroll;
             startSizeChkTop = ((float)curFmHt / (float)defFmHt) * defChkTop - yCurrentScroll;
-           startSizeUpDnTop = ((float)curFmHt / (float)defFmHt) * defUpDnTop - yCurrentScroll;
+            startSizeUpDnTop = ((float)curFmHt / (float)defFmHt) * defUpDnTop - yCurrentScroll;
             startSizeBtnLeft = rectBtn.left;
             startSizeBtnRight = rectBtn.right;
             (curFmWd < defFmWd) ? startFmWd = defFmWd : startFmWd = curFmWd;
@@ -1859,11 +1881,8 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
             {
                 if (curFmWd < defFmWd)
                 {
-                    if (resizeType != SIZE_MINIMIZED)
-                    {
-                        newEdgeWd = minWd - 2;
-                        newWd = minWd;
-                    }
+                    newEdgeWd = minWd - 2;
+                    newWd = minWd;
                 }
             }
 
@@ -1876,16 +1895,14 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
             {
                 if (curFmHt < defFmHt)
                 {
-                    if (resizeType != SIZE_MINIMIZED)
-                    {
-                        newEdgeHt = minHt - 2;
-                        newHt = minHt;
-                    }
+                    newEdgeHt = minHt - 2;
+                    newHt = minHt;
                 }
             }
         }
 
         if (rectBtn.top < -yCurrentScroll)
+            rectBtn.top = -yCurrentScroll;
             rectBtn.top = -yCurrentScroll;
 
 
@@ -1962,8 +1979,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
             // No full path :https://stackoverflow.com/questions/8487986/file-macro-shows-full-path/54335644#54335644
             oldOpt2Top = delegateSizeControl(rectOpt2, hWndOpt2, oldOpt2Top, resizeType, oldResizeType, defOpt2Top, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, newEdgeWd, newWd, minHt);
             oldChkTop = delegateSizeControl(rectChk, hWndChk, oldChkTop, resizeType, oldResizeType, defChkTop, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, newEdgeWd, newWd, minHt);
-            rectUpDn.right = (rectUpDn.right - abs(rectUpDn.left)) / 2;
-            // must set the buddy pos here as GetWindowRect(hwndUpDnCtl, &rectUpDn) in a WM_SIZE is not reliable
+            // Must set the buddy pos here as GetWindowRect(hwndUpDnCtl, &rectUpDn) in a WM_SIZE is not reliable
             oldUpDnTop = delegateSizeControl(rectUpDn, hwndUpDnCtl, oldUpDnTop, resizeType, oldResizeType, defUpDnTop, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, newEdgeWd/2, newWd/2, minHt, hwndUpDnEdtBdy);
         }
 
@@ -1992,6 +2008,15 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
     {
         oldFmWd = curFmWd;
         oldFmHt = curFmHt;
+    }
+    if (scrShtOrBmpLoad == 2)
+    {
+        ReportErr(L"Values obtained from exit of SizeControls:  \n rectBtn.left: %d rectBtn.right: %d rectBtn.top: %d rectBtn.bottom: %d"
+            "\n rectOpt1.left: %d rectOpt1.right: %d rectOpt1.top: %d rectOpt1.bottom: %d"
+            "\n scrDims.cx: %d scrDims.cy: %d scrEdge.cx: %d scrEdge.cy: %d",
+            rectBtn.left, rectBtn.right, rectBtn.top, rectBtn.bottom, rectOpt1.left, rectOpt1.right, rectOpt1.top, rectOpt1.bottom, scrDims.cx, scrDims.cy, scrEdge.cx, scrEdge.cy);
+        //ReportErr(L"test %s \n : %d : %d : %d %s %d %d %d", L"str", 1, 2, 3, L"\n", 1, 2, 3);
+
     }
 
     oldResizeType = resizeType;
@@ -2030,7 +2055,9 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
     }
     else
     {
-        if (resizeType != END_SIZE_MOVE)
+        if (resizeType == END_SIZE_MOVE)
+            optHt = (buddyHWnd)? ht: ht/2;
+        else
         {
             optHt = scaleY * (rectOpt.bottom - rectOpt.top);
 
@@ -2058,7 +2085,7 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
     {
         SetWindowPos(hWndOpt, NULL, rectOpt.left, rectOpt.top, newEdgeWd, optHt, NULL);
         if (buddyHWnd)
-            SetWindowPos(buddyHWnd, NULL, rectOpt.right, rectOpt.top, newEdgeWd, optHt, NULL);
+            SetWindowPos(buddyHWnd, NULL, rectOpt.left + newEdgeWd, rectOpt.top, newEdgeWd, optHt, NULL);
     }
     else
     {
@@ -2074,7 +2101,7 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
             {
                 SetWindowPos(hWndOpt, NULL, rectOpt.left, rectOpt.top, newWd, optHt, NULL);
                 if (buddyHWnd)
-                    SetWindowPos(buddyHWnd, NULL, rectOpt.right, rectOpt.top, newWd, optHt, NULL);
+                    SetWindowPos(buddyHWnd, NULL, rectOpt.left + newWd, rectOpt.top, newWd, optHt, NULL);
             }
             else
             {
@@ -2252,7 +2279,6 @@ switch (scrollXorY)
         {
             siHORZ.fMask = SIF_POS;
             SetScrollInfo(hWnd, SB_HORZ, &siHORZ, TRUE);
-            retVal = scrollStat;
         }
         else
         {
@@ -2269,6 +2295,7 @@ switch (scrollXorY)
                     // Not dealing with xTrackPos.
                     SetScrollInfo(hWnd, SB_HORZ, &siHORZ, TRUE);
                     ShowScrollBar(hWnd, SB_HORZ, TRUE);
+                    if (scrollStat < 3)
                     scrollStat = 1;
                     if (scrollStat != oldScrollStat)
                         scrollChanged = TRUE;
@@ -2315,7 +2342,6 @@ switch (scrollXorY)
 
             siVERT.nPos = yCurrentScroll;
             SetScrollInfo(hWnd, SB_VERT, &siVERT, TRUE);
-            retVal = scrollStat;
         }
         else
         {
@@ -2345,7 +2371,7 @@ switch (scrollXorY)
                         siVERT.cbSize = 0;
                     siVERT = { 0 };
                     yCurrentScroll = 0;
-                    if (scrollStat == 2 || scrollStat == 3)
+                    if (scrollStat > 1)
                     {
                         scrollChanged = TRUE;
                         if (!setWindowThemeRunFlag && IsThemeActive())
@@ -2360,13 +2386,13 @@ switch (scrollXorY)
                 }
             }
             oldScrollStat = scrollStat;
-            retVal = scrollStat;
         }
-        if (scrollChanged == TRUE)
+        retVal = scrollStat;
+        if (scrollChanged || (scrollStat == 3))
         {
             if ((scrShtOrBmpLoad > 1) && !timPaintBitmap && !(timPaintBitmap = SetTimer(hWnd,
                 IDT_PAINTBITMAP,
-                10,
+                6,
                 (TIMERPROC)NULL)))
                 ReportErr(L"No timer is available.");
         }

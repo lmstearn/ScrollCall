@@ -6,6 +6,8 @@
 
 #define IDR_MAINFRAME			128
 
+#define MAX_LOADSTRING 255
+
 #define HORZ_SCROLL	90
 #define VERT_SCROLL	91
 #define SCROLL_SIZE	5
@@ -44,6 +46,8 @@
 #ifndef IDC_STATIC
 #define IDC_STATIC				-1
 #endif
+
+
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
