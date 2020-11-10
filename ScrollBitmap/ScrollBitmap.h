@@ -80,6 +80,7 @@ typedef struct tagRectCl
     static RECT rectOut3;
     static RECT rectOut4;
     static RECT rectOut5;
+    static RECT rectOut6;
     static HWND ownerHwnd;
     static RECT initRectOwnerHwnd;
     static RECT rectOwnerHwnd;
@@ -112,6 +113,8 @@ typedef struct tagRectCl
         case 5:
             return rectOut4;
         case 6:
+            return rectOut5;
+        case 7:
             return rectOut5;
         default:
             return {};
@@ -163,6 +166,11 @@ typedef struct tagRectCl
             break;
         }
         case 6:
+        {
+            rectOut5 = rectIn;
+            break;
+        }
+        case 7:
         {
             rectOut5 = rectIn;
             break;

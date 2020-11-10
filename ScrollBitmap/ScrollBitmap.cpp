@@ -4,6 +4,7 @@ RECT RectCl::rectOut2 = {};
 RECT RectCl::rectOut3 = {};
 RECT RectCl::rectOut4 = {};
 RECT RectCl::rectOut5 = {};
+RECT RectCl::rectOut6 = {};
 HWND RectCl::ownerHwnd = 0;
 RECT RectCl::initRectOwnerHwnd = {};
 RECT RectCl::rectOwnerHwnd = {};
@@ -43,7 +44,7 @@ int timDragWindow = 0, timPaintBitmap = 0;
 const UINT valMin = 0;          // The range of values for the Up-Down control.
 const UINT valMax = 100;
 // Handles to the controls.
-HWND hwndLabel = NULL, hwndUpDnEdtBdy = NULL, hwndUpDnCtl = NULL;
+HWND hLblUpDown = NULL, hwndUpDnEdtBdy = NULL, hwndUpDnCtl = NULL;
 
 
 // Forward declarations of functions included in this code module:
@@ -222,6 +223,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     static int scrollStat;      // 0: None, 1: SB_HORZ, 2: SB_VERT, 3: SB_BOTH
 
     //For UpDown
+    static const wchar_t* labDesc = L"Paint Mult\0";
     static const int ctlUpDownIncrement = 5;
     UINT nCode;
     int iPos = 0, iPosIndicated, upOrDown = 0;
@@ -314,6 +316,19 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             (HMENU)IDC_CHK,
             (HINSTANCE)NULL, NULL);
 
+        // UpDown label
+        if (hLblUpDown = CreateWindowExW(WS_EX_LEFT,    //Extended window styles.
+            WC_STATIC,
+            NULL,
+            WS_CHILDWINDOW | WS_VISIBLE | WS_BORDER | WS_GROUP   // Window styles.
+            | SS_EDITCONTROL,                     // Label control style.
+            0, 0,
+            wd / 2 - 1, ht/2,
+            hWnd,
+            NULL,
+            hInst,
+            NULL))
+            SendMessageW(hLblUpDown, WM_SETTEXT, 0, (LPARAM)labDesc);
 
 
         hwndUpDnEdtBdy = UpDownCreate(hWnd);
@@ -598,12 +613,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             }
             else
             {
-                if (scrShtOrBmpLoad == 1)
+                if (scrShtOrBmpLoad)
                 {
                     if (!isSizing && !BitBlt(hdcWinCl, wd, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
                         ReportErr(L"Bad BitBlt from hdcMem!");
-                    fSize = TRUE;
 
+                    fSize = TRUE;
                     restoreFromMax = isMaximized;
                 }
             }
@@ -1380,6 +1395,7 @@ void ReportErr(const wchar_t* format, ...)
     va_list args;
     va_start(args, format);
 
+    // a bodgy format string here can produce ERROR_NOT_SUPPORTED exception
     len = _vscwprintf(format, args) + 2;  //add room for terminating '\0'
     buf = (wchar_t*)malloc(len * sizeof(wchar_t));
     if (buf)
@@ -1392,6 +1408,7 @@ void ReportErr(const wchar_t* format, ...)
     }
     else
         MessageBoxW(0, L"MessageBox: Out of memory!", L"Error", 0);
+    va_end(args);
 }
 
 void PrintTheWindow(HWND hWnd, HBITMAP hBitmap)
@@ -1575,8 +1592,8 @@ void GetDims(HWND hWnd, int resizeType, int oldResizeType)
             {
                 RECT recthWndtmp;
                 GetWindowRect(hWnd, &recthWndtmp);
-                wd = (int)(recthWndtmp.right - recthWndtmp.left) / 9;
-                ht = (int)(recthWndtmp.bottom - recthWndtmp.top) / 9;
+                wd = (int)(recthWndtmp.right - recthWndtmp.left) / 10;
+                ht = (int)(recthWndtmp.bottom - recthWndtmp.top) / 10;
             }
         }
 
@@ -1732,9 +1749,9 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
     static UINT defFmWd = 0;
     static int oldResizeType = 0, startFmWd = 0, startFmHt = 0, oldFmWd = 0, oldFmHt = 0;
     static int ctrlSizeTriggerWd = 100, ctrlSizeTriggerHt = 100;
-    static int defOpt1Top = 0, defOpt2Top = 0, defChkTop = 0, defUpDnTop = 0;
-    static int oldOpt1Top = 0, oldOpt2Top = 0, oldChkTop = 0, oldUpDnTop = 0, oldxScroll = 0, oldyScroll = 0;
-    static int minWd = 0, minHt = 0, startSizeBtnLeft = 0, startSizeBtnTop = 0, startSizeBtnRight = 0, startSizeBtnBottom = 0, startSizeOpt1Top = 0, startSizeOpt2Top = 0, startSizeChkTop = 0, startSizeUpDnTop = 0;
+    static int defOpt1Top = 0, defOpt2Top = 0, defChkTop = 0, defLblTop = 0, defUpDnTop = 0;
+    static int oldOpt1Top = 0, oldOpt2Top = 0, oldChkTop = 0, oldLblTop = 0, oldUpDnTop = 0, oldxScroll = 0, oldyScroll = 0;
+    static int minWd = 0, minHt = 0, startSizeBtnLeft = 0, startSizeBtnTop = 0, startSizeBtnRight = 0, startSizeBtnBottom = 0, startSizeOpt1Top = 0, startSizeOpt2Top = 0, startSizeChkTop = 0, startSizeLblTop = 0, startSizeUpDnTop = 0;
     if (isLoading)
     {
             RECT recthWndtmp = RectCl().RectCl(0, hWnd, 1); //required for wd, ht, below
@@ -1763,7 +1780,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
     }
     //Get updated rect for the form
 
-    RECT rectBtn = {}, rectOpt1 = {}, rectOpt2 = {}, rectChk = {}, rectUpDn = {};
+    RECT rectBtn = {}, rectOpt1 = {}, rectOpt2 = {}, rectChk = {}, rectLbl = {}, rectUpDn = {};
 
     GetDims(hWnd, resizeType, oldResizeType);
     
@@ -1778,7 +1795,8 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
     rectOpt1 = RectCl().RectCl(hWndOpt1, hWnd, 3);
     rectOpt2 = RectCl().RectCl(hWndOpt2, hWnd, 4);
     rectChk = RectCl().RectCl(hWndChk, hWnd, 5);
-    rectUpDn = RectCl().RectCl(hwndUpDnCtl, hWnd, 6);
+    rectLbl = RectCl().RectCl(hLblUpDown, hWnd, 6);
+    rectUpDn = RectCl().RectCl(hwndUpDnCtl, hWnd, 7);
 
     if (scrShtOrBmpLoad == 3)
     {
@@ -1795,7 +1813,8 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
         defOpt1Top = ht + OPT_HEIGHT;
         defOpt2Top = 2 * ht;
         defChkTop = 3 * ht;
-        defUpDnTop = 4 * ht;
+        defLblTop = 4 * ht;
+        defUpDnTop = 5 * ht;
         defFmWd = RectCl().width(1);
         defFmHt = RectCl().height(1);
     }
@@ -1809,6 +1828,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
         rectOpt1.left = startSizeBtnLeft + oldxScroll - xCurrentScroll;
         rectOpt2.left = startSizeBtnLeft + oldxScroll - xCurrentScroll;
         rectChk.left = startSizeBtnLeft + oldxScroll - xCurrentScroll;
+        rectLbl.left = startSizeBtnLeft + oldxScroll - xCurrentScroll;
         rectUpDn.left = startSizeBtnLeft + oldxScroll - xCurrentScroll;
 
 
@@ -1819,6 +1839,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
         rectOpt1.top = ((float)curFmHt/ (float)startFmHt) * (startSizeOpt1Top + oldyScroll) - yCurrentScroll;
         rectOpt2.top = ((float)curFmHt/ (float)startFmHt) * (startSizeOpt2Top + oldyScroll) - yCurrentScroll;
         rectChk.top =((float)curFmHt/ (float)startFmHt) * (startSizeChkTop + oldyScroll) - yCurrentScroll;
+        rectLbl.top =((float)curFmHt/ (float)startFmHt) * (startSizeLblTop + oldyScroll) - yCurrentScroll;
         rectUpDn.top =((float)curFmHt/ (float)startFmHt) * (startSizeUpDnTop + oldyScroll) - yCurrentScroll;
         }
 
@@ -1835,6 +1856,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
                 oldOpt1Top = rectOpt1.top;
                 oldOpt2Top = rectOpt2.top;
                 oldChkTop = rectChk.top;
+                oldLblTop = rectLbl.top;
                 oldUpDnTop = rectUpDn.top;
             }
 
@@ -1843,6 +1865,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
             startSizeOpt1Top = ((float)curFmHt / (float)defFmHt) * defOpt1Top - yCurrentScroll;
             startSizeOpt2Top = ((float)curFmHt / (float)defFmHt) * defOpt2Top - yCurrentScroll;
             startSizeChkTop = ((float)curFmHt / (float)defFmHt) * defChkTop - yCurrentScroll;
+            startSizeLblTop = ((float)curFmHt / (float)defFmHt) * defLblTop - yCurrentScroll;
             startSizeUpDnTop = ((float)curFmHt / (float)defFmHt) * defUpDnTop - yCurrentScroll;
             startSizeBtnLeft = rectBtn.left;
             startSizeBtnRight = rectBtn.right;
@@ -1856,6 +1879,15 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
             // Unfortunately, applying SetWindowPos here causes more sizing loops,
             // and the size and position of the controls is even worse than current.
             procEndWMSIZE = TRUE;
+            if (scrShtOrBmpLoad == 2)
+            {
+                ReportErr(L"Values obtained from exit start move of SizeControls:  \n rectBtn.left: %d rectBtn.right: %d rectBtn.top: %d rectBtn.bottom: %d"
+                    "\n rectOpt1.left: %d rectOpt1.right: %d rectOpt1.top: %d rectOpt1.bottom: %d"
+                    "\n scrDims.cx: %d scrDims.cy: %d scrEdge.cx: %d scrEdge.cy: %d",
+                    rectBtn.left, rectBtn.right, rectBtn.top, rectBtn.bottom, rectOpt1.left, rectOpt1.right, rectOpt1.top, rectOpt1.bottom, scrDims.cx, scrDims.cy, scrEdge.cx, scrEdge.cy);
+                //ReportErr(L"test %s \n : %d : %d : %d %s %d %d %d", L"str", 1, 2, 3, L"\n", 1, 2, 3);
+
+            }
             return;
         }
 
@@ -1979,6 +2011,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
             // No full path :https://stackoverflow.com/questions/8487986/file-macro-shows-full-path/54335644#54335644
             oldOpt2Top = delegateSizeControl(rectOpt2, hWndOpt2, oldOpt2Top, resizeType, oldResizeType, defOpt2Top, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, newEdgeWd, newWd, minHt);
             oldChkTop = delegateSizeControl(rectChk, hWndChk, oldChkTop, resizeType, oldResizeType, defChkTop, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, newEdgeWd, newWd, minHt);
+            oldLblTop = delegateSizeControl(rectLbl, hLblUpDown, oldLblTop, resizeType, oldResizeType, defLblTop, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, newEdgeWd, newWd, minHt);
             // Must set the buddy pos here as GetWindowRect(hwndUpDnCtl, &rectUpDn) in a WM_SIZE is not reliable
             oldUpDnTop = delegateSizeControl(rectUpDn, hwndUpDnCtl, oldUpDnTop, resizeType, oldResizeType, defUpDnTop, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, newEdgeWd/2, newWd/2, minHt, hwndUpDnEdtBdy);
         }
@@ -2008,15 +2041,6 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
     {
         oldFmWd = curFmWd;
         oldFmHt = curFmHt;
-    }
-    if (scrShtOrBmpLoad == 2)
-    {
-        ReportErr(L"Values obtained from exit of SizeControls:  \n rectBtn.left: %d rectBtn.right: %d rectBtn.top: %d rectBtn.bottom: %d"
-            "\n rectOpt1.left: %d rectOpt1.right: %d rectOpt1.top: %d rectOpt1.bottom: %d"
-            "\n scrDims.cx: %d scrDims.cy: %d scrEdge.cx: %d scrEdge.cy: %d",
-            rectBtn.left, rectBtn.right, rectBtn.top, rectBtn.bottom, rectOpt1.left, rectOpt1.right, rectOpt1.top, rectOpt1.bottom, scrDims.cx, scrDims.cy, scrEdge.cx, scrEdge.cy);
-        //ReportErr(L"test %s \n : %d : %d : %d %s %d %d %d", L"str", 1, 2, 3, L"\n", 1, 2, 3);
-
     }
 
     oldResizeType = resizeType;
