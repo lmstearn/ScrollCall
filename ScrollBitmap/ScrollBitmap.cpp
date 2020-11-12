@@ -42,7 +42,7 @@ int timDragWindow = 0, timPaintBitmap = 0;
 
 
 const UINT valMin = 0;          // The range of values for the Up-Down control.
-const UINT valMax = 100;
+const UINT valMax = 50;
 // Handles to the controls.
 HWND hLblUpDown = NULL, hwndUpDnEdtBdy = NULL, hwndUpDnCtl = NULL;
 
@@ -62,7 +62,9 @@ char* VecToArr(std::vector<std::vector<unsigned>> vec);
 BOOL AdjustImage(HWND hWnd, BOOL isScreenshot, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC& hdcMem, HDC& hdcMemIn, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, int xNewSize, int yNewSize, int updatedxCurrentScroll, int updatedyCurrentScroll, int resizePic = 0, int minMaxRestore = 0, BOOL newPic = FALSE);
 void GetDims(HWND hWnd, int resizeType = 0, int oldResizeType = 0);
 void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& updatedyCurrentScroll, int resizeType = -1, int curFmWd = 0, int curFmHt = 0);
+int ScrollIt(HWND hWnd, int scrollType, int scrollDrag, int currentScroll, int minScroll, int maxScroll, int trackPos);
 int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xNewSize = 0, int yNewSize = 0, int bmpWidth = 0, int bmpHeight = 0);
+void ScaleFont(HWND hWnd, int contSize, BOOL isUpDown = FALSE);
 BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcWinCl, int typeOfDC = 0, BOOL noExit = FALSE);
 int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeType, int oldResizeType, int defOptTop, int updatedxCurrentScroll, int updatedyCurrentScroll, int newCtrlSizeTriggerHt, int newEdgeWd, int newWd, int minHt, HWND buddyHWnd = 0);
 BOOL CreateToolTipForRect(HWND hwndParent, int toolType = 0);
@@ -226,7 +228,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     static const wchar_t* labDesc = L"Paint Mult\0";
     static const int ctlUpDownIncrement = 5;
     UINT nCode;
-    int iPos = 0, iPosIndicated, upOrDown = 0;
+    int iPos = 0, upOrDown = 0;
     LPNMUPDOWN lpnmud = {};
 
     static BOOL toolTipOn;
@@ -321,7 +323,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             WC_STATIC,
             NULL,
             WS_CHILDWINDOW | WS_VISIBLE | WS_BORDER | WS_GROUP   // Window styles.
-            | SS_EDITCONTROL,                     // Label control style.
+            | SS_EDITCONTROL | ES_CENTER,                     // Label control style.
             0, 0,
             wd / 2 - 1, ht/2,
             hWnd,
@@ -495,10 +497,14 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         break;
         case IDT_PAINTBITMAP:
         {
-            tmp = KillTimer(hWnd, IDT_PAINTBITMAP);
-            timPaintBitmap = 0;
-            if (!AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, (chkChk) ? 2 : 0, SIZE_MAXIMIZED))
-                ReportErr(L"AdjustImage detected a problem with the image!");
+ 
+        tmp = KillTimer(hWnd, IDT_PAINTBITMAP);
+        timPaintBitmap = 0;
+        if (!fScroll)
+                {
+                    if (!AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, (chkChk) ? 2 : 0, SIZE_MAXIMIZED))
+                        ReportErr(L"AdjustImage detected a problem with the image!");
+                }
         }
         break;
         }
@@ -697,7 +703,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                         prect->left + xCurrentScroll,
                         prect->top + yCurrentScroll,
                         SRCCOPY);
-                fScroll = 0;
+            //fScroll = 0;
             }
             else
             {
@@ -1093,6 +1099,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     
         isScreenshot = FALSE;
         isSizing = FALSE;
+        xCurrentScroll ? fScroll = 1 : fScroll = -1;
         return (LRESULT)FALSE;
     }
     break;
@@ -1307,7 +1314,7 @@ HWND UpDownCreate(HWND hWndParent, BOOL ctrlType)
     static const INITCOMMONCONTROLSEX commonCtrls =
     {
     sizeof(INITCOMMONCONTROLSEX),
-    classVar
+    (DWORD)classVar
     };
 
     if (ctrlType)
@@ -1328,11 +1335,11 @@ HWND UpDownCreate(HWND hWndParent, BOOL ctrlType)
     else
     {
         const wchar_t* initZero = L"0\0";
-        if (hControl = CreateWindowExW(WS_EX_LEFT | WS_EX_CLIENTEDGE,    //Extended window styles.
+        if (hControl = CreateWindowExW(WS_EX_LEFT,    //Extended window styles.
             WC_STATIC,
             NULL,
             WS_CHILDWINDOW | WS_VISIBLE | WS_BORDER | WS_GROUP   // Window styles.
-            | SS_EDITCONTROL,                     // Label control style.
+            | SS_EDITCONTROL | ES_CENTER,                     // Label control style.
             0, 0,
             wd / 2 - 1, ht,
             hWndParent,
@@ -1342,10 +1349,9 @@ HWND UpDownCreate(HWND hWndParent, BOOL ctrlType)
         SendMessageW(hControl, WM_SETTEXT, 0, (LPARAM)initZero);
     }
 
-    if (hControl)
-        return hControl;
-    else
+    if (!hControl)
         ReportErr(L"Problem with UpDown control creation.");
+    return hControl;
 }
 
 wchar_t* FileOpener(HWND hWnd)
@@ -1798,7 +1804,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
     rectLbl = RectCl().RectCl(hLblUpDown, hWnd, 6);
     rectUpDn = RectCl().RectCl(hwndUpDnCtl, hWnd, 7);
 
-    if (scrShtOrBmpLoad == 3)
+    if (scrShtOrBmpLoad == 6)
     {
         ReportErr(L"Values obtained from entry of SizeControls:  \n rectBtn.left: %d rectBtn.right: %d rectBtn.top: %d rectBtn.bottom: %d"
             "\n rectOpt1.left: %d rectOpt1.right: %d rectOpt1.top: %d rectOpt1.bottom: %d"
@@ -1879,7 +1885,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
             // Unfortunately, applying SetWindowPos here causes more sizing loops,
             // and the size and position of the controls is even worse than current.
             procEndWMSIZE = TRUE;
-            if (scrShtOrBmpLoad == 2)
+            if (scrShtOrBmpLoad == 6)
             {
                 ReportErr(L"Values obtained from exit start move of SizeControls:  \n rectBtn.left: %d rectBtn.right: %d rectBtn.top: %d rectBtn.bottom: %d"
                     "\n rectOpt1.left: %d rectOpt1.right: %d rectOpt1.top: %d rectOpt1.bottom: %d"
@@ -2012,8 +2018,10 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
             oldOpt2Top = delegateSizeControl(rectOpt2, hWndOpt2, oldOpt2Top, resizeType, oldResizeType, defOpt2Top, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, newEdgeWd, newWd, minHt);
             oldChkTop = delegateSizeControl(rectChk, hWndChk, oldChkTop, resizeType, oldResizeType, defChkTop, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, newEdgeWd, newWd, minHt);
             oldLblTop = delegateSizeControl(rectLbl, hLblUpDown, oldLblTop, resizeType, oldResizeType, defLblTop, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, newEdgeWd, newWd, minHt);
+            ScaleFont(hLblUpDown, newEdgeHt /2);
             // Must set the buddy pos here as GetWindowRect(hwndUpDnCtl, &rectUpDn) in a WM_SIZE is not reliable
             oldUpDnTop = delegateSizeControl(rectUpDn, hwndUpDnCtl, oldUpDnTop, resizeType, oldResizeType, defUpDnTop, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, newEdgeWd/2, newWd/2, minHt, hwndUpDnEdtBdy);
+            ScaleFont(hwndUpDnEdtBdy, newEdgeHt, TRUE);
         }
 
     }
@@ -2140,6 +2148,39 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
     else
         return oldOptTop;
  }
+
+void ScaleFont(HWND hWnd, int contSize, BOOL isUpDown)
+{
+    static int sizeForLabel = 0;
+    static int sizeForUpDown = 0;
+    static HFONT	hFont;
+    static LOGFONT	lf;
+
+    if (sizeForUpDown)
+    {
+        lf.lfHeight = floor(3 * contSize / 4);
+        HFONT hFontNew = CreateFontIndirectW(&lf);
+        if (hFontNew)
+            DeleteObject(hFont);
+        hFont = hFontNew;
+        (HFONT)SendMessageW(hWnd, WM_SETFONT, (WPARAM)hFont, TRUE);
+    }
+    else
+    {
+        hFont = (HFONT)SendMessageW(hWnd, WM_GETFONT, 0, 0);
+        if (NULL == hFont)
+            hFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT); // SYSTEM_FONT not friendly
+        GetObject(hFont, sizeof(LOGFONT), &lf);
+        // lfHeight  is negative for DEFAULT_GUI_FONT
+        //HDC hdcScreen = CreateDC(L"DISPLAY", (PCTSTR)NULL, (PCTSTR)NULL, (CONST DEVMODE*) NULL);
+        //if (lf.lfHeight < 0) fontSize = MulDiv(-lf.lfHeight, 72, GetDeviceCaps(hdcScreen, LOGPIXELSY));
+        
+        if (isUpDown)
+            sizeForUpDown = lf.lfHeight;
+        else
+            sizeForLabel = lf.lfHeight;
+    }
+}
 
 int ScrollIt(HWND hWnd, int scrollType, int scrollDrag, int currentScroll, int minScroll, int maxScroll, int trackPos)
 {
