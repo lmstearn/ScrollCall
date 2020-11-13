@@ -70,6 +70,7 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
 BOOL CreateToolTipForRect(HWND hwndParent, int toolType = 0);
 BOOL IsAllFormInWindow(HWND hWnd, BOOL toolTipOn, BOOL isMaximized = FALSE);
 HWND UpDownCreate(HWND hWndParent, BOOL ctrlType = 0);
+BOOL SetDragFullWindow(BOOL dragFullWindow = FALSE, BOOL restoreDef = FALSE);
 //Functions for later use
 //
 
@@ -227,8 +228,10 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     //For UpDown
     static const wchar_t* labDesc = L"Paint Mult\0";
     static const int ctlUpDownIncrement = 5;
+
+    static int iPos = 0;
     UINT nCode;
-    int iPos = 0, upOrDown = 0;
+    int upOrDown = 0;
     LPNMUPDOWN lpnmud = {};
 
     static BOOL toolTipOn;
@@ -317,6 +320,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             hWnd,
             (HMENU)IDC_CHK,
             (HINSTANCE)NULL, NULL);
+
+        EnableWindow(hWndChk, FALSE);
 
         // UpDown label
         if (hLblUpDown = CreateWindowExW(WS_EX_LEFT,    //Extended window styles.
@@ -432,20 +437,17 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 break;
     case WM_SIZING:
     {
-        fScroll = 0;
-        fSize = TRUE;
         isSizing = TRUE;
         if (iPos)
         {
-            // Remove the above "return" to find that:
-            // Custom painting during the sizing might have been a good idea,
+            // Spin iPos > 0: custom painting during sizing might have been a good idea,
             // except that the system invalidates the window with COLOR_WINDOW + 1
-            // after each bitblt, which causes some flicker. Better handling of the timer
-            // in this case is also necessary to avoid other unwanted visual effects.
+            // after each bitblt, which causes much flicker. Better handling of the timer
+            // in this case than current also required to avoid other unwanted visual effects.
             // Otherwise capCallFrmResize remains zero throughout.
             if (!timDragWindow || (capCallFrmResize == 5))
             {
-                timDragWindow = SetTimer(hWnd,             // handle to main window 
+                timDragWindow = (int)SetTimer(hWnd,             // handle to main window 
                     IDT_DRAGWINDOW,                   // timer identifier 
                     iPos,                           // millisecond interval 
                     (TIMERPROC)NULL);               // no timer callback 
@@ -500,12 +502,14 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
  
         tmp = KillTimer(hWnd, IDT_PAINTBITMAP);
         timPaintBitmap = 0;
-        if (!fScroll)
-                {
-                    if (!AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, (chkChk) ? 2 : 0, SIZE_MAXIMIZED))
-                        ReportErr(L"AdjustImage detected a problem with the image!");
-                }
+            if (!fScroll)
+            {
+                if (!AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, (chkChk) ? 2 : 0, SIZE_MAXIMIZED))
+                    ReportErr(L"AdjustImage detected a problem with the image!");
+            }
         }
+        break;
+        default:
         break;
         }
 
@@ -534,7 +538,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, START_SIZE_MOVE, xNewSize, yNewSize);
         //InvalidateRect(hWnd, 0, TRUE);
         if (scrShtOrBmpLoad > 1)
-            timDragWindow = SetTimer(hWnd,
+            timDragWindow = (int)SetTimer(hWnd,
                 IDT_DRAGWINDOW,
                 10,
                 (TIMERPROC)NULL);
@@ -597,13 +601,13 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             if (restoreFromMax || isMaximized)
                 toolTipOn = IsAllFormInWindow(hWnd, toolTipOn, isMaximized);
 
-            SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, wParam, xNewSize, yNewSize);
+            SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, (int)wParam, xNewSize, yNewSize);
 
             if (scrShtOrBmpLoad > 1)
             {
                 if (!isLoading)
                 {
-                    if (!AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, (chkChk) ? 2 : 0, wParam))
+                    if (!AdjustImage(hWnd, isScreenshot, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, (chkChk) ? 2 : 0, (int)wParam))
                         ReportErr(L"AdjustImage detected a problem with the image!");
                     if (fSize && (wParam == SIZE_RESTORED))
                         timDragWindow = 0;
@@ -923,7 +927,9 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
         case IDD_UPDOWN:
         {
-            
+        // Interesting link on key commands- not dealt with here in any case.
+        //https://social.msdn.microsoft.com/Forums/vstudio/en-US/d02e2e3c-8a47-4812-8475-99cd3309ba7d/possible-bug-in-updown-control-found?forum=vcgeneral
+            //Note IDM_RUN_UPDOWN (is no longer?) a Win32 predefined symbol. Perhaps Win16?
         }
         break;
         //Nothing here for case IDD_UPDOWN_BUDDY 
@@ -945,6 +951,13 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
             if (wmEvent == BN_CLICKED)
                 chkChk = (SendMessageW((HWND)lParam, BM_GETCHECK, 0, 0) == BST_CHECKED);
+            if (chkChk)
+            {
+                SetDragFullWindow();  //store default
+                SetDragFullWindow(TRUE);
+            }
+            else
+                SetDragFullWindow(TRUE, TRUE);  //restore default
             // Also BST_INDETERMINATE, BST_UNCHECKED
         }
         break;
@@ -1392,6 +1405,12 @@ wchar_t* FileOpener(HWND hWnd)
 }
 
 //example to use: ReportErr(L"test %s \n %d %d %d %s %d %d %d", L"str", 1, 2, 3, L"\n", 1, 2, 3);
+    /*
+ReportErr(L"Values obtained from entry of SizeControls:  \n rectBtn.left: %d rectBtn.right: %d rectBtn.top: %d rectBtn.bottom: %d"
+    "\n rectOpt1.left: %d rectOpt1.right: %d rectOpt1.top: %d rectOpt1.bottom: %d"
+    "\n scrDims.cx: %d scrDims.cy: %d scrEdge.cx: %d scrEdge.cy: %d",
+    rectBtn.left, rectBtn.right, rectBtn.top, rectBtn.bottom, rectOpt1.left, rectOpt1.right, rectOpt1.top, rectOpt1.bottom, scrDims.cx, scrDims.cy, scrEdge.cx, scrEdge.cy);
+    */
 void ReportErr(const wchar_t* format, ...)
 {
     if (!format)
@@ -1804,15 +1823,6 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
     rectLbl = RectCl().RectCl(hLblUpDown, hWnd, 6);
     rectUpDn = RectCl().RectCl(hwndUpDnCtl, hWnd, 7);
 
-    if (scrShtOrBmpLoad == 6)
-    {
-        ReportErr(L"Values obtained from entry of SizeControls:  \n rectBtn.left: %d rectBtn.right: %d rectBtn.top: %d rectBtn.bottom: %d"
-            "\n rectOpt1.left: %d rectOpt1.right: %d rectOpt1.top: %d rectOpt1.bottom: %d"
-            "\n scrDims.cx: %d scrDims.cy: %d scrEdge.cx: %d scrEdge.cy: %d",
-        rectBtn.left, rectBtn.right, rectBtn.top, rectBtn.bottom, rectOpt1.left, rectOpt1.right, rectOpt1.top, rectOpt1.bottom, scrDims.cx, scrDims.cy, scrEdge.cx, scrEdge.cy);
-        //ReportErr(L"test %s \n : %d : %d : %d %s %d %d %d", L"str", 1, 2, 3, L"\n", 1, 2, 3);
-
-    }
 
     if ((ht > OPT_HEIGHT) && !defOpt1Top) // At Init
     {
@@ -1885,15 +1895,6 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
             // Unfortunately, applying SetWindowPos here causes more sizing loops,
             // and the size and position of the controls is even worse than current.
             procEndWMSIZE = TRUE;
-            if (scrShtOrBmpLoad == 6)
-            {
-                ReportErr(L"Values obtained from exit start move of SizeControls:  \n rectBtn.left: %d rectBtn.right: %d rectBtn.top: %d rectBtn.bottom: %d"
-                    "\n rectOpt1.left: %d rectOpt1.right: %d rectOpt1.top: %d rectOpt1.bottom: %d"
-                    "\n scrDims.cx: %d scrDims.cy: %d scrEdge.cx: %d scrEdge.cy: %d",
-                    rectBtn.left, rectBtn.right, rectBtn.top, rectBtn.bottom, rectOpt1.left, rectOpt1.right, rectOpt1.top, rectOpt1.bottom, scrDims.cx, scrDims.cy, scrEdge.cx, scrEdge.cy);
-                //ReportErr(L"test %s \n : %d : %d : %d %s %d %d %d", L"str", 1, 2, 3, L"\n", 1, 2, 3);
-
-            }
             return;
         }
 
@@ -2455,7 +2456,7 @@ switch (scrollXorY)
         retVal = scrollStat;
         if (scrollChanged || (scrollStat == 3))
         {
-            if ((scrShtOrBmpLoad > 1) && !timPaintBitmap && !(timPaintBitmap = SetTimer(hWnd,
+            if ((scrShtOrBmpLoad > 1) && !timPaintBitmap && !(timPaintBitmap = (int)SetTimer(hWnd,
                 IDT_PAINTBITMAP,
                 6,
                 (TIMERPROC)NULL)))
@@ -2525,9 +2526,11 @@ BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm,
         if (hbmpCompat && !DeleteObject(hbmpCompat) && noExit)
             ReportErr(L"hbmpCompat: Not deleted!");
     }
+
     if (!noExit)
     {
         exitOnceFlag = TRUE;
+        SetDragFullWindow(TRUE, TRUE);
         if (hOldBmp && DeleteObject(hOldBmp))
             ReportErr(L"hOldBmp: DC flushed, yet DeleteObject succeeded!");
         DestroyWindow(hWnd);
@@ -2586,11 +2589,8 @@ BOOL IsAllFormInWindow(HWND hWnd, BOOL toolTipOn, BOOL isMaximized)
 
     return toolTipOn;
 }
-//**************************************************************
-// Functions for possible later use
-//**************************************************************
 
-BOOL SetDragFullWindow(BOOL dragFullWindow = FALSE, BOOL restoreDef = FALSE)
+BOOL SetDragFullWindow(BOOL dragFullWindow, BOOL restoreDef)
 {
     //https://devblogs.microsoft.com/oldnewthing/20050310-00/?p=36233
     static int defDragFullWindow = -1;
@@ -2619,18 +2619,27 @@ BOOL SetDragFullWindow(BOOL dragFullWindow = FALSE, BOOL restoreDef = FALSE)
         }
         else
         {
-            if (SystemParametersInfoW(SPI_SETDRAGFULLWINDOWS,
-                dragFullWindow,
-                NULL,
-                NULL))
-                SendNotifyMessageW(HWND_BROADCAST, WM_SETTINGCHANGE,
-                    SPI_GETDRAGFULLWINDOWS, 0);
-            else
-                ReportErr(L"SPI_SETDRAGFULLWINDOWS: Cannot set info.");
+            // Only turns on
+            if (dragFullWindow)
+            {
+                if (SystemParametersInfoW(SPI_SETDRAGFULLWINDOWS,
+                    dragFullWindow,
+                    NULL,
+                    NULL))
+                    SendNotifyMessageW(HWND_BROADCAST, WM_SETTINGCHANGE,
+                        SPI_GETDRAGFULLWINDOWS, 0);
+                else
+                    ReportErr(L"SPI_SETDRAGFULLWINDOWS: Cannot set info.");
+            }
         }
     }
     return dragFullWindow;
 }
+
+
+//**************************************************************
+// Functions for possible later use
+//**************************************************************
 
 //https://stackoverflow.com/a/39654760/2128797
 std::vector<std::vector<unsigned>> getPixels(Gdiplus::Bitmap bitmap, int& width, int& height) {
