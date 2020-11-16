@@ -1008,7 +1008,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
                         hdcMemIn = CreateCompatibleDC(hdcWinCl);
                         hdcMem = CreateCompatibleDC(hdcWinCl);
-                        if (!AdjustImage(hWnd, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, xCurrentScroll, yCurrentScroll, 2, FALSE, TRUE))
+                        scrShtOrBmpLoad = 3;
+                        if (!AdjustImage(hWnd, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, xCurrentScroll, yCurrentScroll, 1, FALSE, TRUE))
                             ReportErr(L"AdjustImage detected a problem with the image!");
                         //SizeControls(bmp, hWnd, defFmWd, defFmHt, -1, xCurrentScroll, yCurrentScroll);
                         xCurrentScroll ? fScroll = 1 : fScroll = -1; //initialise for ScrollInfo below
@@ -1016,7 +1017,6 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                         scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
                         szFile[0] = L'X';
 
-                        scrShtOrBmpLoad = 3;
                         //SetWindowOrgEx(hdcWinCl, xCurrentScroll, yCurrentScroll, NULL);
 
                             switch (scrollStat)
@@ -1491,8 +1491,8 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, BITMAP bmp, GpStatus gps, HDC& hdcM
         if (hBmpObj && GetObject(hBmpObj, sizeof(BITMAP), &bm)) //bm => BITMAP structure
         {
             //bm.biBitCount = 32;
-            bmpWidth = (scrShtOrBmpLoad ==2) ? bmp.bmWidth : bmpWidth;
-            bmpHeight = (scrShtOrBmpLoad ==2) ? bmp.bmHeight : bmpHeight;
+            bmpWidth = (scrShtOrBmpLoad == 2) ? bmp.bmWidth : bmpWidth;
+            bmpHeight = (scrShtOrBmpLoad == 2) ? bmp.bmHeight : bmpHeight;
         }
         else
             ReportErr(L"AdjustImage: Unable to size bitmap!");
