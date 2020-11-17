@@ -41,6 +41,7 @@
 #define START_SIZE_MOVE			16
 #define END_SIZE_MOVE			12
 #define MAX_TO_MIN			8
+#define CTRL_PROPORTION_OF_FORM			10
 #define OPT_HEIGHT			10
 #define IDC_MYICON				2
 #ifndef IDC_STATIC

@@ -184,14 +184,14 @@ typedef struct tagRectCl
         if (ctrlIndex)
             return RectCl(ctrlIndex).right - RectCl(ctrlIndex).left;
         else
-            return (int)(RectCl(ctrlIndex).right - RectCl(ctrlIndex).left)/9;
+            return (int)(RectCl(ctrlIndex).right - RectCl(ctrlIndex).left) / CTRL_PROPORTION_OF_FORM;
     }
     int height(int ctrlIndex)
     {
         if (ctrlIndex)
             return RectCl(ctrlIndex).bottom - RectCl(ctrlIndex).top;
         else
-            return (int)(RectCl(ctrlIndex).bottom - RectCl(ctrlIndex).top)/9;
+            return (int)(RectCl(ctrlIndex).bottom - RectCl(ctrlIndex).top) / CTRL_PROPORTION_OF_FORM;
     }
 
 } RectCl;

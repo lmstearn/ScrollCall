@@ -32,7 +32,7 @@ SIZE scrDims = {0}, scrEdge = {0};
 // const UINT WM_USERACTION = WM_APP + 1; //originally considered for UpDown 
 // wd, ht: button dims
 int tmp = 0, wd = 0, ht = 0, capCallFrmResize = 0, xCurrentScroll, yCurrentScroll, scrShtOrBmpLoad;
-HWND m_hWnd = NULL, hDlg = NULL, hWndGroupBox = 0;
+HWND m_hWnd = NULL, hAboutDlg = NULL, hWndGroupBox = 0;
 HWND hWndButton = 0, hWndOpt1 = 0, hWndOpt2 = 0, hWndChk = 0;
 BOOL scrollChk = TRUE, stretchChk = FALSE, groupboxFlag = FALSE,  procEndWMSIZE = TRUE;
 BOOL isLoading = TRUE, windowMoved,  isSizing = FALSE, restoreFromMax = FALSE;; // False on PrintTheWindow
@@ -103,7 +103,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     // Main message loop:
     while (GetMessage(&msg, nullptr, 0, 0))
     {
-        a = (hDlg == NULL) ? 0 : IsDialogMessageW(hDlg, &msg);
+        a = (hAboutDlg == NULL) ? 0 : IsDialogMessageW(hAboutDlg, &msg);
         if (!a && !TranslateAcceleratorW(msg.hwnd, hAccelTable, &msg))
         {
             TranslateMessage(&msg);
@@ -260,7 +260,6 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         xNewSize = RectCl().width(1);
         yNewSize = RectCl().height(1);
 
-        //hDlg = UpDownCreate(hWnd); //create UpDown dialog early
 
         if (groupboxFlag)
         {
@@ -444,7 +443,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             // after each bitblt, which causes much flicker. Better handling of the timer
             // in this case than current also required to avoid other unwanted visual effects.
             // Otherwise capCallFrmResize remains zero throughout.
-            if (!timDragWindow || (capCallFrmResize == 5))
+            if (!timDragWindow || (capCallFrmResize == iPos))
             {
                 timDragWindow = (int)SetTimer(hWnd,             // handle to main window 
                     IDT_DRAGWINDOW,                   // timer identifier 
@@ -464,7 +463,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 capCallFrmResize++;
                 fScroll = 0;
                 fSize = TRUE;
-                if (capCallFrmResize > 5)
+                if (capCallFrmResize > iPos)
                 {
                     ReportErr(L"Timer var incorrect!");
                     Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMem, hdcMemIn, hdcWinCl);
@@ -706,8 +705,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                         prect->left + xCurrentScroll,
                         prect->top + yCurrentScroll,
                         SRCCOPY);
-            //fScroll = 0;
-            }
+            }   // fScroll = 0;
             else
             {
                 if (fSize)
@@ -731,16 +729,13 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                         {
                             PRECT prect;
                             prect = &ps.rcPaint;
-                            if (prect->left < wd - 1) // Issue when form is sized small horizontally
+                            if (prect->left < wd - 1) // Possible issue when form is sized small horizontally
                             {
                                 RECT rect;
                                 rect.left = prect->left;
                                 rect.top = prect->top;
                                 rect.bottom = prect->bottom;
-                                tmp = RectCl().width(0);
-                                if (tmp < wd)
-                                    tmp = wd;
-                                rect.right = prect->left + tmp - xCurrentScroll;
+                                rect.right = prect->left + wd - xCurrentScroll;
                                 FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
                             }
                         }
@@ -782,7 +777,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
             lpnmud = (LPNMUPDOWN)lParam;
             upOrDown = lpnmud->iDelta;
-            //lpnmud->iDelta < 0 is up else down;
+            //  lpnmud->iDelta < 0 is up, else down;
             if (upOrDown)
             {
                 wchar_t iPosStr[4];
@@ -864,10 +859,6 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     {
         int yDelta = ScrollInfo(hWnd, VERT_SCROLL, LOWORD(wParam), HIWORD(wParam), xNewSize, yNewSize, bmpWidth, bmpHeight);
 
-        // Scroll the window. (The system repaints most of the
-        // client area when ScrollWindow(Ex) is called; however, it is
-        // necessary to call UpdateWindow in order to repaint the
-        // rectangle of pixels that were invalidated.)
         if (!yDelta)
             return (LRESULT)FALSE;
         fScroll = -1;
@@ -1053,13 +1044,16 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         break;
         case IDM_ABOUT:
         {
-            if (hDlg)
-                ShowWindow(hDlg, SW_SHOWDEFAULT);
-            //DialogBox(hInst, MAKEINTRESOURCEW(IDD_ABOUTBOX), hWnd, About);
-            if (hDlg = CreateDialogParamW(hInst, MAKEINTRESOURCEW(IDD_ABOUTBOX), hWnd, About, NULL))
-                ShowWindow(hDlg, SW_SHOWDEFAULT);
+            if (hAboutDlg)
+                ShowWindow(hAboutDlg, SW_SHOWDEFAULT);
             else
-                ReportErr(L"About: Cannot create!");
+            {
+                //DialogBox(hInst, MAKEINTRESOURCEW(IDD_ABOUTBOX), hWnd, About);
+                if (hAboutDlg = CreateDialogParamW(hInst, MAKEINTRESOURCEW(IDD_ABOUTBOX), hWnd, About, NULL))
+                    ShowWindow(hAboutDlg, SW_SHOWDEFAULT);
+                else
+                    ReportErr(L"About: Cannot create!");
+            }
         }
 
         break;
@@ -1626,8 +1620,8 @@ void GetDims(HWND hWnd, int resizeType, int oldResizeType)
             {
                 RECT recthWndtmp;
                 GetWindowRect(hWnd, &recthWndtmp);
-                wd = (int)(recthWndtmp.right - recthWndtmp.left) / 10;
-                ht = (int)(recthWndtmp.bottom - recthWndtmp.top) / 10;
+                wd = (int)(recthWndtmp.right - recthWndtmp.left) / CTRL_PROPORTION_OF_FORM;
+                ht = (int)(recthWndtmp.bottom - recthWndtmp.top) / CTRL_PROPORTION_OF_FORM;
             }
         }
 
@@ -2478,7 +2472,8 @@ switch (scrollXorY)
             }
         }
         retVal = scrollStat;
-        // The (scrollStat == 1) condition is due to Window invalidation related to duplicated WindowPos calls. 
+        // The (scrollStat == 1) condition is due to window invalidation 
+        // possibly related to stacked WindowPos calls before WM_PAINT. 
         if (!timPaintBitmap && (scrShtOrBmpLoad > 1) && (scrollChanged || (scrollStat == 3) || ((scrollStat == 1) && (bmpWidth + wd > xNewSize))))
         {
             if (!(timPaintBitmap = (int)SetTimer(hWnd,
@@ -2622,14 +2617,17 @@ BOOL SetDragFullWindow(BOOL dragFullWindow, BOOL restoreDef)
 
     if (restoreDef)
     {
-        if (SystemParametersInfoW(SPI_SETDRAGFULLWINDOWS,
-            defDragFullWindow,
-            NULL,
-            NULL))
-            SendNotifyMessageW(HWND_BROADCAST, WM_SETTINGCHANGE,
-                SPI_GETDRAGFULLWINDOWS, 0);
-        else
-            ReportErr(L"SPI_SETDRAGFULLWINDOWS: Cannot restore.");
+        if (defDragFullWindow > -1)
+        {
+            if (SystemParametersInfoW(SPI_SETDRAGFULLWINDOWS,
+                defDragFullWindow,
+                NULL,
+                NULL))
+                SendNotifyMessageW(HWND_BROADCAST, WM_SETTINGCHANGE,
+                    SPI_GETDRAGFULLWINDOWS, 0);
+            else
+                ReportErr(L"SPI_SETDRAGFULLWINDOWS: Cannot restore.");
+        }
     }
     else
     {
