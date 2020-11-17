@@ -587,10 +587,9 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         if (!procEndWMSIZE)
             return (LRESULT)FALSE;
         isMaximized = (wParam == SIZE_MAXIMIZED);
-        BOOL maxMinSize = (wParam == SIZE_MINIMIZED || isMaximized);
+        
         // WM_SIZE called for each child control (no subclass)
-
-        if (!(szFile && (szFile[0] == L'*')) && (!capCallFrmResize || !timDragWindow || maxMinSize))
+        if (!(szFile && (szFile[0] == L'*')) && (!capCallFrmResize || !timDragWindow || isMaximized || (wParam == SIZE_MINIMIZED)))
         {
 
             xNewSize = LOWORD(lParam);
@@ -1694,16 +1693,12 @@ void GetDims(HWND hWnd, int resizeType, int oldResizeType)
             }
             else
             {
-                if (oldResizeType == SIZE_MINIMIZED)
-                {
-                    scaleX = 1;
-                    scaleY = 1;
-                }
-                else
+                if (oldResizeType != SIZE_MINIMIZED)
                 {
                     oldWd ? (scaleX = wd / oldWd) : scaleX = 1;
                     oldHt ? (scaleY = ht / oldHt) : scaleY = 1;
                 }
+                // else use saved scale
             }
         }
 
@@ -1752,8 +1747,8 @@ void GetDims(HWND hWnd, int resizeType, int oldResizeType)
     break;
     default: // SIZE_MINIMIZED
     {
-        scaleX = oldWd / wd;
-        scaleY = oldHt / ht;
+        scaleX = wd / firstWd;
+        scaleY = ht / firstHt;
         wd = oldWd;
         ht = oldHt;
     }
@@ -1954,7 +1949,7 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
 
 
         if (resizeType == END_SIZE_MOVE)
-        SetWindowPos(hWndButton, NULL, rectBtn.left, rectBtn.top, newWd, newHt, SWP_NOREDRAW | SWP_NOACTIVATE);
+        SetWindowPos(hWndButton, NULL, rectBtn.left, rectBtn.top, newWd, newHt, SWP_NOACTIVATE);
         else
         {
             // If maximised, scroll value may change- left/top of control may move below zero
@@ -2441,7 +2436,7 @@ switch (scrollXorY)
                         siVERT.nTrackPos = yTrackPos;
                         SetScrollInfo(hWnd, SB_VERT, &siVERT, TRUE);
                         ShowScrollBar(hWnd, SB_VERT, TRUE);
-                        (scrollStat) ? (scrollStat = 3) : (scrollStat = 2);
+                        (scrollStat == 1) ? (scrollStat = 3) : (scrollStat = 2);
                         if (scrollStat != oldScrollStat)
                             scrollChanged = TRUE;
                     }
