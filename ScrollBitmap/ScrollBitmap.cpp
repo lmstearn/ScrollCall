@@ -731,16 +731,13 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                         {
                             PRECT prect;
                             prect = &ps.rcPaint;
-                            if (prect->left < wd - 1) // Issue when form is sized small horizontally
+                            if (prect->left < wd - 1) // Possible issue when form is sized small horizontally
                             {
                                 RECT rect;
                                 rect.left = prect->left;
                                 rect.top = prect->top;
                                 rect.bottom = prect->bottom;
-                                tmp = RectCl().width(0);
-                                if (tmp < wd)
-                                    tmp = wd;
-                                rect.right = prect->left + tmp - xCurrentScroll;
+                                rect.right = prect->left + wd - xCurrentScroll;
                                 FillRect(ps.hdc, &rect, (HBRUSH)(COLOR_WINDOW + 1));
                             }
                         }
