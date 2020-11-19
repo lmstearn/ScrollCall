@@ -984,19 +984,6 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
             //https://social.msdn.microsoft.com/Forums/sqlserver/en-US/76441f64-a7f2-4483-ad6d-f51b40464d6b/how-to-get-both-width-and-height-of-bitmap-in-gdiplus-flat-api?forum=windowsgeneraldevelopmentissues
 
-            RECT rectBtn = RectCl().RectCl(hWndButton, hWnd, 2);
-            DoMonInfo(hWndButton);
-            ReportErr(L"Values obtained from entry of SizeControls:  \n rectBtn.left: %d rectBtn.right: %d rectBtn.top: %d rectBtn.bottom: %d"
-                "\n scrDims.cx: %d scrDims.cy: %d scrEdge.cx: %d scrEdge.cy: %d",
-                rectBtn.left, rectBtn.right, rectBtn.top, rectBtn.bottom, scrDims.cx, scrDims.cy, scrEdge.cx, scrEdge.cy);
-            SetWindowPos(hWndButton, NULL, rectBtn.left, rectBtn.top, rectBtn.right - rectBtn.left, rectBtn.bottom - rectBtn.top, SWP_NOACTIVATE);
-            DoMonInfo(hWndButton);
-            ReportErr(L"Values obtained from entry of SizeControls:  \n rectBtn.left: %d rectBtn.right: %d rectBtn.top: %d rectBtn.bottom: %d"
-                "\n scrDims.cx: %d scrDims.cy: %d scrEdge.cx: %d scrEdge.cy: %d",
-                rectBtn.left, rectBtn.right, rectBtn.top, rectBtn.bottom, scrDims.cx, scrDims.cy, scrEdge.cx, scrEdge.cy);
-
-            return (LRESULT)TRUE;
-
             szFile = (wchar_t*)calloc(MAX_LOADSTRING, sizeof(wchar_t));
             wcscpy_s(szFile, MAX_LOADSTRING, FileOpener(hWnd));
 
@@ -1100,7 +1087,29 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
         break;
         case IDM_EXIT:
-            Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMem, hdcMemIn, hdcWinCl);
+        {
+            ///*
+
+            RECT rectBtn = RectCl().RectCl(hWndButton, hWnd, 2);
+            ReportErr(L"Values:  \n rectBtn.left: %d rectBtn.right: %d rectBtn.top: %d rectBtn.bottom: %d"
+                "\n updatedxCurrentScroll: %d updatedyCurrentScroll: %d xCurrentScroll: %d xCurrentScroll: %d"
+                "\n scrDims.cx: %d scrDims.cy: %d scrEdge.cx: %d scrEdge.cy: %d",
+                rectBtn.left, rectBtn.right, rectBtn.top, rectBtn.bottom, updatedxCurrentScroll, updatedxCurrentScroll, xCurrentScroll, xCurrentScroll, scrDims.cx, scrDims.cy, scrEdge.cx, scrEdge.cy);
+
+            updatedxCurrentScroll = ScrollInfo(hWnd, UPDATE_HORZSCROLLSIZE_CONTROL, 0, 0, xNewSize, yNewSize);
+            updatedyCurrentScroll = ScrollInfo(hWnd, UPDATE_VERTSCROLLSIZE_CONTROL, 0, 0, xNewSize, yNewSize);
+
+            SetWindowPos(hWndButton, NULL, -updatedxCurrentScroll, -updatedyCurrentScroll, rectBtn.right - rectBtn.left, rectBtn.bottom - rectBtn.top, SWP_NOACTIVATE);
+
+            DoMonInfo(hWndButton);
+            ReportErr(L"Values:  \n rectBtn.left: %d rectBtn.right: %d rectBtn.top: %d rectBtn.bottom: %d"
+                "\n updatedxCurrentScroll: %d updatedyCurrentScroll: %d xCurrentScroll: %d xCurrentScroll: %d"
+                "\n scrDims.cx: %d scrDims.cy: %d scrEdge.cx: %d scrEdge.cy: %d",
+                rectBtn.left, rectBtn.right, rectBtn.top, rectBtn.bottom, updatedxCurrentScroll, updatedxCurrentScroll, xCurrentScroll, xCurrentScroll, scrDims.cx, scrDims.cy, scrEdge.cx, scrEdge.cy);
+            //*/
+
+            //Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMem, hdcMemIn, hdcWinCl);
+        }
         break;
         default:
             return DefWindowProc(hWnd, uMsg, wParam, lParam);
@@ -2205,9 +2214,9 @@ void ScaleFont(HWND hWnd, int contSize, BOOL isUpDown)
     static HFONT	hFont;
     static LOGFONT	lf;
 
-// Note WM_PAINT in m_hWnd paints the control with default parms,
+// Note default WM_PAINT for m_hWnd paints the control with default parms,
 // so for consistent results, this function should be called from a SubClass proc.
-// Consider DrawText for centering- at extra processing cost
+// Also consider DrawText for centering- at extra processing cost
 
     if (sizeForUpDown)
     {
