@@ -39,7 +39,7 @@ BOOL scrollChk = TRUE, stretchChk = FALSE, groupboxFlag = FALSE,  procEndWMSIZE 
 BOOL isLoading = TRUE, windowMoved,  isSizing = FALSE, restoreFromMax = FALSE;; // False on PrintTheWindow
 
 // Timer
-int timDragWindow = 1, timPaintBitmap = 0;
+int timDragWindow = 0, timPaintBitmap = 0;
 
 
 const UINT valMin = 0;          // The range of values for the Up-Down control.
@@ -249,7 +249,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     {
     case WM_CREATE:
     {
-         // Start Gdiplus
+        timDragWindow = 1;
+        // Start Gdiplus
 
         SMOOTHSCROLL_SPEED = 0X00000002;
         ulScrollLines = 0;
@@ -537,7 +538,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         if (scrShtOrBmpLoad > 1)
             timDragWindow = (int)SetTimer(hWnd,
                 IDT_DRAGWINDOW,
-                ((timPaintDelay)? timPaintDelay: 10),
+                10,
                 (TIMERPROC)NULL);
 
         return (LRESULT)FALSE;
@@ -559,7 +560,6 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
             timDragWindow = 0;
             capCallFrmResize = 0;
-            if (!stretchChk)
             scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
             SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, END_SIZE_MOVE, xNewSize, yNewSize);
             //UpdateWindow(hWnd);
@@ -587,50 +587,46 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         if (!procEndWMSIZE)
             return (LRESULT)FALSE;
         isMaximized = (wParam == SIZE_MAXIMIZED);
-
+        
+        // WM_SIZE called for each child control (no subclass)
+        if (!(szFile && (szFile[0] == L'*')) && (!capCallFrmResize || !timDragWindow || isMaximized || (wParam == SIZE_MINIMIZED)))
         {
-            // WM_SIZE called for each child control (no subclass)
-            if (!(szFile && (szFile[0] == L'*')) && (!capCallFrmResize || !timDragWindow || isMaximized || (wParam == SIZE_MINIMIZED)))
+
+            xNewSize = LOWORD(lParam);
+            yNewSize = HIWORD(lParam);
+
+            if (restoreFromMax || isMaximized)
+                toolTipOn = IsAllFormInWindow(hWnd, toolTipOn, isMaximized);
+
+            SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, (int)wParam, xNewSize, yNewSize);
+
+            if (scrShtOrBmpLoad > 1)
             {
-
-                if (restoreFromMax || isMaximized)
-                    toolTipOn = IsAllFormInWindow(hWnd, toolTipOn, isMaximized);
-                xNewSize = LOWORD(lParam);
-                yNewSize = HIWORD(lParam);
-
-                SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, (int)wParam, xNewSize, yNewSize);
-
-                if (scrShtOrBmpLoad > 1)
+                if (!isLoading)
                 {
-                    if (!isLoading)
-                    {
-                        if (!AdjustImage(hWnd, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, ((stretchChk) ? 2 : 0), (int)wParam))
-                            ReportErr(L"AdjustImage detected a problem with the image!");
-                        if (fSize && (wParam == SIZE_RESTORED))
-                            timDragWindow = 0;
-                        fSize = TRUE;
-                        fScroll = 0;
+                    if (!AdjustImage(hWnd, hBitmap, bmp, gps, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, ((stretchChk) ? 2 : 0), (int)wParam))
+                        ReportErr(L"AdjustImage detected a problem with the image!");
+                    if (fSize && (wParam == SIZE_RESTORED))
+                        timDragWindow = 0;
+                    fSize = TRUE;
+                    fScroll = 0;
                     // The horizontal scrolling range is defined by 
-                    // (bitmap_width) - (client_width). The current horizontal 
-                    // scroll value remains within the horizontal scrolling range. 
-                    }
-                    if (!stretchChk)
-                    {
-                        if (!isSizing && (scrollStat || restoreFromMax))
-                            scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
-                    }
-                    restoreFromMax = isMaximized;
+                // (bitmap_width) - (client_width). The current horizontal 
+                // scroll value remains within the horizontal scrolling range. 
                 }
-                else
+                if (!isSizing && (scrollStat || restoreFromMax))
+                    scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
+                restoreFromMax = isMaximized;
+            }
+            else
+            {
+                if (scrShtOrBmpLoad)
                 {
-                    if (scrShtOrBmpLoad)
-                    {
-                        if (!isSizing && !BitBlt(hdcWinCl, wd, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
-                            ReportErr(L"Bad BitBlt from hdcMem!");
+                    if (!isSizing && !BitBlt(hdcWinCl, wd, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
+                        ReportErr(L"Bad BitBlt from hdcMem!");
 
-                        fSize = TRUE;
-                        restoreFromMax = isMaximized;
-                    }
+                    fSize = TRUE;
+                    restoreFromMax = isMaximized;
                 }
             }
         }
@@ -720,8 +716,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     }
                     else
   */
-                    if (scrShtOrBmpLoad)
-                        toolTipOn = IsAllFormInWindow(hWnd, toolTipOn, isMaximized);
+                        if (scrShtOrBmpLoad)
+                            toolTipOn = IsAllFormInWindow(hWnd, toolTipOn);
                 }
                 else
                 {
