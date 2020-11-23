@@ -499,13 +499,21 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         break;
         case IDT_PAINTBITMAP:
         {
- 
-        tmp = KillTimer(hWnd, IDT_PAINTBITMAP);
-        timPaintBitmap = 0;
+
+            tmp = KillTimer(hWnd, IDT_PAINTBITMAP);
+            timPaintBitmap = 0;
             if (!fScroll)
             {
-                if (!AdjustImage(hWnd, hBitmap, bmp, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, ((stretchChk) ? 2 : ((scrShtOrBmpLoad == 2)? 1: 0)), SIZE_MAXIMIZED))
-                    ReportErr(L"AdjustImage detected a problem with the image!");
+                if (scrShtOrBmpLoad == 1)
+                {
+                    if (!BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
+                        ReportErr(L"Bad BitBlt from hdcMem!");
+                }
+                else
+                {
+                    if (!AdjustImage(hWnd, hBitmap, bmp, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, ((stretchChk) ? 2 : ((scrShtOrBmpLoad == 2) ? 1 : 0)), SIZE_MAXIMIZED))
+                        ReportErr(L"AdjustImage detected a problem with the image!");
+                }
             }
         }
         break;
@@ -568,7 +576,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             // The following may causes flicker and clip controls in certain circumstances
             if (scrShtOrBmpLoad == 1)
             {
-                    if (!BitBlt(hdcWinCl, wd, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
+                    if (!BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
                     ReportErr(L"Bad BitBlt from hdcMem!");
             }
             else
@@ -589,50 +597,42 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             return (LRESULT)FALSE;
         isMaximized = (wParam == SIZE_MAXIMIZED);
 
+        // WM_SIZE called for each child control (no subclass)
+        if (!(szFile && (szFile[0] == L'*')) && (!capCallFrmResize || !timDragWindow || isMaximized || (wParam == SIZE_MINIMIZED)))
         {
-            // WM_SIZE called for each child control (no subclass)
-            if (!(szFile && (szFile[0] == L'*')) && (!capCallFrmResize || !timDragWindow || isMaximized || (wParam == SIZE_MINIMIZED)))
+
+            xNewSize = LOWORD(lParam);
+            yNewSize = HIWORD(lParam);
+            if (restoreFromMax || isMaximized)
+                toolTipOn = IsAllFormInWindow(hWnd, toolTipOn, isMaximized);
+
+            SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, (int)wParam, xNewSize, yNewSize);
+
+            if (scrShtOrBmpLoad)
             {
-
-                if (restoreFromMax || isMaximized)
-                    toolTipOn = IsAllFormInWindow(hWnd, toolTipOn, isMaximized);
-                xNewSize = LOWORD(lParam);
-                yNewSize = HIWORD(lParam);
-
-                SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, (int)wParam, xNewSize, yNewSize);
-
                 if (scrShtOrBmpLoad > 1)
                 {
-                    if (!isLoading)
-                    {
-                        if (!AdjustImage(hWnd, hBitmap, bmp, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, ((stretchChk) ? 2 : 0), (int)wParam))
-                            ReportErr(L"AdjustImage detected a problem with the image!");
-                        if (fSize && (wParam == SIZE_RESTORED))
-                            timDragWindow = 0;
-                        fSize = TRUE;
-                        fScroll = 0;
-                    // The horizontal scrolling range is defined by 
-                    // (bitmap_width) - (client_width). The current horizontal 
-                    // scroll value remains within the horizontal scrolling range. 
-                    }
-                    if (!stretchChk)
-                    {
-                        if ((!isSizing && scrollStat || restoreFromMax))
-                            scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
-                    }
-                    restoreFromMax = isMaximized;
+                    if (!AdjustImage(hWnd, hBitmap, bmp, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, ((stretchChk) ? 2 : 0), (int)wParam))
+                        ReportErr(L"AdjustImage detected a problem with the image!");
                 }
                 else
                 {
-                    if (scrShtOrBmpLoad)
-                    {
-                        if (!isSizing && !BitBlt(hdcWinCl, wd, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
-                            ReportErr(L"Bad BitBlt from hdcMem!");
-
-                        fSize = TRUE;
-                        restoreFromMax = isMaximized;
-                    }
+                    if (!isSizing && !BitBlt(hdcWinCl, wd - updatedxCurrentScroll, -updatedyCurrentScroll, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
+                        ReportErr(L"Bad BitBlt from hdcMem!");
                 }
+                if (fSize && (wParam == SIZE_RESTORED))
+                    timDragWindow = 0;
+                fSize = TRUE;
+                fScroll = 0;
+                if (!stretchChk)
+                {
+                    // The horizontal scrolling range is defined by 
+                    // (bitmap_width) - (client_width). The current horizontal 
+                    // scroll value remains within the horizontal scrolling range. 
+                    if ((!isSizing && scrollStat || restoreFromMax))
+                        scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
+                }
+                restoreFromMax = isMaximized;
             }
         }
         windowMoved = FALSE;
@@ -696,12 +696,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 }
                 else
                     BitBlt(ps.hdc,
-                        //prect->left + (isScreenshot ? 0 : ((fScroll == 1) ? 0 : -wd)),
-                        // Blt at wd method
-                        //prect->left + (isScreenshot ? (fScroll == 1 ? 0 : wd) : (((fScroll == 1) && (xCurrentScroll > wd)) ? 0 : wd)),
                         prect->left,
                         prect->top,
-                        //prect->left + ( (isScreenshot) ? 0 : wd * scaleX), prect->top,
                         (prect->right - prect->left),
                         (prect->bottom - prect->top),
                         (scrShtOrBmpLoad == 2) ? hdcScreenCompat : hdcMem,
@@ -1161,13 +1157,16 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 SelectObject(hdcMem, hBitmap);
 
                 // can exclude RectCl().ClMenuandTitle(hWnd)
-                if (!BitBlt(hdcWinCl, wd, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
+                if (!BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll,  bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
                     ReportErr(L"Bad BitBlt from hdcMem!");
 
                 EnableWindow(hWndChk, FALSE);
                 toolTipOn = IsAllFormInWindow(hWnd, toolTipOn);
                 scrShtOrBmpLoad = 1;
                 isSizing = FALSE;
+                if ((xNewSize >= bmpWidth + wd) && (yNewSize >= bmpHeight))
+                fScroll = 0;
+                else
                 xCurrentScroll ? fScroll = 1 : fScroll = -1;
             }
             else
@@ -2572,7 +2571,8 @@ int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xN
 }
 BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcWinCl, int typeOfDC, BOOL noExit)
 {
-    static HGDIOBJ hOldBmp = {};
+    static HGDIOBJ hDefBmpMem = {};
+    static HGDIOBJ hDefBmpMemIn = {};
     static BOOL exitOnceFlag = FALSE;
     if (exitOnceFlag)
         return TRUE;
@@ -2587,13 +2587,13 @@ BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm,
             if (hdcMemIn)
             {
                 // Replacing old object with new to free the DC: check memory.
-                hOldBmp = GetCurrentObject(hdcMemIn, OBJ_BITMAP);
-                if (hOldBmp)
-                    SelectObject(hdcMemIn, hOldBmp);
+                hDefBmpMemIn = CreateCompatibleBitmap(hdcMemIn, 1, 1);
+                if (hDefBmpMemIn)
+                    SelectObject(hdcMemIn, hDefBmpMemIn);
                 else
                 {
                     if (noExit)
-                        ReportErr(L"hOldBmp: Not valid!");
+                        ReportErr(L"hDefBmpMemIn: Not valid!");
                 }
                 if (!DeleteDC(hdcMemIn) && noExit)
                     ReportErr(L"hdcMemIn: DeleteDC failed!");
@@ -2606,13 +2606,13 @@ BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm,
     {
         if (hdcMem)
         {
-            hOldBmp = GetCurrentObject(hdcMem, OBJ_BITMAP);
-            if (hOldBmp)
-                SelectObject(hdcMem, hOldBmp);
+            hDefBmpMem = CreateCompatibleBitmap(hdcMem, 1, 1);
+            if (hDefBmpMem)
+                SelectObject(hdcMem, hDefBmpMem);
             else
             {
                 if (noExit)
-                    ReportErr(L"hOldBmp: Not valid!");
+                    ReportErr(L"hDefBmpMem: Not valid!");
             }
             if (!DeleteDC(hdcMem) && noExit)
                 ReportErr(L"hdcMem: DeleteDC failed!");
@@ -2630,8 +2630,10 @@ BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hbmpCompat, GpBitmap*& pgpbm,
     {
         exitOnceFlag = TRUE;
         SetDragFullWindow(TRUE, TRUE);
-        if (hOldBmp && DeleteObject(hOldBmp))
-            ReportErr(L"hOldBmp: DC flushed, yet DeleteObject succeeded!");
+        if (hDefBmpMem && !DeleteObject(hDefBmpMem))
+            ReportErr(L"hDefBmpMem: DC flushed and DeleteObject failed!");
+        if (hDefBmpMemIn && !DeleteObject(hDefBmpMemIn))
+            ReportErr(L"hDefBmpMemIn: DC flushed and DeleteObject failed!");
         DestroyWindow(hWnd);
     }
 
