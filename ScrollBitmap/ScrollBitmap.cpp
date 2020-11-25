@@ -584,7 +584,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
             // The following produces a flicker on the paint if the !scrollStat condition is omitted (for
             //  timPaintBitmap set) but in that case the paint is unreliable and also dependent on scroll position.
-            if (!scrollStat && !AdjustImage(hWnd, hBitmap, bmp, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, ((stretchChk) ? 2 : 1)))
+            if ((!scrollStat || scrShtOrBmpLoad == 2) && !AdjustImage(hWnd, hBitmap, bmp, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, ((stretchChk) ? 2 : 1)))
                 ReportErr(L"AdjustImage detected a problem with the image!");
         }
         isSizing = FALSE;
@@ -1614,6 +1614,8 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, BITMAP bmp, HDC& hdcMem, HDC& hdcMe
         if (resizePic)
         {
             //SetBkColor(hdcWinCl, COLOR_WINDOW + 1) causes flickering in the scrolling
+            if (!(retVal = (BOOL)FillRect(hdcScreenCompat, &rect, (HBRUSH)(COLOR_WINDOW + 1))))
+                ReportErr(L"FillRect: Paint failed!");
             if (!(retVal = (BOOL)FillRect(hdcWinCl, &rect, (HBRUSH)(COLOR_WINDOW + 1))))
                 ReportErr(L"FillRect: Paint failed!");
 
@@ -1633,7 +1635,7 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, BITMAP bmp, HDC& hdcMem, HDC& hdcMe
                 retVal = StretchBlt(hdcWinCl, wd - updatedxCurrentScroll, -updatedyCurrentScroll, bmpWidth,
                     bmpHeight, hdcScreenCompat, oldWd, 0, bmpWidth - oldWd, bmpHeight, SRCCOPY);
             else
-                retVal = (BOOL)BitBlt(hdcWinCl, wd - updatedxCurrentScroll, -updatedyCurrentScroll, bmpWidth - oldWd, bmpHeight, hdcScreenCompat, oldWd, 0, SRCCOPY); //Blt at wd method
+                retVal = (BOOL)BitBlt(hdcWinCl, wd - updatedxCurrentScroll, -updatedyCurrentScroll, bmpWidth - wd, bmpHeight, hdcScreenCompat, oldWd, 0, SRCCOPY); //Blt at wd method
         }
     }
     else //Load bitmap
@@ -2340,7 +2342,7 @@ int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xN
     static int oldScrollStat;
 
     // These variables are required for horizontal scrolling.
-    static int xMinScroll = 0;      // minimum horizontal scroll value (starts at 0 so rarely adjusted)
+    static const int xMinScroll = 0;      // minimum horizontal scroll value (starts at 0 so rarely adjusted)
     static int xMaxScroll = 0;      // maximum HORZ scroll value
     static int xTrackPos = 0;   // current scroll drag value
 
@@ -2451,7 +2453,7 @@ int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xN
                         xCurrentScroll = min(xCurrentScroll, xMaxScroll);
                         siHORZ.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
                         siHORZ.nMin = xMinScroll;
-                        siHORZ.nMax = bmpWidth;
+                        siHORZ.nMax = ((scrShtOrBmpLoad == 2)? bmpWidth: bmpWidth + wd);
                         siHORZ.nPage = xNewSize;
                         // Not dealing with xTrackPos.
                         SetScrollInfo(hWnd, SB_HORZ, &siHORZ, TRUE);
