@@ -87,7 +87,7 @@ BOOL CreateToolTipForRect(HWND hwndParent, int toolType = 0);
 BOOL IsAllFormInWindow(HWND hWnd, BOOL toolTipOn, BOOL isMaximized = FALSE);
 HWND UpDownCreate(HWND hWndParent, BOOL ctrlType = 0);
 BOOL SetDragFullWindow(BOOL dragFullWindow = FALSE, BOOL restoreDef = FALSE);
-//Functions for later use
+//This space for "Functions for later use"
 //
 
 
@@ -98,8 +98,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 {
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
+    // For debug
     //_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
-    // TODO: Place code here.
+
     GdiplusInit gdiplusinit;
     // Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -119,6 +120,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     // Main message loop:
     while (GetMessage(&msg, nullptr, 0, 0))
     {
+        //Intent is to filter "About" dialog messages
         a = (hAboutDlg == NULL) ? 0 : IsDialogMessageW(hAboutDlg, &msg);
         if (!a && !TranslateAcceleratorW(msg.hwnd, hAccelTable, &msg))
         {
@@ -143,6 +145,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 
     wcex.cbSize = sizeof(WNDCLASSEX);
 
+    // Double click for Print Window
     wcex.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
     wcex.lpfnWndProc = MyBitmapWindowProc;
     wcex.cbClsExtra = 0;
@@ -184,18 +187,16 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
     m_hWnd = CreateWindowW(szWindowClass, szTitle, WS_HSCROLL | WS_VSCROLL | WS_OVERLAPPEDWINDOW | (groupboxFlag ? NULL : WS_CLIPCHILDREN),
         CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
-    // Old style
-    //SetWindowTheme(m_hWnd, L" ", L" ");
-    //Or SetThemeAppProperties(STAP_ALLOW_CONTROLS | STAP_ALLOW_WEBCONTENT);
-    //SetThemeAppProperties(0);
+    // For Ye Olde style themes:
+    // SetWindowTheme(m_hWnd, L" ", L" ");
+    // Or SetThemeAppProperties(STAP_ALLOW_CONTROLS | STAP_ALLOW_WEBCONTENT);
+    // SetThemeAppProperties(0);
 
     if (!m_hWnd)
     {
         ReportErr(L"Cannot create window! Quitting...");
         return (INT_PTR)FALSE;
     }
-    // Old style theme
-    // SetWindowTheme(m_hWnd, L" ", L" ");
 
     ShowWindow(m_hWnd, nCmdShow);
     UpdateWindow(m_hWnd);
@@ -208,7 +209,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 //  This function is called by the Windows function DispatchMessage( )
 //
 //  PURPOSE: Processes messages for the main window.
-//
+// e.g.
 //  WM_COMMAND  - process the application menu
 //  WM_PAINT    - Paint the main window
 //  WM_DESTROY  - post a quit message and return
@@ -217,14 +218,19 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 {
 
     HDC hdc; // for WM_PAINT
-    // These variables are required by BitBlt. 
 
+    // These variables are required by BitBlt. 
     static HBITMAP hBitmap = { 0 };
     static GpStatus gps = { };
 
+    // Scroll & size toggles
     static int fScroll;             // 1 if horz scrolling, -1 vert scrolling, 0 for WM_SIZE
     static BOOL fSize;          // TRUE if WM_SIZE 
+    static int scrollStat;      // 0: None, 1: SB_HORZ, 2: SB_VERT, 3: SB_BOTH
+    static BOOL isMaximized;
 
+
+    // DC's & handles
     static HDC hdcWinCl;            // client area of DC for window
     static HDC hdcMem;            // Mem DC
     static HDC hdcMemIn;            // Mem DC
@@ -233,52 +239,49 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     static HBITMAP hbmpCompat;      // bitmap handle to old DC
     static GpBitmap* pgpbm;          // bitmap data structure
     static BITMAP bmp;          // bitmap data structure
+
+    // Dimension variables
     static UINT bmpWidth = 0;
     static UINT bmpHeight = 0;
     static int updatedxCurrentScroll, updatedyCurrentScroll; // updates on SizeControls calls
     static int xNewSize; // updates on WM_SIZE
     static int yNewSize;
-    static int scrollStat;      // 0: None, 1: SB_HORZ, 2: SB_VERT, 3: SB_BOTH
+
 
     //For UpDown
     static const wchar_t* labDesc = L"Paint Mult\0";
     static const int ctlUpDownIncrement = 5;
-
-
     UINT nCode;
     int upOrDown = 0;
     LPNMUPDOWN lpnmud = {};
 
-    static BOOL toolTipOn;
-    static BOOL isMaximized;
 
-
+    // More scroll variables & flags
     static int  iDeltaPerLine;      // for mouse wheel logic
     static int iAccumDelta;
-    static ULONG ulScrollLines;
-
+    static ULONG ulScrollLines = 0;
     static UINT SMOOTHSCROLL_FLAG;
-    static UINT SMOOTHSCROLL_SPEED;
+    static const UINT SMOOTHSCROLL_SPEED = 0X00000002;
 
+    // Toggle for off-monitor tooltip 
+    static BOOL toolTipOn;
+
+    //Main msg loop
     switch (uMsg)
     {
     case WM_CREATE:
     {
-        // Start Gdiplus
 
-        SMOOTHSCROLL_SPEED = 0X00000002;
-        ulScrollLines = 0;
-
+        // Init window dimensions
         GetDims(hWnd);
-
-        RECT recthWndtmp = RectCl().RectCl(0, hWnd, 1); //must be initialised as can be used before WM_SIZE.
+        //RectCl must be initialised as is used before first call of WM_SIZE.
+        RECT recthWndtmp = RectCl().RectCl(0, hWnd, 1);
         xNewSize = RectCl().width(1);
         yNewSize = RectCl().height(1);
 
-
+        // Init controls: all control dimensions based on wd & ht
         if (groupboxFlag)
         {
-
             hWndGroupBox = CreateWindowExW(0, L"BUTTON",
                 L"",
                 WS_VISIBLE | WS_CHILD | BS_GROUPBOX | WS_CLIPSIBLINGS, //consider  WS_CLIPCHILDREN
@@ -302,12 +305,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             (HINSTANCE)NULL,
             NULL);      // Pointer not needed.
 
-        // Radio Option
-
+        // Radio button Options
         hWndOpt1 = CreateWindowExW(WS_EX_WINDOWEDGE,
             L"BUTTON",
             L"Scroll",
-            WS_VISIBLE | WS_CHILD | BS_AUTORADIOBUTTON | WS_GROUP | BS_CENTER,  // <---- WS_GROUP group the 1st and 2nd radio buttons.
+            // <---- WS_GROUP for grouping the 2 radio buttons.
+            WS_VISIBLE | WS_CHILD | BS_AUTORADIOBUTTON | WS_GROUP | BS_CENTER,
             2, ht + OPT_HEIGHT,
             wd - 2, ht / 2,
             hWnd, //<----- Use main window handle
@@ -316,7 +319,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         hWndOpt2 = CreateWindowExW(WS_EX_WINDOWEDGE,
             L"BUTTON",
             L"ScrollEx",
-            WS_VISIBLE | WS_CHILD | BS_AUTORADIOBUTTON | BS_CENTER,  // Styles 
+            WS_VISIBLE | WS_CHILD | BS_AUTORADIOBUTTON | BS_CENTER,
             2, 2 * ht,
             wd - 2, ht / 2,
             hWnd,
@@ -327,7 +330,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         hWndChk = CreateWindowExW(WS_EX_WINDOWEDGE,
             L"BUTTON",
             L"Stretch",
-            WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX | BS_CENTER,  // Styles 
+            WS_VISIBLE | WS_CHILD | BS_AUTOCHECKBOX | BS_CENTER,
             2, 3 * ht,
             wd - 2, ht / 2,
             hWnd,
@@ -340,8 +343,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         if (hLblUpDown = CreateWindowExW(WS_EX_LEFT,    //Extended window styles.
             WC_STATIC,
             NULL,
-            WS_CHILDWINDOW | WS_VISIBLE | WS_BORDER | WS_GROUP   // Window styles.
-            | SS_EDITCONTROL | ES_CENTER,                     // Label control style.
+            WS_CHILDWINDOW | WS_VISIBLE | WS_BORDER | WS_GROUP   // Regular window styles.
+            | SS_EDITCONTROL | ES_CENTER,                     // Typical label control styles.
             0, 0,
             wd / 2 - 1, ht / 2,
             hWnd,
@@ -351,6 +354,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             SendMessageW(hLblUpDown, WM_SETTEXT, 0, (LPARAM)labDesc);
 
 
+        // UpDownCreate contains INITCOMMONCONTROLSEX
         hwndUpDnEdtBdy = UpDownCreate(hWnd);
         hwndUpDnCtl = UpDownCreate(hWnd, 1);
 
@@ -374,26 +378,22 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         // The width must be byte-aligned. 
         bmp.bmWidthBytes = ((bmp.bmWidth + 15) & ~15) / 8;
 
-        // Create a bitmap for the compatible DC. 
+        // Create bitmap for the compatible DC. 
         hbmpCompat = CreateBitmap(bmp.bmWidth, bmp.bmHeight,
             bmp.bmPlanes, bmp.bmBitsPixel, (CONST VOID*) NULL);
 
         // Select the bitmap for the compatible DC. 
         SelectObject(hdcScreenCompat, hbmpCompat);
 
-        // Initialize the flags. 
+        // Initialize scrolling flags. 
         fScroll = 0;
         fSize = FALSE;
-
         // Initialize the horizontal scrolling variables. 
         xCurrentScroll = 0;
         // Initialize the vertical scrolling variables. 
         yCurrentScroll = 0;
-
-
         //SMOOTHSCROLL_FLAG = MAKELRESULT((USHORT)SW_SMOOTHSCROLL, SMOOTHSCROLL_SPEED);
         SMOOTHSCROLL_FLAG = SW_SMOOTHSCROLL | SMOOTHSCROLL_SPEED;
-
 
         if (SystemParametersInfo(SPI_GETWHEELSCROLLLINES, 0, &ulScrollLines, 0))
         {
@@ -407,6 +407,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         else
             ReportErr(L"SPI_GETWHEELSCROLLLINES: Cannot get info.");
 
+        // Subclas groupbox
         if (groupboxFlag)
         {
             if (!SetWindowSubclass(hWndGroupBox, staticSubClass, IDS_GRPSUBCLASS, 0))
@@ -422,6 +423,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         }
 
         /*
+        // Possibility of subclassing another control
         if (!SetWindowSubclass(hWndButton, staticSubClassButton, 2, 0))
         {
             ReportErr(L"Cannot subclass control! Quitting...");
@@ -880,7 +882,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
             ScrollWindowEx(hWnd, -xDelta, 0, (CONST RECT*) NULL,
                 (CONST RECT*) NULL, (HRGN)NULL, (PRECT)NULL, SW_SCROLLCHILDREN | SW_INVALIDATE); // SMOOTHSCROLL_FLAG fails
-            UpdateWindow(hWnd);
+            //UpdateWindow(hWnd);
         }
         // Reset the scroll bar. 
         ScrollInfo(hWnd, UPDATE_HORZSCROLLSIZE, 0, 0);
@@ -905,7 +907,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
             ScrollWindowEx(hWnd, 0, -yDelta, (CONST RECT*) NULL,
                 (CONST RECT*) NULL, (HRGN)NULL, (PRECT)NULL, SW_SCROLLCHILDREN | SW_INVALIDATE); // SMOOTHSCROLL_FLAG fails
-            UpdateWindow(hWnd);
+            //UpdateWindow(hWnd);
         }
 
         // Reset scroll bar. 
@@ -1003,7 +1005,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     ReportErr(L"ScrollStat: No scrollbars with stretch.");
             }
             else
-                scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
+                scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE);
 
             SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, ((isMaximized) ? SIZE_MAXIMIZED : SIZE_RESTORED), xNewSize, yNewSize);
 
@@ -1069,7 +1071,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
                         if (!AdjustImage(hWnd, hBitmap, bmp, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, xCurrentScroll, yCurrentScroll, 1, FALSE, TRUE))
                             ReportErr(L"AdjustImage detected a problem with the image!");
-                        // Image position is wrong if 
+
                         if (xCurrentScroll || yCurrentScroll)
                         {
                             //SetWindowOrgEx(hdcWinCl, xCurrentScroll, yCurrentScroll, NULL);
@@ -1694,9 +1696,10 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, BITMAP bmp, HDC& hdcMem, HDC& hdcMe
                 if (retVal)
                 {
                     if (resizePic == 2)
-                        retVal = (BOOL)StretchBlt(hdcWinCl, wd - updatedxCurrentScroll, -updatedyCurrentScroll, max(bmpWidth, curFmWd) - wd, max(bmpHeight, curFmHt), hdcMem, wd, 0, bmpWidth, bmpHeight, SRCCOPY); //Blt at wd method
+                        retVal = (BOOL)StretchBlt(hdcWinCl, wd - updatedxCurrentScroll, -updatedyCurrentScroll, curFmWd - wd, curFmHt, hdcMem, wd, 0, bmpWidth, bmpHeight, SRCCOPY); //Blt at wd method
                     else
                         retVal = (BOOL)BitBlt(hdcWinCl, wd - updatedxCurrentScroll, -updatedyCurrentScroll, bmpWidth, bmpHeight, hdcMem, wd, 0, SRCCOPY); //Blt at wd method
+
                     if (!retVal)
                         ReportErr(L"Blt to client failed!");
                     RECT rectTmp = rect;
