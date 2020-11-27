@@ -68,7 +68,6 @@ ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK MyBitmapWindowProc(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK staticSubClass(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
-LRESULT CALLBACK staticSubClassButton(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData);
 INT_PTR CALLBACK About(HWND, UINT, WPARAM, LPARAM);
 wchar_t* FileOpener(HWND hWnd);
 void ReportErr(const wchar_t* format, ...);
@@ -77,7 +76,7 @@ void DoMonInfo(HWND hWnd);
 char* VecToArr(std::vector<std::vector<unsigned>> vec);
 BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, BITMAP bmp, HDC& hdcMem, HDC& hdcMemIn, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, int xNewSize, int yNewSize, int updatedxCurrentScroll, int updatedyCurrentScroll, int resizePic = 0, int minMaxRestore = 0, BOOL newPic = FALSE);
 void GetDims(HWND hWnd, int resizeType = 0, int oldResizeType = 0);
-void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& updatedyCurrentScroll, int resizeType = -1, int curFmWd = 0, int curFmHt = 0, BOOL newPic = FALSE);
+void SizeControls(int bmpHeight, HWND hWnd, int& updatedxCurrentScroll, int& updatedyCurrentScroll, int resizeType = -1, int curFmWd = 0, int curFmHt = 0, BOOL newPic = FALSE);
 int ScrollIt(HWND hWnd, int scrollType, int scrollDrag, int currentScroll, int minScroll, int maxScroll, int trackPos);
 int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xNewSize = 0, int yNewSize = 0, int bmpWidth = 0, int bmpHeight = 0, BOOL newPic = FALSE);
 void ScaleFont(HWND hWnd, int contSize, BOOL isUpDown = FALSE);
@@ -343,7 +342,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         if (hLblUpDown = CreateWindowExW(WS_EX_LEFT,    //Extended window styles.
             WC_STATIC,
             NULL,
-            WS_CHILDWINDOW | WS_VISIBLE | WS_BORDER | WS_GROUP   // Regular window styles.
+            WS_CHILD | WS_VISIBLE | WS_BORDER   // Regular window styles.
             | SS_EDITCONTROL | ES_CENTER,                     // Typical label control styles.
             0, 0,
             wd / 2 - 1, ht / 2,
@@ -407,14 +406,13 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         else
             ReportErr(L"SPI_GETWHEELSCROLLLINES: Cannot get info.");
 
-        // Subclas groupbox
+        // Subclass groupbox
         if (groupboxFlag)
         {
             if (!SetWindowSubclass(hWndGroupBox, staticSubClass, IDS_GRPSUBCLASS, 0))
                 // uIdSubclass is 1 and incremented for each new subclass implemented
                 // dwRefData is 0 and has no explicit use
             {
-                //std::cerr << "Failed to subclass list\n";
                 ReportErr(L"Cannot subclass Groupbox control! Quitting...");
                 DestroyWindow(hWndGroupBox);
                 return (LRESULT)FALSE;
@@ -433,6 +431,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         }
         */
 
+        // Final initialisations
         scrShtOrBmpLoad = 0;
         toolTipOn = FALSE;
         windowMoved = FALSE;
@@ -456,9 +455,9 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         if (timPaintDelay)
         {
             // Spin timPaintDelay > 0: custom painting during sizing reduces calls to WM_SIZE
-            // which then reduces WM_PAINT calls. This must be turned off in WM_PAINT
-            // or there will be automatic window invalidations with COLOR_WINDOW + 1
-            // after each bitblt in WM_PAINT, which causes much flicker. Better handling of the timer
+            // which then reduces WM_PAINT calls. If not altogether turned off in WM_PAINT
+            // there will be automatic window invalidations with COLOR_WINDOW + 1
+            // after each bitblt in WM_PAINT, which causes some flicker. Better handling of the timer
             // in this case than current also required to avoid other unwanted visual effects,
             // although the one or two initial flickers while sizing with, say, timPaintDelay = 10
             // seems unavoidable.
@@ -504,7 +503,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             if (tmp)
             {
                 /*
-                // The following causes excess drawing + painting && thus unnecessary
+                // The following causes excess drawing + painting && thus not used:
                 SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, START_SIZE_MOVE, xNewSize, yNewSize);
                 if (!AdjustImage(hWnd, hBitmap, bmp, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, ((stretchChk) ? 2 : ((scrShtOrBmpLoad == 2) ? 1 : 0)), SIZE_MAXIMIZED))
                     ReportErr(L"AdjustImage detected a problem with the image!");
@@ -544,6 +543,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     break;
     case WM_MOVE:
     {
+        // Not concerned with the effects of WM_MOVE
+        // other than it being triggered along with WM_SIZE
         if (!windowMoved)
         {
             if (!isLoading)
@@ -559,7 +560,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         if (!scrShtOrBmpLoad)
             return (LRESULT)FALSE;
         KillTimer(hWnd, IDT_DRAGWINDOW);
-        SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, START_SIZE_MOVE, xNewSize, yNewSize);
+        SizeControls(bmpHeight, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, START_SIZE_MOVE, xNewSize, yNewSize);
         //InvalidateRect(hWnd, 0, TRUE);
 
         timDragWindow = (int)SetTimer(hWnd,
@@ -584,12 +585,13 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
             timDragWindow = 0;
             capCallFrmResize = 0;
+            isSizing = FALSE;
             if (!stretchChk)
                 scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
-            SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, END_SIZE_MOVE, xNewSize, yNewSize);
+            SizeControls(bmpHeight, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, END_SIZE_MOVE, xNewSize, yNewSize);
             //UpdateWindow(hWnd);
         }
-        // The following may causes flicker and clip controls in certain circumstances
+        // The following may cause flicker, and clip controls in certain circumstances
         if (scrShtOrBmpLoad == 1)
         {
             if (!BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
@@ -602,7 +604,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             if ((!scrollStat || scrShtOrBmpLoad == 2) && !AdjustImage(hWnd, hBitmap, bmp, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, ((stretchChk) ? 2 : 1)))
                 ReportErr(L"AdjustImage detected a problem with the image!");
         }
-        isSizing = FALSE;
+
         return (LRESULT)FALSE;
     }
     break;
@@ -622,7 +624,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             if (lastSizeMax || isMaximized)
                 toolTipOn = IsAllFormInWindow(hWnd, toolTipOn, isMaximized);
 
-            SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, (int)wParam, xNewSize, yNewSize);
+            SizeControls(bmpHeight, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, (int)wParam, xNewSize, yNewSize);
 
             if (scrShtOrBmpLoad)
             {
@@ -633,7 +635,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 }
                 else
                 {
-                    // !isSizing omitted, else window invalidated during the size.
+                    // !isSizing omitted in the condition, else window invalidated during the size.
                     if (!BitBlt(hdcWinCl, wd - updatedxCurrentScroll, -updatedyCurrentScroll, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
                         ReportErr(L"Bad BitBlt from hdcMem!");
                 }
@@ -1007,7 +1009,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             else
                 scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE);
 
-            SizeControls(bmp, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, ((isMaximized) ? SIZE_MAXIMIZED : SIZE_RESTORED), xNewSize, yNewSize);
+            SizeControls(bmpHeight, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, ((isMaximized) ? SIZE_MAXIMIZED : SIZE_RESTORED), xNewSize, yNewSize);
 
             if (!AdjustImage(hWnd, hBitmap, bmp, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, ((stretchChk) ? 2 : 1), 0, TRUE))
                 ReportErr(L"AdjustImage detected a problem with the image!");
@@ -1080,7 +1082,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                             if (bmpHeight < yNewSize)
                                 yCurrentScroll = 0;
                             
-                            SizeControls(bmp, hWnd, xCurrentScroll, yCurrentScroll, ((isMaximized) ? SIZE_MAXIMIZED : SIZE_RESTORED), xNewSize, yNewSize, TRUE);
+                            SizeControls(bmpHeight, hWnd, xCurrentScroll, yCurrentScroll, ((isMaximized) ? SIZE_MAXIMIZED : SIZE_RESTORED), xNewSize, yNewSize, TRUE);
                         }
                         xCurrentScroll ? fScroll = 1 : fScroll = -1; //initialise for ScrollInfo below
                         szFile[0] = L'*'; // Set to deal with WM_SIZE issues
@@ -1352,6 +1354,9 @@ LRESULT CALLBACK staticSubClass(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
                 HDC hdc = BeginPaint(hWnd, &ps);
                 PRECT prect;
                 prect = &ps.rcPaint;
+                if (!(BOOL)FillRect(hdc, prect, (HBRUSH)(COLOR_WINDOW + 1)))
+                    ReportErr(L"FillRect: Groupbox paint failed!");
+
                 FillRect(hdc, prect, (HBRUSH)(COLOR_WINDOW + 1));
                 EndPaint(hWnd, &ps);
                 //fScroll = savefScroll;
@@ -1375,26 +1380,6 @@ LRESULT CALLBACK staticSubClass(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     }
 
     return DefSubclassProc(hWnd, uMsg, wParam, lParam);
-}
-LRESULT CALLBACK staticSubClassButton(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
-{
-    UNUSED(dwRefData);
-
-    switch (uMsg) // instead of LPNMHDR  lpnmh = (LPNMHDR) lParam above;
-    {
-
-    case WM_NCDESTROY:
-    {
-        // NOTE: this requirement is NOT stated in the documentation, but it is stated in Raymond Chen's blog article...
-        RemoveWindowSubclass(hWnd, staticSubClassButton, uIdSubclass);
-        return (LRESULT)FALSE;
-    }
-    break;
-    default:
-        return DefSubclassProc(hWnd, uMsg, wParam, lParam);
-        break;
-    }
-
 }
 
 
@@ -1895,7 +1880,7 @@ void GetDims(HWND hWnd, int resizeType, int oldResizeType)
     */
 }
 
-void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& updatedyCurrentScroll, int resizeType, int curFmWd, int curFmHt, BOOL newPic)
+void SizeControls(int bmpHeight, HWND hWnd, int& updatedxCurrentScroll, int& updatedyCurrentScroll, int resizeType, int curFmWd, int curFmHt, BOOL newPic)
 {
     int opt1Ht = 0, opt2Ht = 0, chkHt = 0, btnWd = 0, btnHt = 0;
     int newHt = 0, newWd = 0, newCtrlSizeTriggerWd = 0, newCtrlSizeTriggerHt = 0;
@@ -2070,7 +2055,8 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
         }
 
         if (resizeType == END_SIZE_MOVE)
-            SetWindowPos(hWndButton, NULL, rectBtn.left, rectBtn.top, newWd, newHt, SWP_NOACTIVATE);
+            // SWP_NOACTIVATE may cause occasional "paint fail" with this button and the UpDown controls 
+            SetWindowPos(hWndButton, NULL, rectBtn.left, rectBtn.top, newWd, newHt, SWP_SHOWWINDOW);
         else
         {
             // If maximised, scroll value may change- left/top of control may move below zero
@@ -2122,14 +2108,6 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
 
 
 
-
-        if (!isSizing && groupboxFlag)
-        {
-            // Too much flicker due to the repaint in sizing
-            SetWindowPos(hWndGroupBox, HWND_BOTTOM, -xCurrentScroll, -yCurrentScroll,
-                newWd, bmp.bmHeight, SWP_DEFERERASE | SWP_NOZORDER | SWP_NOREDRAW | SWP_NOACTIVATE);
-        }
-
         if (resizeType != SIZE_MINIMIZED)
         {
             oldOpt1Top = delegateSizeControl(rectOpt1, hWndOpt1, oldOpt1Top, resizeType, oldResizeType, defOpt1Top, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, newWd, minHt);
@@ -2144,6 +2122,12 @@ void SizeControls(BITMAP bmp, HWND hWnd, int& updatedxCurrentScroll, int& update
             ScaleFont(hwndUpDnEdtBdy, newHt, TRUE);
         }
 
+        if (groupboxFlag)
+        {
+            // Too much flicker due to the repaint in sizing
+            SetWindowPos(hWndGroupBox, NULL, -xCurrentScroll, -yCurrentScroll,
+                newWd, max(curFmHt, bmpHeight), SWP_SHOWWINDOW);
+        }
     }
     else // Redundant on !isLoading as btnWd is always > minWd
     {
@@ -2801,7 +2785,26 @@ BOOL SetDragFullWindow(BOOL dragFullWindow, BOOL restoreDef)
 //**************************************************************
 // Functions for possible later use
 //**************************************************************
+LRESULT CALLBACK staticSubClassButton(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
+{
+    UNUSED(dwRefData);
 
+    switch (uMsg) // instead of LPNMHDR  lpnmh = (LPNMHDR) lParam above;
+    {
+
+    case WM_NCDESTROY:
+    {
+        // NOTE: this requirement is NOT stated in the documentation, but it is stated in Raymond Chen's blog article...
+        RemoveWindowSubclass(hWnd, staticSubClassButton, uIdSubclass);
+        return (LRESULT)FALSE;
+    }
+    break;
+    default:
+        return DefSubclassProc(hWnd, uMsg, wParam, lParam);
+        break;
+    }
+
+}
 //https://stackoverflow.com/a/39654760/2128797
 std::vector<std::vector<unsigned>> getPixels(Gdiplus::Bitmap bitmap, int& width, int& height) {
 
