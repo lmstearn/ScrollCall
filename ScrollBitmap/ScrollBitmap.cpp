@@ -526,6 +526,9 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 }
                 else
                 {
+                    if (groupboxFlag)
+                        SizeControls(bmpHeight, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, END_SIZE_MOVE, xNewSize, yNewSize);
+
                     if (!AdjustImage(hWnd, hBitmap, bmp, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, ((stretchChk) ? 2 : ((scrShtOrBmpLoad == 2) ? 1 : 0)), SIZE_MAXIMIZED))
                         ReportErr(L"AdjustImage detected a problem with the image!");
                 }
@@ -580,17 +583,23 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         KillTimer(hWnd, IDT_DRAGWINDOW);
         toolTipOn = IsAllFormInWindow(hWnd, toolTipOn);
         if (windowMoved)
+        {
             windowMoved = FALSE;
+            fScroll = 0;
+        }
         else
         {
             timDragWindow = 0;
             capCallFrmResize = 0;
             isSizing = FALSE;
+
             if (!stretchChk)
                 scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
+            if (!groupboxFlag)
             SizeControls(bmpHeight, hWnd, updatedxCurrentScroll, updatedyCurrentScroll, END_SIZE_MOVE, xNewSize, yNewSize);
             //UpdateWindow(hWnd);
         }
+
         // The following may cause flicker, and clip controls in certain circumstances
         if (scrShtOrBmpLoad == 1)
         {
@@ -604,6 +613,13 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             if ((!scrollStat || scrShtOrBmpLoad == 2) && !AdjustImage(hWnd, hBitmap, bmp, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, ((stretchChk) ? 2 : 1)))
                 ReportErr(L"AdjustImage detected a problem with the image!");
         }
+        // SetScrollInfo is likely to "invalidate" the controls (but NOT for scrShtOrBmpLoad == 1)
+        // Unable to "double buffer" the groupbox so call SizeControls from the timer
+        if (groupboxFlag && (!scrollStat || scrShtOrBmpLoad == 2) && !(timPaintBitmap = (int)SetTimer(hWnd,
+            IDT_PAINTBITMAP,
+            6,
+            (TIMERPROC)NULL)))
+            ReportErr(L"No timer is available.");
 
         return (LRESULT)FALSE;
     }
@@ -1758,7 +1774,7 @@ void GetDims(HWND hWnd, int resizeType, int oldResizeType)
             firstWd = wd = RectCl().width(0);
             firstHt = ht = RectCl().height(0);
             if (recthWndtmp.left < GetSystemMetrics(0) && recthWndtmp.bottom < GetSystemMetrics(1))
-                MoveWindow(hWnd, GetSystemMetrics(0) / 4, GetSystemMetrics(1) / 4, GetSystemMetrics(0) / 2, GetSystemMetrics(1) / 2, 1);
+                MoveWindow(hWnd, GetSystemMetrics(0) / 4, GetSystemMetrics(1) / 4, GetSystemMetrics(0) / 2, GetSystemMetrics(1) / 2, TRUE);
             else
                 ReportErr(L"Not a primary monitor: Resize unavailable.");
         }
