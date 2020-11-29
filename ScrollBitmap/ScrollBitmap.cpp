@@ -600,26 +600,32 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             //UpdateWindow(hWnd);
         }
 
-        // The following may cause flicker, and clip controls in certain circumstances
-        if (scrShtOrBmpLoad == 1)
+        if (groupboxFlag)
         {
-            if (!BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
-                ReportErr(L"Bad BitBlt from hdcMem!");
+            // SetScrollInfo is likely to "invalidate" the controls (but NOT for scrShtOrBmpLoad == 1)
+            // Unable to "double buffer" the groupbox so call SizeControls from the timer
+            if ((!scrollStat || scrShtOrBmpLoad > 1) && !(timPaintBitmap = (int)SetTimer(hWnd,
+                IDT_PAINTBITMAP,
+                6,
+                (TIMERPROC)NULL)))
+                ReportErr(L"No timer is available.");
         }
         else
         {
-            // The following produces a flicker on the paint if the !scrollStat condition is omitted (for
-            //  timPaintBitmap set) but in that case the paint is unreliable and also dependent on scroll position.
-            if ((!scrollStat || scrShtOrBmpLoad == 2) && !AdjustImage(hWnd, hBitmap, bmp, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, ((stretchChk) ? 2 : 1)))
-                ReportErr(L"AdjustImage detected a problem with the image!");
+            // The following may cause flicker, and clip controls in certain circumstances
+            if (scrShtOrBmpLoad == 1)
+            {
+                if (!BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
+                    ReportErr(L"Bad BitBlt from hdcMem!");
+            }
+            else
+            {
+                // The following produces a flicker on the paint if the !scrollStat condition is omitted (for
+                //  timPaintBitmap set) but in that case the paint is unreliable and also dependent on scroll position.
+                if ((!scrollStat || scrShtOrBmpLoad == 2) && !AdjustImage(hWnd, hBitmap, bmp, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, updatedxCurrentScroll, updatedyCurrentScroll, ((stretchChk) ? 2 : 1)))
+                    ReportErr(L"AdjustImage detected a problem with the image!");
+            }
         }
-        // SetScrollInfo is likely to "invalidate" the controls (but NOT for scrShtOrBmpLoad == 1)
-        // Unable to "double buffer" the groupbox so call SizeControls from the timer
-        if (groupboxFlag && (!scrollStat || scrShtOrBmpLoad == 2) && !(timPaintBitmap = (int)SetTimer(hWnd,
-            IDT_PAINTBITMAP,
-            6,
-            (TIMERPROC)NULL)))
-            ReportErr(L"No timer is available.");
 
         return (LRESULT)FALSE;
     }
@@ -756,7 +762,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                         }
                         else
                       */
-                    if (scrShtOrBmpLoad)
+                    if (!scrShtOrBmpLoad)
                         toolTipOn = IsAllFormInWindow(hWnd, toolTipOn, isMaximized);
                 }
                 else
@@ -801,9 +807,9 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     {
                         // Gets here on !scrShtOrBmpLoad, or on a successive WM_MOVE
                         // when a paint is required when form is moved either off screen
-                        // or behind another shown HWND_TOPMOST form.
-                        if (scrShtOrBmpLoad && !isLoading)
-                            toolTipOn = IsAllFormInWindow(hWnd, toolTipOn);
+                        // or (partly) behind another shown HWND_TOPMOST form.
+                        if (!scrShtOrBmpLoad && !isLoading)
+                            toolTipOn = IsAllFormInWindow(hWnd, toolTipOn, isMaximized);
                     }
                 }
             }
@@ -1242,6 +1248,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     break;
     case WM_RBUTTONDOWN:
     {
+        // Rather pointless as hbmpCompat is already selected in hdcScreenCompat
         Kleenup(hWnd, hBitmap, hbmpCompat, pgpbm, hdcMem, hdcMemIn, hdcWinCl, 3, TRUE);
 
 
@@ -1655,20 +1662,22 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, BITMAP bmp, HDC& hdcMem, HDC& hdcMe
             //HBITMAP hBmp = CreateCompatibleBitmap(hdcWinCl, bmpWidth + wd, bmpHeight);
             //if (resizePic == 2) // StretchChk redundant
             retVal = StretchBlt(hdcScreenCompat, wd, 0, bmpWidth - wd, bmpHeight, hdcScreen, 0, 0, bmpWidth, bmpHeight, SRCCOPY);
-            //retVal = (BOOL)BitBlt(hdcScreenCompat, wd, 0, bmpWidth - wd, bmpHeight, hdcScreen, 0, 0, SRCCOPY); //Blt at wd method
+
             if (retVal)
                 retVal = (BOOL)BitBlt(hdcWinCl, wd - updatedxCurrentScroll, -updatedyCurrentScroll, bmpWidth - wd, bmpHeight, hdcScreenCompat, wd, 0, SRCCOPY); //Blt at wd method
             else
-                ReportErr(L"StretchBlt to ScreenCompat failed!");
+                ReportErr(L"BitBlt from ScreenCompat failed!");
 
         }
         else
         {
+            // The blt'd bitmap on the DC "jumps" an unknown x in (wd + x) in WM_PAINT during the size
+            // Makes no difference if HDCMem is used as an intermediary for hdcScreenCompat 
             if (minMaxRestore == SIZE_MAXIMIZED)
                 retVal = StretchBlt(hdcWinCl, wd - updatedxCurrentScroll, -updatedyCurrentScroll, bmpWidth - wd,
                     bmpHeight, hdcScreenCompat, oldWd, 0, bmpWidth - oldWd, bmpHeight, SRCCOPY);
             else
-                retVal = (BOOL)BitBlt(hdcWinCl, wd - updatedxCurrentScroll, -updatedyCurrentScroll, bmpWidth - wd, bmpHeight, hdcScreenCompat, oldWd, 0, SRCCOPY); //Blt at wd method
+                retVal = (BOOL)BitBlt(hdcWinCl, wd - updatedxCurrentScroll, -updatedyCurrentScroll, bmpWidth - oldWd, bmpHeight, hdcScreenCompat, oldWd, 0, SRCCOPY); //Blt at wd method
         }
     }
     else //Load bitmap
@@ -2705,7 +2714,7 @@ BOOL CreateToolTipForRect(HWND hwndParent, int toolType)
     // Create a tooltip.
     if (!hwndTT)
         hwndTT = CreateWindowExW(WS_EX_TOPMOST, TOOLTIPS_CLASS, NULL,
-            WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
+            WS_POPUP | TTS_NOPREFIX | TTS_BALLOON,
             CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
             hwndParent, NULL, hInst, NULL);
 
@@ -2734,18 +2743,20 @@ BOOL CreateToolTipForRect(HWND hwndParent, int toolType)
 BOOL IsAllFormInWindow(HWND hWnd, BOOL toolTipOn, BOOL isMaximized)
 {
     RECT recthWndtmp = RectCl().RectCl(0, hWnd, 0);
-    if (!isMaximized && (recthWndtmp.left < scrEdge.cx || recthWndtmp.right > scrEdge.cx + scrDims.cx || recthWndtmp.top + RectCl().ClMenuandTitle(hWnd) < scrEdge.cy || recthWndtmp.bottom > scrEdge.cy + scrDims.cy))
+    if (recthWndtmp.left < scrEdge.cx || recthWndtmp.right > scrEdge.cx + scrDims.cx || recthWndtmp.top + RectCl().ClMenuandTitle(hWnd) < scrEdge.cy || recthWndtmp.bottom > scrEdge.cy + scrDims.cy)
     {
-        if (!toolTipOn)
-            toolTipOn = CreateToolTipForRect(hWnd, 1);
+        if (isMaximized)
+            toolTipOn = CreateToolTipForRect(hWnd);
+        else
+        {
+            if (!toolTipOn)
+                toolTipOn = CreateToolTipForRect(hWnd, 1);
+        }
     }
     else
-    {
-        if (toolTipOn)
-            toolTipOn = CreateToolTipForRect(hWnd);
-    }
+        toolTipOn = CreateToolTipForRect(hWnd);
 
-    return toolTipOn;
+return toolTipOn;
 }
 
 BOOL SetDragFullWindow(BOOL dragFullWindow, BOOL restoreDef)
