@@ -1215,8 +1215,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             hBitmapScroll = CreateCompatibleBitmap(hdcWinCl, bmpWidth, bmpHeight);
             if (hBitmap)
             {
-                    scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE);
-                    SizeControls(bmpHeight, hWnd, xCurrentScroll, yCurrentScroll, ((isMaximized) ? SIZE_MAXIMIZED : SIZE_RESTORED), xNewSize, yNewSize);
+                scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE);
+                SizeControls(bmpHeight, hWnd, xCurrentScroll, yCurrentScroll, ((isMaximized) ? SIZE_MAXIMIZED : END_SIZE_MOVE), xNewSize, yNewSize);
 
                 RECT rect;
                 rect.left = 0;
