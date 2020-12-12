@@ -959,27 +959,30 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     break;
     case WM_VSCROLL:
     {
-        int yDelta = ScrollInfo(hWnd, VERT_SCROLL, LOWORD(wParam), HIWORD(wParam), xNewSize, yNewSize, bmpWidth, bmpHeight);
+        if (!lParam) //lParam can be the updown control hwnd!
+        {
+            int yDelta = ScrollInfo(hWnd, VERT_SCROLL, LOWORD(wParam), HIWORD(wParam), xNewSize, yNewSize, bmpWidth, bmpHeight);
 
-        if (!yDelta)
+            if (!yDelta)
+                return (LRESULT)FALSE;
+            fScroll = -1;
+            fSize = FALSE;
+            if (scrollChk)
+            {
+                if (!ScrollWindow(hWnd, 0, -yDelta, (CONST RECT*) NULL, (CONST RECT*) NULL))
+                    ReportErr(L"ScrollWindow Failed!");
+            }
+            else
+            {
+                ScrollWindowEx(hWnd, 0, -yDelta, (CONST RECT*) NULL,
+                    (CONST RECT*) NULL, (HRGN)NULL, (PRECT)NULL, SW_SCROLLCHILDREN | SW_INVALIDATE); // SMOOTHSCROLL_FLAG fails
+                //UpdateWindow(hWnd);
+            }
+
+            // Reset scroll bar. 
+            ScrollInfo(hWnd, UPDATE_VERTSCROLLSIZE, 0, 0);
             return (LRESULT)FALSE;
-        fScroll = -1;
-        fSize = FALSE;
-        if (scrollChk)
-        {
-            if (!ScrollWindow(hWnd, 0, -yDelta, (CONST RECT*) NULL, (CONST RECT*) NULL))
-                ReportErr(L"ScrollWindow Failed!");
         }
-        else
-        {
-            ScrollWindowEx(hWnd, 0, -yDelta, (CONST RECT*) NULL,
-                (CONST RECT*) NULL, (HRGN)NULL, (PRECT)NULL, SW_SCROLLCHILDREN | SW_INVALIDATE); // SMOOTHSCROLL_FLAG fails
-            //UpdateWindow(hWnd);
-        }
-
-        // Reset scroll bar. 
-        ScrollInfo(hWnd, UPDATE_VERTSCROLLSIZE, 0, 0);
-        return (LRESULT)FALSE;
     }
     break;
     case WM_MOUSEWHEEL:
@@ -2255,7 +2258,7 @@ void SizeControls(int bmpHeight, HWND hWnd, int& updatedxCurrentScroll, int& upd
         }
 
 
-
+        // Possible to be shortened with the hwnds in ctrlArray.
         if (resizeType != SIZE_MINIMIZED)
         {
             oldOpt1Top = delegateSizeControl(rectOpt1, hWndOpt1, oldOpt1Top, resizeType, oldResizeType, defOpt1Top, updatedxCurrentScroll, updatedyCurrentScroll, xScrollBefNew, yScrollBefNew, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPicStat);
