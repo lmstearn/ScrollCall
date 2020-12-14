@@ -84,7 +84,7 @@ int ScrollIt(HWND hWnd, int scrollType, int scrollDrag, int currentScroll, int m
 int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xNewSize = 0, int yNewSize = 0, int bmpWidth = 0, int bmpHeight = 0, BOOL newPic = FALSE);
 void ScaleFont(HWND hWnd, int contSize, BOOL isUpDown = FALSE);
 BOOL Kleenup(HWND hWnd, HBITMAP& hBitmap, HBITMAP& hBitmapScroll, HGDIOBJ hdefBitmap, HGDIOBJ hdefBitmapScroll, HBITMAP& hbmpCompat, GpBitmap*& pgpbm, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcMemScroll, HDC& hdcWinCl, int typeOfDC = 0, BOOL noExit = FALSE);
-int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeType, int oldResizeType, int defOptTop, int updatedxCurrentScroll, int updatedyCurrentScroll, int yScrollBefNew, int newCtrlSizeTriggerHt, int newWd, int newHt, int minHt, int newPic = 0, HWND buddyHWnd = 0);
+int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeType, int oldResizeType, int defOptTop, int updatedxCurrentScroll, int updatedyCurrentScroll, int newCtrlSizeTriggerHt, int newWd, int newHt, int minHt, BOOL newPic =FALSE, HWND buddyHWnd = 0);
 BOOL CreateToolTipForRect(HWND hwndParent, int toolType = 0);
 BOOL IsAllFormInWindow(HWND hWnd, BOOL toolTipOn, BOOL isMaximized = FALSE);
 HWND UpDownCreate(HWND hWndParent, BOOL ctrlType = 0);
@@ -1143,8 +1143,9 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
                         szFile[0] = L'*'; // Set to deal with WM_SIZE issues
 
-                        if (!AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, xCurrentScroll, yCurrentScroll, 1, FALSE, TRUE))
-                            ReportErr(L"AdjustImage detected a problem with the image!");
+                        // Get bmpWidth, bmpHeight only
+                        AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, 0, 0, xCurrentScroll, yCurrentScroll, 1, FALSE, TRUE);
+
 
                         if (xCurrentScroll || yCurrentScroll)
                         {
@@ -1155,8 +1156,10 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                         // Flag new pic
                         scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE);
                         SizeControls(bmpHeight, hWnd, xCurrentScroll, yCurrentScroll, ((isMaximized) ? SIZE_MAXIMIZED : SIZE_RESTORED), xNewSize, yNewSize, TRUE);
-
-
+                        if (!AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, xCurrentScroll, yCurrentScroll, 1, FALSE, TRUE))
+                            ReportErr(L"AdjustImage detected a problem with the image!");
+                        updatedxCurrentScroll = xCurrentScroll;
+                        updatedyCurrentScroll = yCurrentScroll;
                         xCurrentScroll ? fScroll = 1 : fScroll = -1; //initialise for ScrollInfo below
                         szFile[0] = L'X';
 
@@ -1703,6 +1706,9 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hd
         if (!ReleaseDC(hWnd, hdcWin))
             ReportErr(L"hdcWin: Not released!");
 
+        // Called for dimension only
+        if (!curFmWd)
+            return 0;
         imgRect.left = 0;
         imgRect.top = 0;
         imgRect.right = bmpWidth;
@@ -1985,7 +1991,7 @@ void GetDims(HWND hWnd, int resizeType, int oldResizeType)
 void SizeControls(int bmpHeight, HWND hWnd, int& updatedxCurrentScroll, int& updatedyCurrentScroll, int resizeType, int curFmWd, int curFmHt,BOOL newPic)
 {
     // What the name sez: sizes controls.
-    int opt1Ht = 0, opt2Ht = 0, chkHt = 0, btnWd = 0, btnHt = 0, newPicStat = 0;
+    int opt1Ht = 0, opt2Ht = 0, chkHt = 0, btnWd = 0, btnHt = 0;
     int newHt = 0, newWd = 0, newCtrlSizeTriggerWd = 0, newCtrlSizeTriggerHt = 0;
 
 
@@ -1995,7 +2001,7 @@ void SizeControls(int bmpHeight, HWND hWnd, int& updatedxCurrentScroll, int& upd
     static int ctrlSizeTriggerWd = 100, ctrlSizeTriggerHt = 100;
     static int defOpt1Top = 0, defOpt2Top = 0, defChkTop = 0, defLblTop = 0, defUpDnTop = 0;
     static int oldOpt1Top = 0, oldOpt2Top = 0, oldChkTop = 0, oldLblTop = 0, oldUpDnTop = 0;
-    static int xScrollBefSizing = 0, yScrollBefSizing = 0, xScrollBefNew = 0, yScrollBefNew = 0;
+    static int xScrollBefSizing = 0, yScrollBefSizing = 0;
     static int minWd = 0, minHt = 0, startSizeBtnLeft = 0, startSizeBtnTop = 0, startSizeBtnRight = 0, startSizeBtnBottom = 0, startSizeOpt1Top = 0, startSizeOpt2Top = 0, startSizeChkTop = 0, startSizeLblTop = 0, startSizeUpDnTop = 0;
     if (isLoading)
     {
@@ -2009,19 +2015,6 @@ void SizeControls(int bmpHeight, HWND hWnd, int& updatedxCurrentScroll, int& upd
             procEndWMSIZE = FALSE;
         else
             return;
-
-        if (newPic)
-        {
-            if (!xScrollBefNew && !yScrollBefNew)
-            {
-                xScrollBefNew = xCurrentScroll;
-                yScrollBefNew = yCurrentScroll;
-            }
-            if (updatedxCurrentScroll == xScrollBefNew && updatedyCurrentScroll == yScrollBefNew)
-                newPicStat = 1;
-            else
-                newPicStat = 2;
-        }
     }
 
     if (!minWd)
@@ -2261,18 +2254,18 @@ void SizeControls(int bmpHeight, HWND hWnd, int& updatedxCurrentScroll, int& upd
         // Possible to be shortened with the hwnds in ctrlArray.
         if (resizeType != SIZE_MINIMIZED)
         {
-            oldOpt1Top = delegateSizeControl(rectOpt1, hWndOpt1, oldOpt1Top, resizeType, oldResizeType, defOpt1Top, updatedxCurrentScroll, updatedyCurrentScroll, yScrollBefNew, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPicStat);
+            oldOpt1Top = delegateSizeControl(rectOpt1, hWndOpt1, oldOpt1Top, resizeType, oldResizeType, defOpt1Top, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
 
             // For debug
             //_RPTF4(_CRT_WARN, "yCurrentScroll = %d,  newCtrlSizeTriggerHt = %d,  rectOpt1.top= %d, oldOpt1Top= %d\n", yCurrentScroll, newCtrlSizeTriggerHt, rectOpt1.top, oldOpt1Top);
             // No full path :https://stackoverflow.com/questions/8487986/file-macro-shows-full-path/54335644#54335644
 
-            oldOpt2Top = delegateSizeControl(rectOpt2, hWndOpt2, oldOpt2Top, resizeType, oldResizeType, defOpt2Top, updatedxCurrentScroll, updatedyCurrentScroll, yScrollBefNew, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPicStat);
-            oldChkTop = delegateSizeControl(rectChk, hWndChk, oldChkTop, resizeType, oldResizeType, defChkTop, updatedxCurrentScroll, updatedyCurrentScroll, yScrollBefNew, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPicStat);
-            oldLblTop = delegateSizeControl(rectLbl, hLblUpDown, oldLblTop, resizeType, oldResizeType, defLblTop, updatedxCurrentScroll, updatedyCurrentScroll, yScrollBefNew, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPicStat);
+            oldOpt2Top = delegateSizeControl(rectOpt2, hWndOpt2, oldOpt2Top, resizeType, oldResizeType, defOpt2Top, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
+            oldChkTop = delegateSizeControl(rectChk, hWndChk, oldChkTop, resizeType, oldResizeType, defChkTop, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
+            oldLblTop = delegateSizeControl(rectLbl, hLblUpDown, oldLblTop, resizeType, oldResizeType, defLblTop, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
             ScaleFont(hLblUpDown, floor(3 * newHt / 7));
             // Must set the buddy pos here as GetWindowRect(hwndUpDnCtl, &rectUpDn) in a WM_SIZE is not reliable
-            oldUpDnTop = delegateSizeControl(rectUpDn, hwndUpDnCtl, oldUpDnTop, resizeType, oldResizeType, defUpDnTop, updatedxCurrentScroll, updatedyCurrentScroll, yScrollBefNew, newCtrlSizeTriggerHt, newWd / 2, newHt, minHt, newPicStat, hwndUpDnEdtBdy);
+            oldUpDnTop = delegateSizeControl(rectUpDn, hwndUpDnCtl, oldUpDnTop, resizeType, oldResizeType, defUpDnTop, updatedxCurrentScroll, updatedyCurrentScroll, newCtrlSizeTriggerHt, newWd / 2, newHt, minHt, newPic, hwndUpDnEdtBdy);
             ScaleFont(hwndUpDnEdtBdy, newHt, TRUE);
         }
 
@@ -2309,43 +2302,18 @@ void SizeControls(int bmpHeight, HWND hWnd, int& updatedxCurrentScroll, int& upd
         oldFmHt = curFmHt;
     }
 
-    if (resizeType == END_SIZE_MOVE)
-    {
-        xScrollBefNew = xCurrentScroll;
-        yScrollBefNew = yCurrentScroll;
-    }
-    else
-    {
-        xScrollBefNew = updatedxCurrentScroll;
-        yScrollBefNew = updatedyCurrentScroll;
-    }
     oldResizeType = resizeType;
     procEndWMSIZE = TRUE;
 }
-int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeType, int oldResizeType, int defOptTop, int updatedxCurrentScroll, int updatedyCurrentScroll, int yScrollBefNew, int newCtrlSizeTriggerHt, int newWd, int newHt, int minHt, int newPic, HWND buddyHWnd)
+int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeType, int oldResizeType, int defOptTop, int updatedxCurrentScroll, int updatedyCurrentScroll, int newCtrlSizeTriggerHt, int newWd, int newHt, int minHt, BOOL newPic, HWND buddyHWnd)
 {
     int optHt = newHt;
     optHt = (buddyHWnd) ? optHt : optHt / 2;
     static int yOldScroll = 0;
     if (newPic)
     {
-        if (newPic == 1)
-        {
-            rectOpt.top -= updatedyCurrentScroll;
-            rectOpt.bottom -= updatedyCurrentScroll;
-
-        }
-        else
-        {
-            if ((newPic == 2) && updatedyCurrentScroll)
-            {
-                if (rectOpt.top != updatedyCurrentScroll)
-                {
-                    rectOpt.top -= updatedyCurrentScroll;
-                    rectOpt.bottom -= updatedyCurrentScroll;
-                }
-            }
-        }
+        rectOpt.top -= updatedyCurrentScroll;
+        rectOpt.bottom -= updatedyCurrentScroll;
     }
     else
     {
