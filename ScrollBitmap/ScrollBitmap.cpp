@@ -2185,6 +2185,8 @@ void SizeControls(int bmpHeight, HWND hWnd, int fScroll, int yScrollBefNew, int 
         {
             // SWP_NOACTIVATE may cause occasional "paint fail" with this button and the UpDown controls 
             SetWindowPos(hWndButton, NULL, rectBtn.left, rectBtn.top, newWd, newHt, SWP_SHOWWINDOW);
+            
+            // yOldScroll updated later
             tmp = yCurrentScroll;
         }
         else
@@ -2257,6 +2259,8 @@ void SizeControls(int bmpHeight, HWND hWnd, int fScroll, int yScrollBefNew, int 
         // Possible to be shortened with the hwnds in ctrlArray.
         if (resizeType != SIZE_MINIMIZED)
         {
+            if (fScroll)
+                yOldScroll = yScrollBefNew;
             oldOpt1Top = delegateSizeControl(rectOpt1, hWndOpt1, oldOpt1Top, resizeType, oldResizeType, defOpt1Top, yOldScroll, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
 
             // For debug
@@ -2305,15 +2309,11 @@ void SizeControls(int bmpHeight, HWND hWnd, int fScroll, int yScrollBefNew, int 
         oldFmHt = curFmHt;
     }
 
-    if (fScroll)
-        yOldScroll = yScrollBefNew;
+
+    if (resizeType == END_SIZE_MOVE)
+        yOldScroll = tmp;
     else
-    {
-        if (resizeType == END_SIZE_MOVE)
-            yOldScroll = tmp;
-        else
-            yOldScroll = yCurrentScroll;
-    }
+        yOldScroll = yCurrentScroll;
 
     oldResizeType = resizeType;
     procEndWMSIZE = TRUE;
