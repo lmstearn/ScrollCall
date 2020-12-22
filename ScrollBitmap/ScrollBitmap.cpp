@@ -79,7 +79,7 @@ void DoMonInfo(HWND hWnd);
 char* VecToArr(std::vector<std::vector<unsigned>> vec);
 BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hdefBitmap, HGDIOBJ &hdefBitmapScroll, BITMAP bmp, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcMemScroll, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, int xNewSize, int yNewSize, int resizePic = 0, int minMaxRestore = 0, BOOL newPic = FALSE);
 void GetDims(HWND hWnd, int resizeType = 0, int oldResizeType = 0);
-void SizeControls(int bmpHeight, HWND hWnd, int yScrollBefNew = 0, int resizeType = -1, int curFmWd = 0, int curFmHt = 0, BOOL newPic = FALSE);
+void SizeControls(int bmpHeight, HWND hWnd, int &yScrollBefNew, int resizeType = -1, int curFmWd = 0, int curFmHt = 0, BOOL newPic = FALSE);
 int ScrollIt(HWND hWnd, int scrollType, int scrollDrag, int currentScroll, int minScroll, int maxScroll, int trackPos);
 int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xNewSize = 0, int yNewSize = 0, int bmpWidth = 0, int bmpHeight = 0, BOOL newPic = FALSE);
 void ScaleFont(HWND hWnd, int contSize, BOOL isUpDown = FALSE);
@@ -1062,6 +1062,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 ResetControlPos(hWnd);
                 xCurrentScroll = 0;
                 yCurrentScroll = 0;
+                yScrollBefNew = yCurrentScroll;
                 if (scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, xNewSize - wd, yNewSize))
                     ReportErr(L"ScrollStat: No scrollbars with stretch.");
             }
@@ -1143,6 +1144,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
                         // Flag new pic
                         scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE);
+                        yScrollBefNew = yCurrentScroll;
                         SizeControls(bmpHeight, hWnd, yScrollBefNew, ((isMaximized) ? SIZE_MAXIMIZED : SIZE_RESTORED), xNewSize, yNewSize, TRUE);
                         if (!AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, 1, FALSE, TRUE))
                             ReportErr(L"AdjustImage detected a problem with the image!");
@@ -1250,6 +1252,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     ResetControlPos(hWnd);
                 }
                 scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE);
+                yScrollBefNew = yCurrentScroll;
                 SizeControls(bmpHeight, hWnd, yScrollBefNew, ((isMaximized) ? SIZE_MAXIMIZED : END_SIZE_MOVE), xNewSize, yNewSize, TRUE);
 
                 // can exclude RectCl().ClMenuandTitle(hWnd)
@@ -1326,8 +1329,9 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             // Adjust old scroll co-ords to new setting
             ResetControlPos(hWnd);
             scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmp.bmWidth - wd, bmp.bmHeight, TRUE);
+            yScrollBefNew = yCurrentScroll;
 
-            SizeControls(bmp.bmHeight, hWnd, yScrollBefNew, ((isMaximized) ? SIZE_MAXIMIZED : SIZE_RESTORED), xNewSize, yNewSize, TRUE);
+            SizeControls(bmp.bmHeight, hWnd, yCurrentScroll, ((isMaximized) ? SIZE_MAXIMIZED : SIZE_RESTORED), xNewSize, yNewSize, TRUE);
             if (!AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, 1, FALSE, TRUE))
                 ReportErr(L"AdjustImage detected a problem with the image!");
 
@@ -1806,12 +1810,12 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hd
 
             retVal = StretchBlt(hdcScreenCompat, wd, 0, tmp, bmpHeight, hdcScreen, 0, 0, tmp + wd, bmpHeight, SRCCOPY);
 
-            // For some reason, the following clips the RHS by amount (wd). Yet the same
-            //  sizing BitBlt further down displays all of the (bmpWidth - wd) screen image.
+            // Incorrect usage of wd & oldWd makes the following clip the RHS by amount (wd).
+            // The same sizing BitBlt further down displayed all of the (bmpWidth - wd) screen image.
             if (retVal)
             {
                 if (!(retVal = (BOOL)BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, tmp, bmpHeight, hdcScreenCompat, wd, 0, SRCCOPY)))
-                    ReportErr(L"BitBlt from ScreenCompat failed!");//Blt at wd method
+                    ReportErr(L"BitBlt from ScreenCompat failed!");
             }
             else
                 ReportErr(L"StretchBlt from ScreenCompat failed!");
@@ -1819,8 +1823,9 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hd
         }
         else
         {
-            // The blt'd bitmap on the DC "jumps" an unknown x in (wd + x) in WM_PAINT during the size
-            // Makes no difference if a compatible hBmp & HDCMem is used as an intermediary for hdcScreenCompat 
+            // Incorrect usage of oldWd and wd can make the blt'd bitmap
+            // on the DC "jump" an unknown x in (wd + x) in WM_PAINT during the size
+            // Tested that for a compatible hBmp & HDCMem used as an intermediary for hdcScreenCompat
 
             if (minMaxRestore == SIZE_RESTORED)
                 retVal = (BOOL)BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcScreenCompat, wd, 0, SRCCOPY);
@@ -2059,7 +2064,7 @@ void GetDims(HWND hWnd, int resizeType, int oldResizeType)
     */
 }
 
-void SizeControls(int bmpHeight, HWND hWnd, int yScrollBefNew, int resizeType, int curFmWd, int curFmHt, BOOL newPic)
+void SizeControls(int bmpHeight, HWND hWnd, int &yScrollBefNew, int resizeType, int curFmWd, int curFmHt, BOOL newPic)
 {
     // What the name sez: sizes controls.
     int opt1Ht = 0, opt2Ht = 0, chkHt = 0, btnWd = 0, btnHt = 0;
@@ -2068,12 +2073,11 @@ void SizeControls(int bmpHeight, HWND hWnd, int yScrollBefNew, int resizeType, i
 
     static UINT defFmWd = 0, defFmHt = 0;
 
-    static int oldResizeType = 0, oldPic = 0;
     static int startFmWd = 0, startFmHt = 0, oldFmWd = 0, oldFmHt = 0;
     static int ctrlSizeTriggerWd = 100, ctrlSizeTriggerHt = 100;
     static int defOpt1Top = 0, defOpt2Top = 0, defChkTop = 0, defLblTop = 0, defUpDnTop = 0;
     static int oldOpt1Top = 0, oldOpt2Top = 0, oldChkTop = 0, oldLblTop = 0, oldUpDnTop = 0;
-    static int xScrollBefSizing = 0, yScrollBefSizing = 0, yOldScroll = 0;
+    static int oldResizeType = 0, xScrollBefSizing = 0, yScrollBefSizing = 0;
     static int minWd = 0, minHt = 0, startSizeBtnLeft = 0, startSizeBtnTop = 0, startSizeBtnRight = 0, startSizeBtnBottom = 0, startSizeOpt1Top = 0, startSizeOpt2Top = 0, startSizeChkTop = 0, startSizeLblTop = 0, startSizeUpDnTop = 0;
     if (isLoading)
     {
@@ -2258,7 +2262,7 @@ void SizeControls(int bmpHeight, HWND hWnd, int yScrollBefNew, int resizeType, i
             // SWP_NOACTIVATE may cause occasional "paint fail" with this button and the UpDown controls 
             SetWindowPos(hWndButton, NULL, rectBtn.left, rectBtn.top, newWd, newHt, SWP_SHOWWINDOW);
             
-            // yOldScroll updated later
+            // yScrollBefNew updated later
             tmp = yCurrentScroll;
         }
         else
@@ -2331,20 +2335,19 @@ void SizeControls(int bmpHeight, HWND hWnd, int yScrollBefNew, int resizeType, i
         // Possible for following calls to be condensed viz the hWnds in ctrlArray.
         if (resizeType != SIZE_MINIMIZED)
         {
-            if (oldPic == scrShtOrBmpLoad)
-                yOldScroll = yScrollBefNew;
-            oldOpt1Top = delegateSizeControl(rectOpt1, hWndOpt1, oldOpt1Top, resizeType, oldResizeType, defOpt1Top, yOldScroll, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
+
+            oldOpt1Top = delegateSizeControl(rectOpt1, hWndOpt1, oldOpt1Top, resizeType, oldResizeType, defOpt1Top, yScrollBefNew, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
 
             // For debug
             //_RPTF4(_CRT_WARN, "yCurrentScroll = %d,  newCtrlSizeTriggerHt = %d,  rectOpt1.top= %d, oldOpt1Top= %d\n", yCurrentScroll, newCtrlSizeTriggerHt, rectOpt1.top, oldOpt1Top);
             // No full path :https://stackoverflow.com/questions/8487986/file-macro-shows-full-path/54335644#54335644
 
-            oldOpt2Top = delegateSizeControl(rectOpt2, hWndOpt2, oldOpt2Top, resizeType, oldResizeType, defOpt2Top, yOldScroll, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
-            oldChkTop = delegateSizeControl(rectChk, hWndChk, oldChkTop, resizeType, oldResizeType, defChkTop, yOldScroll, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
-            oldLblTop = delegateSizeControl(rectLbl, hLblUpDown, oldLblTop, resizeType, oldResizeType, defLblTop, yOldScroll, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
+            oldOpt2Top = delegateSizeControl(rectOpt2, hWndOpt2, oldOpt2Top, resizeType, oldResizeType, defOpt2Top, yScrollBefNew, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
+            oldChkTop = delegateSizeControl(rectChk, hWndChk, oldChkTop, resizeType, oldResizeType, defChkTop, yScrollBefNew, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
+            oldLblTop = delegateSizeControl(rectLbl, hLblUpDown, oldLblTop, resizeType, oldResizeType, defLblTop, yScrollBefNew, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
             ScaleFont(hLblUpDown, floor(3 * newHt / 7));
             // Must set the buddy pos here as GetWindowRect(hwndUpDnCtl, &rectUpDn) in a WM_SIZE is not reliable
-            oldUpDnTop = delegateSizeControl(rectUpDn, hwndUpDnCtl, oldUpDnTop, resizeType, oldResizeType, defUpDnTop, yOldScroll, newCtrlSizeTriggerHt, newWd / 2, newHt, minHt, newPic, hwndUpDnEdtBdy);
+            oldUpDnTop = delegateSizeControl(rectUpDn, hwndUpDnCtl, oldUpDnTop, resizeType, oldResizeType, defUpDnTop, yScrollBefNew, newCtrlSizeTriggerHt, newWd / 2, newHt, minHt, newPic, hwndUpDnEdtBdy);
             ScaleFont(hwndUpDnEdtBdy, newHt, TRUE);
         }
 
@@ -2383,12 +2386,10 @@ void SizeControls(int bmpHeight, HWND hWnd, int yScrollBefNew, int resizeType, i
 
 
     if (resizeType == END_SIZE_MOVE)
-        yOldScroll = tmp;
+        yScrollBefNew = tmp;
     else
-        yOldScroll = yCurrentScroll;
+        yScrollBefNew = yCurrentScroll;
 
-    if (!newPic)
-        oldPic = scrShtOrBmpLoad;
     oldResizeType = resizeType;
     procEndWMSIZE = TRUE;
 }
