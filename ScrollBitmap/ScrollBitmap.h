@@ -28,6 +28,8 @@
 name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
 processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
+#define _WIN32_WINNT as 0x0600 // Post Vista
+
 //Suppress warning on unused variables https://stackoverflow.com/a/1486931/2128797
 #define UNUSED(expr) do { (void)(expr); } while (0)
 

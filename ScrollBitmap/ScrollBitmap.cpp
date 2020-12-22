@@ -103,7 +103,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
     // For debug
-    //_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+    _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 
     GdiplusInit gdiplusinit;
     // Initialize global strings
@@ -273,6 +273,10 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
     // Toggle for off-monitor tooltip 
     static BOOL toolTipOn;
+
+    // 
+    static int dragTickInit;
+    static int dragTick;
 
     //Main msg loop
     switch (uMsg)
@@ -577,6 +581,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         if (!scrShtOrBmpLoad)
             return (LRESULT)FALSE;
 
+        dragTickInit = (int)GetTickCount();
+
         timDragWindow = (int)SetTimer(hWnd,
             IDT_DRAGWINDOW,
             ((timPaintDelay) ? timPaintDelay : 10),
@@ -664,14 +670,13 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             yNewSize = HIWORD(lParam);
             if (lastSizeMax || isMaximized) // lastSizeMax on the rare occasion the Maximize broaches screen boundaries.
                 toolTipOn = IsAllFormInWindow(hWnd, toolTipOn, isMaximized);
-
+            
             SizeControls(bmpHeight, hWnd, yScrollBefNew, (int)wParam, xNewSize, yNewSize);
 
             if (scrShtOrBmpLoad)
             {
                 if (scrShtOrBmpLoad > 1)
                 {
-                    ReportErr(L"is", scrShtOrBmpLoad, L"Testing!");
                     if (!AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, ((stretchChk) ? 2 : 0), (int)wParam))
                         ReportErr(L"AdjustImage detected a problem with the image!");
                 }
@@ -690,7 +695,13 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     // The horizontal scrolling range is defined by 
                     // (bitmap_width) - (client_width). The current horizontal 
                     // scroll value remains within the horizontal scrolling range. 
-                    if ((!isSizing && scrollStat || lastSizeMax))
+                    if (isSizing)
+                    {
+                        dragTick = (int)GetTickCount() - dragTickInit;
+                        ReportErr(L"sisi", L"Time elapsed: ", dragTick, L"scrollStat: ", scrollStat);
+                    }
+                    else
+                    if (scrollStat || lastSizeMax)
                         scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
                 }
             }
@@ -1202,6 +1213,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         case IDM_EXIT:
         {
             Kleenup(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, hbmpCompat, pgpbm, hdcMem, hdcMemIn, hdcMemScroll, hdcWinCl);
+           // _CrtDumpMemoryLeaks();
         }
         break;
         default:
@@ -1587,8 +1599,8 @@ void ReportErr(const wchar_t* szTypes, ...)
     va_start(args, szTypes);
     len = lenTotal = 0;
     // Order of function parameters must match order in szTypes
-    // oroutBuf will print garbage or swprintf will seg fault.
-    if (!wcscmp(szTypes, L"iw") && !wcscmp(szTypes, L"is"))
+    // or outBuf will print garbage or swprintf will seg fault.
+    if (!wcscmp(szTypes, L"wi") && !wcscmp(szTypes, L"si"))
     {
         if (szTypes)
         {
@@ -1610,6 +1622,7 @@ void ReportErr(const wchar_t* szTypes, ...)
         outBuf = (wchar_t*)malloc(MAX_LOADSTRING * sizeof(wchar_t));
         memset(outBuf, 0, MAX_LOADSTRING * sizeof(wchar_t));
         outBuf[0] = L'\0';
+        // https://docs.microsoft.com/en-us/cpp/cpp/functions-with-variable-argument-lists-cpp?
         // Step through the list.
         for (i = 0;  i < wcslen (szTypes); ++i)
         {
