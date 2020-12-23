@@ -512,8 +512,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
         case IDT_DRAGWINDOW:
         {
-            tmp = KillTimer(hWnd, IDT_DRAGWINDOW);
-            if (tmp)
+            if (tmp = KillTimer(hWnd, IDT_DRAGWINDOW))
             {
                 /*
                 // The following is duplicated in WM_SIZE, thus not used:
@@ -528,7 +527,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         case IDT_PAINTBITMAP:
         {
 
-            tmp = KillTimer(hWnd, IDT_PAINTBITMAP);
+            if (tmp = KillTimer(hWnd, IDT_PAINTBITMAP))
+            {
             timPaintBitmap = 0;
             if (!fScroll)
             {
@@ -548,13 +548,13 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
                 }
             }
+            }
         }
         break;
         default:
             break;
         }
-
-        if (!tmp)
+            if (!tmp) // Watch use of tmp in SizeControls etc. !
             ReportErr(L"Problem with timer termination.");
         return (LRESULT)FALSE;
     }
@@ -1605,7 +1605,7 @@ void ReportErr(const wchar_t* szTypes, ...)
     len = lenTotal = 0;
     // Order of function parameters must match order in szTypes
     // or outBuf will print garbage or swprintf will seg fault.
-    if (!wcscmp(szTypes, L"wi") && !wcscmp(szTypes, L"si"))
+    if (wcscmp(szTypes, L"wisi") && wcscmp(szTypes, L"sisi"))
     {
         if (szTypes)
         {
@@ -2276,13 +2276,8 @@ void SizeControls(int bmpHeight, HWND hWnd, int &yScrollBefNew, int resizeType, 
 
 
         if (resizeType == END_SIZE_MOVE)
-        {
             // SWP_NOACTIVATE may cause occasional "paint fail" with this button and the UpDown controls 
             SetWindowPos(hWndButton, NULL, rectBtn.left, rectBtn.top, newWd, newHt, SWP_SHOWWINDOW);
-            
-            // yScrollBefNew updated later
-            tmp = yCurrentScroll;
-        }
         else
         {
             xCurrentScroll = ScrollInfo(hWnd, UPDATE_HORZSCROLLSIZE_CONTROL, 0, 0, curFmWd, curFmHt);
@@ -2403,11 +2398,7 @@ void SizeControls(int bmpHeight, HWND hWnd, int &yScrollBefNew, int resizeType, 
     }
 
 
-    if (resizeType == END_SIZE_MOVE)
-        yScrollBefNew = tmp;
-    else
-        yScrollBefNew = yCurrentScroll;
-
+    yScrollBefNew = yCurrentScroll;
     oldResizeType = resizeType;
     procEndWMSIZE = TRUE;
 }
