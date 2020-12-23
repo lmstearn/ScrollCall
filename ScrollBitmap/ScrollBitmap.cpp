@@ -234,6 +234,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     static int fScroll;             // 1 if horz scrolling, -1 vert scrolling, 0 for WM_SIZE
     static BOOL fSize;          // TRUE if WM_SIZE 
     static int scrollStat;      // 0: None, 1: SB_HORZ, 2: SB_VERT, 3: SB_BOTH
+    static int sizeCount;      // For debug: Number of WM_SIZE processed in drag
     static BOOL isMaximized;
 
 
@@ -582,6 +583,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             return (LRESULT)FALSE;
 
         dragTickInit = (int)GetTickCount();
+        sizeCount = 0;
 
         timDragWindow = (int)SetTimer(hWnd,
             IDT_DRAGWINDOW,
@@ -650,6 +652,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     ReportErr(L"AdjustImage detected a problem with the image!");
             }
         }
+        dragTick = (int)GetTickCount() - dragTickInit;
+        ReportErr(L"sisi", L"Time elapsed: ", dragTick, L"Number of sizes: ", sizeCount);
         }
         return (LRESULT)FALSE;
     }
@@ -698,6 +702,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     if (isSizing)
                     {
                         dragTick = (int)GetTickCount() - dragTickInit;
+                        sizeCount += 1;
                         ReportErr(L"sisi", L"Time elapsed: ", dragTick, L"scrollStat: ", scrollStat);
                     }
                     else
