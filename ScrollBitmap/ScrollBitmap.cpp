@@ -79,7 +79,7 @@ void DoMonInfo(HWND hWnd);
 char* VecToArr(std::vector<std::vector<unsigned>> vec);
 BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hdefBitmap, HGDIOBJ &hdefBitmapScroll, BITMAP bmp, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcMemScroll, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, int xNewSize, int yNewSize, int resizePic = 0, int minMaxRestore = 0, BOOL newPic = FALSE);
 void GetDims(HWND hWnd, int resizeType = 0, int oldResizeType = 0);
-void SizeControls(int bmpHeight, HWND hWnd, int &yScrollBefNew, int resizeType = -1, int curFmWd = 0, int curFmHt = 0, BOOL newPic = FALSE);
+void SizeControls(int bmpHeight, HWND hWnd, int &yOldScroll, int resizeType = -1, int curFmWd = 0, int curFmHt = 0, BOOL newPic = FALSE);
 int ScrollIt(HWND hWnd, int scrollType, int scrollDrag, int currentScroll, int minScroll, int maxScroll, int trackPos);
 int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xNewSize = 0, int yNewSize = 0, int bmpWidth = 0, int bmpHeight = 0, BOOL newPic = FALSE);
 void ScaleFont(HWND hWnd, int contSize, BOOL isUpDown = FALSE);
@@ -252,7 +252,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     // Dimension variables
     static UINT bmpWidth = 0;
     static UINT bmpHeight = 0;
-    static int yScrollBefNew; // required to update control positions
+    static int yOldScroll; // required to update control positions
     static int xNewSize; // updates on WM_SIZE
     static int yNewSize;
 
@@ -541,7 +541,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 {
                     // Else if called in ExitSizeMove, they will not always show
                     if (groupboxFlag)
-                        SizeControls(bmpHeight, hWnd, yScrollBefNew, END_SIZE_MOVE, xNewSize, yNewSize);
+                        SizeControls(bmpHeight, hWnd, yOldScroll, END_SIZE_MOVE, xNewSize, yNewSize);
 
                     if (scrollChanged && !AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, ((stretchChk) ? 2 : ((scrShtOrBmpLoad == 2) ? 1 : 0)), SIZE_MAXIMIZED))
                         ReportErr(L"AdjustImage detected a problem with the image!");
@@ -577,7 +577,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     case WM_ENTERSIZEMOVE:
     {
         KillTimer(hWnd, IDT_DRAGWINDOW);
-        SizeControls(bmpHeight, hWnd, yScrollBefNew, START_SIZE_MOVE, xNewSize, yNewSize);
+        SizeControls(bmpHeight, hWnd, yOldScroll, START_SIZE_MOVE, xNewSize, yNewSize);
         //InvalidateRect(hWnd, 0, TRUE);
         if (!scrShtOrBmpLoad)
             return (LRESULT)FALSE;
@@ -614,7 +614,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         if (!stretchChk)
             scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
         if (!groupboxFlag || scrShtOrBmpLoad < 2)
-            SizeControls(bmpHeight, hWnd, yScrollBefNew, END_SIZE_MOVE, xNewSize, yNewSize);
+            SizeControls(bmpHeight, hWnd, yOldScroll, END_SIZE_MOVE, xNewSize, yNewSize);
         //UpdateWindow(hWnd);
 
         if (!scrShtOrBmpLoad)
@@ -675,7 +675,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             if (lastSizeMax || isMaximized) // lastSizeMax on the rare occasion the Maximize broaches screen boundaries.
                 toolTipOn = IsAllFormInWindow(hWnd, toolTipOn, isMaximized);
             
-            SizeControls(bmpHeight, hWnd, yScrollBefNew, (int)wParam, xNewSize, yNewSize);
+            SizeControls(bmpHeight, hWnd, yOldScroll, (int)wParam, xNewSize, yNewSize);
 
             if (scrShtOrBmpLoad)
             {
@@ -985,7 +985,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
             // Reset scroll bar. 
             ScrollInfo(hWnd, UPDATE_VERTSCROLLSIZE, 0, 0);
-            yScrollBefNew = yCurrentScroll;
+            yOldScroll = yCurrentScroll;
             return (LRESULT)FALSE;
         }
     }
@@ -1078,14 +1078,14 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 ResetControlPos(hWnd);
                 xCurrentScroll = 0;
                 yCurrentScroll = 0;
-                yScrollBefNew = yCurrentScroll;
+                yOldScroll = yCurrentScroll;
                 if (scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, xNewSize - wd, yNewSize))
                     ReportErr(L"ScrollStat: No scrollbars with stretch.");
             }
             else
             {
                 scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE);
-                SizeControls(bmpHeight, hWnd, yScrollBefNew, ((isMaximized) ? SIZE_MAXIMIZED : SIZE_RESTORED), xNewSize, yNewSize);
+                SizeControls(bmpHeight, hWnd, yOldScroll, ((isMaximized) ? SIZE_MAXIMIZED : SIZE_RESTORED), xNewSize, yNewSize);
             }
 
             if (!AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, ((stretchChk) ? 2 : 1), 0, TRUE))
@@ -1160,8 +1160,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
                         // Flag new pic
                         scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE);
-                        yScrollBefNew = yCurrentScroll;
-                        SizeControls(bmpHeight, hWnd, yScrollBefNew, ((isMaximized) ? SIZE_MAXIMIZED : SIZE_RESTORED), xNewSize, yNewSize, TRUE);
+                        yOldScroll = yCurrentScroll;
+                        SizeControls(bmpHeight, hWnd, yOldScroll, ((isMaximized) ? SIZE_MAXIMIZED : SIZE_RESTORED), xNewSize, yNewSize, TRUE);
                         if (!AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, 1, FALSE, TRUE))
                             ReportErr(L"AdjustImage detected a problem with the image!");
                         xCurrentScroll ? fScroll = 1 : fScroll = -1; //initialise for ScrollInfo below
@@ -1269,8 +1269,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     ResetControlPos(hWnd);
                 }
                 scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE);
-                yScrollBefNew = yCurrentScroll;
-                SizeControls(bmpHeight, hWnd, yScrollBefNew, ((isMaximized) ? SIZE_MAXIMIZED : END_SIZE_MOVE), xNewSize, yNewSize, TRUE);
+                yOldScroll = yCurrentScroll;
+                SizeControls(bmpHeight, hWnd, yOldScroll, ((isMaximized) ? SIZE_MAXIMIZED : END_SIZE_MOVE), xNewSize, yNewSize, TRUE);
 
                 // can exclude RectCl().ClMenuandTitle(hWnd)
 
@@ -1346,7 +1346,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             // Adjust old scroll co-ords to new setting
             ResetControlPos(hWnd);
             scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmp.bmWidth - wd, bmp.bmHeight, TRUE);
-            yScrollBefNew = yCurrentScroll;
+            yOldScroll = yCurrentScroll;
 
             SizeControls(bmp.bmHeight, hWnd, yCurrentScroll, ((isMaximized) ? SIZE_MAXIMIZED : SIZE_RESTORED), xNewSize, yNewSize, TRUE);
             if (!AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, 1, FALSE, TRUE))
@@ -2082,7 +2082,7 @@ void GetDims(HWND hWnd, int resizeType, int oldResizeType)
     */
 }
 
-void SizeControls(int bmpHeight, HWND hWnd, int &yScrollBefNew, int resizeType, int curFmWd, int curFmHt, BOOL newPic)
+void SizeControls(int bmpHeight, HWND hWnd, int &yOldScroll, int resizeType, int curFmWd, int curFmHt, BOOL newPic)
 {
     // What the name sez: sizes controls.
     int opt1Ht = 0, opt2Ht = 0, chkHt = 0, btnWd = 0, btnHt = 0;
@@ -2349,18 +2349,18 @@ void SizeControls(int bmpHeight, HWND hWnd, int &yScrollBefNew, int resizeType, 
         if (resizeType != SIZE_MINIMIZED)
         {
 
-            oldOpt1Top = delegateSizeControl(rectOpt1, hWndOpt1, oldOpt1Top, resizeType, oldResizeType, defOpt1Top, yScrollBefNew, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
+            oldOpt1Top = delegateSizeControl(rectOpt1, hWndOpt1, oldOpt1Top, resizeType, oldResizeType, defOpt1Top, yOldScroll, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
 
             // For debug
             //_RPTF4(_CRT_WARN, "yCurrentScroll = %d,  newCtrlSizeTriggerHt = %d,  rectOpt1.top= %d, oldOpt1Top= %d\n", yCurrentScroll, newCtrlSizeTriggerHt, rectOpt1.top, oldOpt1Top);
             // No full path :https://stackoverflow.com/questions/8487986/file-macro-shows-full-path/54335644#54335644
 
-            oldOpt2Top = delegateSizeControl(rectOpt2, hWndOpt2, oldOpt2Top, resizeType, oldResizeType, defOpt2Top, yScrollBefNew, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
-            oldChkTop = delegateSizeControl(rectChk, hWndChk, oldChkTop, resizeType, oldResizeType, defChkTop, yScrollBefNew, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
-            oldLblTop = delegateSizeControl(rectLbl, hLblUpDown, oldLblTop, resizeType, oldResizeType, defLblTop, yScrollBefNew, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
+            oldOpt2Top = delegateSizeControl(rectOpt2, hWndOpt2, oldOpt2Top, resizeType, oldResizeType, defOpt2Top, yOldScroll, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
+            oldChkTop = delegateSizeControl(rectChk, hWndChk, oldChkTop, resizeType, oldResizeType, defChkTop, yOldScroll, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
+            oldLblTop = delegateSizeControl(rectLbl, hLblUpDown, oldLblTop, resizeType, oldResizeType, defLblTop, yOldScroll, newCtrlSizeTriggerHt, newWd, newHt, minHt, newPic);
             ScaleFont(hLblUpDown, floor(3 * newHt / 7));
             // Must set the buddy pos here as GetWindowRect(hwndUpDnCtl, &rectUpDn) in a WM_SIZE is not reliable
-            oldUpDnTop = delegateSizeControl(rectUpDn, hwndUpDnCtl, oldUpDnTop, resizeType, oldResizeType, defUpDnTop, yScrollBefNew, newCtrlSizeTriggerHt, newWd / 2, newHt, minHt, newPic, hwndUpDnEdtBdy);
+            oldUpDnTop = delegateSizeControl(rectUpDn, hwndUpDnCtl, oldUpDnTop, resizeType, oldResizeType, defUpDnTop, yOldScroll, newCtrlSizeTriggerHt, newWd / 2, newHt, minHt, newPic, hwndUpDnEdtBdy);
             ScaleFont(hwndUpDnEdtBdy, newHt, TRUE);
         }
 
@@ -2398,7 +2398,7 @@ void SizeControls(int bmpHeight, HWND hWnd, int &yScrollBefNew, int resizeType, 
     }
 
 
-    yScrollBefNew = yCurrentScroll;
+    yOldScroll = yCurrentScroll;
     oldResizeType = resizeType;
     procEndWMSIZE = TRUE;
 }
@@ -2417,7 +2417,7 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
         if (resizeType == SIZE_RESTORED)
         {
             // Must be adjusted with scroll offsets
-            if (oldOptTop)
+            if (oldOptTop && (oldResizeType != SIZE_MINIMIZED))
             {
                 if (oldResizeType == SIZE_MAXIMIZED)
                     rectOpt.top = oldOptTop + yOldScroll - yCurrentScroll;
@@ -2447,8 +2447,9 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
                 if (resizeType == SIZE_MAXIMIZED)
                 {
                     yOldScroll = yScrollBefNew;
-                    if (oldResizeType != SIZE_MAXIMIZED) //SIZE_MINIMIZED not stored
-                        oldOptTop = rectOpt.top;
+                    // No requirement to store previous SIZE_RESTORED dims.
+                    // SIZE_MINIMIZED not stored so oldResizeType can be SIZE_MAXIMIZED successively
+                    oldOptTop = rectOpt.top;
                 }
                 //rectOpt.top = scaleY * (rectOpt.top - oldOptTop + yCurrentScroll);
                 //The following may not preserve vertical scale for rectOpt.top after SIZE_MAXIMIZED, so want update
@@ -2496,7 +2497,7 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
             }
         }
     }
-    if (resizeType == SIZE_RESTORED || (resizeType == END_SIZE_MOVE) && (oldResizeType != START_SIZE_MOVE)) // curious case of oldResizeType as  START_SIZE_MOVE on a border click
+    if (resizeType == SIZE_RESTORED || (resizeType == END_SIZE_MOVE && (oldResizeType != START_SIZE_MOVE))) // curious case of oldResizeType as  START_SIZE_MOVE on a border click
         return rectOpt.top;
     else
         return oldOptTop;
