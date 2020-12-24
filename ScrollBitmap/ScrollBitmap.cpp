@@ -798,7 +798,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     {
                         if (!capCallFrmResize)
                             fSize = FALSE;
-                        if (!isSizing && !(isMaximized || lastSizeMax))
+                        if (!isSizing && !(isMaximized || lastSizeMax) && hdcWinCl)
                         {
                             if (!BitBlt(ps.hdc,
                                 -xCurrentScroll, -yCurrentScroll,
@@ -1166,24 +1166,10 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                             ReportErr(L"AdjustImage detected a problem with the image!");
                         xCurrentScroll ? fScroll = 1 : fScroll = -1; //initialise for ScrollInfo below
                         szFile[0] = L'X';
-
-
-                        switch (scrollStat)
-                        {
-                        case 1:
-                            SetScrollPos(hWnd, SB_HORZ, 0, TRUE);
-                            break;
-                        case 2:
-                            SetScrollPos(hWnd, SB_VERT, 0, TRUE);
-                            break;
-                        case 3:
-                            SetScrollPos(hWnd, SB_BOTH, 0, TRUE);
-                            break;
-                        default:
+                        if (!scrollStat)
                             fScroll = 0;
-                            break;
-                        }
-                        //UpdateWindow(hWnd);
+                        // CallDeprecatedSetScrollPos(hWnd, scrollStat); // not requ'd
+                        // UpdateWindow(hWnd);
                         EnableWindow(hWndChk, TRUE);
                         toolTipOn = IsAllFormInWindow(hWnd, toolTipOn);
                     }
@@ -1351,31 +1337,11 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             SizeControls(bmp.bmHeight, hWnd, yCurrentScroll, ((isMaximized) ? SIZE_MAXIMIZED : SIZE_RESTORED), xNewSize, yNewSize, TRUE);
             if (!AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, 1, FALSE, TRUE))
                 ReportErr(L"AdjustImage detected a problem with the image!");
-
   
             xCurrentScroll ? fScroll = 1 : fScroll = -1;
-
-
-
-            switch (scrollStat)
-            {
-            case 1:
-                SetScrollPos(hWnd, SB_HORZ, xCurrentScroll, TRUE);
-                break;
-            case 2:
-                SetScrollPos(hWnd, SB_VERT, yCurrentScroll, TRUE);
-                break;
-            case 3:
-            {
-                SetScrollPos(hWnd, SB_HORZ, xCurrentScroll, TRUE);
-                SetScrollPos(hWnd, SB_VERT, yCurrentScroll, TRUE);
-            }
-            break;
-            default:
+            if (!scrollStat)
                 fScroll = 0;
-                break;
-            }
-
+            // CallDeprecatedSetScrollPos(hWnd, scrollStat); // not requ'd
             EnableWindow(hWndChk, FALSE);
             SendMessageW(hWndChk, BM_SETCHECK, BST_UNCHECKED, 0);
             stretchChk = 0;
@@ -2721,7 +2687,9 @@ int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xN
                         siHORZ.nMin = xMinScroll;
                         siHORZ.nMax =bmpWidth + wd;
                         siHORZ.nPage = xNewSize;
-                        // Not dealing with xTrackPos.
+                        //consider SM_CXVSCROLL=20. The height of the arrow bitmap on a vertical scroll bar,
+                        //siHORZ.nMax = bmpWidth + ((bmpHeight > defFmHt)? GetSystemMetrics( SM_CXVSCROLL) : 0);
+                         // Not dealing with xTrackPos.
                         SetScrollInfo(hWnd, SB_HORZ, &siHORZ, TRUE);
                         ShowScrollBar(hWnd, SB_HORZ, TRUE);
                         if (scrollStat < 2)
@@ -2790,9 +2758,9 @@ int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xN
                         yCurrentScroll = min(yCurrentScroll, yMaxScroll);
                         siVERT.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
                         siVERT.nMin = yMinScroll;
-                        int x = GetSystemMetrics(21);
                         siVERT.nMax = bmpHeight;
-                        //si.nMax = bmpHeight + ((bmpWidth > defFmWd)? GetSystemMetrics(21) : 0);
+                        //consider SM_CXHSCROLL=21. The width of the arrow bitmap on a horizontal scroll bar,
+                        //siVERT.nMax = bmpHeight + ((bmpWidth > defFmWd)? GetSystemMetrics(SM_CXHSCROLL) : 0);
                         siVERT.nPage = yNewSize;
                         siVERT.nPos = yCurrentScroll;
                         siVERT.nTrackPos = yTrackPos;
@@ -3069,6 +3037,29 @@ wchar_t* ReallocateMem(wchar_t* aSource, int Size)
 //**************************************************************
 // Functions for possible later use
 //**************************************************************
+int CallDeprecatedSetScrollPos(HWND hWnd, int scrollStat)
+{
+    switch (scrollStat)
+    {
+    case 1:
+        SetScrollPos(hWnd, SB_HORZ, xCurrentScroll, TRUE);
+        break;
+    case 2:
+        SetScrollPos(hWnd, SB_VERT, yCurrentScroll, TRUE);
+        break;
+    case 3:
+    {
+        SetScrollPos(hWnd, SB_HORZ, xCurrentScroll, TRUE);
+        SetScrollPos(hWnd, SB_VERT, yCurrentScroll, TRUE);
+    }
+    break;
+    default:
+        scrollStat = 0;
+        break;
+    }
+    return scrollStat;
+}
+
 LRESULT CALLBACK staticSubClassButton(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
 {
     UNUSED(dwRefData);
