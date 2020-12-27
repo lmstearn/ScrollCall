@@ -55,7 +55,8 @@ BOOL isSizing = FALSE; // True when sizing
 BOOL lastSizeMax = FALSE; // last size was maximised: N/A for PrintTheWindow
 
 // Timer & paint factors
-int timDragWindow = 1, timPaintBitmap = 0;
+int timDragWindow = 1, timPaintBitmap = 0; // positive value indicates timer running
+// timDragWindow initialised for dragging without image loaded
 int timPaintDelay = 0, capCallFrmResize = 0;
 
 //  UpDown variables
@@ -234,7 +235,6 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     static int fScroll;             // 1 if horz scrolling, -1 vert scrolling, 0 for WM_SIZE
     static BOOL fSize;          // TRUE if WM_SIZE 
     static int scrollStat;      // 0: None, 1: SB_HORZ, 2: SB_VERT, 3: SB_BOTH
-    static int sizeCount;      // For debug: Number of WM_SIZE processed in drag
     static BOOL isMaximized;
 
 
@@ -275,9 +275,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     // Toggle for off-monitor tooltip 
     static BOOL toolTipOn;
 
-    // 
+    // Variables for debug output: 
+    static int sizeCount;      //Number of WM_SIZE processed in drag
+    static int paintCount;      //Number of WM_PAINT processed in drag
     static int dragTickInit;
-    static int dragTick;
+    static int dragTick = 0;
+    static int paintTick = 0;
 
     //Main msg loop
     switch (uMsg)
@@ -480,6 +483,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 timDragWindow = (int)SetTimer(hWnd,             // handle to main window 
                     IDT_DRAGWINDOW,                   // timer identifier 
                     timPaintDelay,                           // millisecond interval 
+                    // For larger values of timPaintDelay WM_SIZE is 
                     (TIMERPROC)NULL);               // no timer callback 
 
                 if (timDragWindow == 0)
@@ -493,9 +497,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             else
             {
                 capCallFrmResize++;
-                fScroll = 0;
                 fSize = TRUE;
-                if (capCallFrmResize > timPaintDelay)
+                if (capCallFrmResize > timPaintDelay) // Should never get here
                 {
                     ReportErr(L"Timer var incorrect!");
                     Kleenup(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, hbmpCompat, pgpbm, hdcMem, hdcMemIn, hdcMemScroll, hdcWinCl);
@@ -530,7 +533,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             if (tmp = KillTimer(hWnd, IDT_PAINTBITMAP))
             {
             timPaintBitmap = 0;
-            if (!fScroll)
+            if (!fScroll) // For any value of scrollStat
+                // The paint while scrolling is handled elsewhere
             {
                 if (scrShtOrBmpLoad == 1)
                 {
@@ -539,7 +543,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 }
                 else
                 {
-                    // Else if called in ExitSizeMove, they will not always show
+                    // Else if called in ExitSizeMove, the controls will not always show
                     if (groupboxFlag)
                         SizeControls(bmpHeight, hWnd, yOldScroll, END_SIZE_MOVE, xNewSize, yNewSize);
 
@@ -581,9 +585,10 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         //InvalidateRect(hWnd, 0, TRUE);
         if (!scrShtOrBmpLoad)
             return (LRESULT)FALSE;
-
+        fScroll = 0;
         dragTickInit = (int)GetTickCount();
         sizeCount = 0;
+        paintCount = 0;
 
         timDragWindow = (int)SetTimer(hWnd,
             IDT_DRAGWINDOW,
@@ -602,7 +607,6 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         if (windowMoved && !lastSizeMax && !isMaximized)
         {
             windowMoved = FALSE;
-            fScroll = 0;
             //PostMessageW(hWnd, WM_PAINT, wParam, lParam); //Taken care of by system
         }
         else
@@ -653,7 +657,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             }
         }
         dragTick = (int)GetTickCount() - dragTickInit;
-        ReportErr(L"sisi", L"Time elapsed: ", dragTick, L"Number of sizes: ", sizeCount);
+        ReportErr(L"sisi", L"Number of paints: ", paintCount, L"Number of sizes: ", sizeCount);
         }
         return (LRESULT)FALSE;
     }
@@ -690,10 +694,11 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     if (!BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
                         ReportErr(L"Bad BitBlt from hdcMem!");
                 }
-                if (fSize && (wParam == SIZE_RESTORED))
-                    timDragWindow = 0;
+                if (wParam != SIZE_RESTORED)    // Case of Max/Min after scrolling.
+                    fScroll = 0;
+
                 fSize = TRUE;
-                fScroll = 0;
+
                 if (!stretchChk)
                 {
                     // The horizontal scrolling range is defined by 
@@ -703,11 +708,13 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     {
                         dragTick = (int)GetTickCount() - dragTickInit;
                         sizeCount += 1;
-                        ReportErr(L"sisi", L"Time elapsed: ", dragTick, L"scrollStat: ", scrollStat);
+                        ReportErr(L"si", L"Time elapsed: ", dragTick);
                     }
                     else
-                    if (scrollStat || lastSizeMax)
-                        scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
+                    {
+                        if (scrollStat || lastSizeMax)
+                            scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight);
+                    }
                 }
             }
         }
@@ -779,6 +786,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             }   // fScroll = 0;
             else
             {
+                if (isSizing)
+                {
+                    paintTick = (int)GetTickCount() - dragTickInit;
+                    paintCount += 1;
+                    ReportErr(L"si", L"In Paint: Time elapsed: ", paintTick);
+                }
                 if (timPaintDelay)
                 {
                     /*
@@ -798,34 +811,43 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     {
                         if (!capCallFrmResize)
                             fSize = FALSE;
-                        if (!isSizing && !(isMaximized || lastSizeMax) && hdcWinCl)
+                        if (isSizing)
                         {
-                            if (!BitBlt(ps.hdc,
-                                -xCurrentScroll, -yCurrentScroll,
-                                bmpWidth, bmpHeight,
-                                hdcWinCl,
-                                0, 0,
-                                SRCCOPY))
-                                ReportErr(L"BitBlt failed!");
-
-                            if (!groupboxFlag)
+                            paintTick = (int)GetTickCount() - dragTickInit;
+                            paintCount += 1;
+                            ReportErr(L"si", L"In Paint: Time elapsed: ", paintTick);
+                        }
+                        else
+                        {
+                            if (!(isMaximized || lastSizeMax) && hdcWinCl)
                             {
-                                // Paint sections
-                                if (xCurrentScroll < wd)
+                                if (!BitBlt(ps.hdc,
+                                    -xCurrentScroll, -yCurrentScroll,
+                                    bmpWidth, bmpHeight,
+                                    hdcWinCl,
+                                    0, 0,
+                                    SRCCOPY))
+                                    ReportErr(L"BitBlt failed!");
+
+                                if (!groupboxFlag)
                                 {
-                                    PRECT prect;
-                                    prect = &ps.rcPaint;
-                                    if (prect->left < wd - 1) // Possible issue when form is sized small horizontally
+                                    // Paint sections
+                                    if (xCurrentScroll < wd)
                                     {
-                                        rectTmp.left = prect->left;
-                                        rectTmp.top = prect->top;
-                                        rectTmp.bottom = prect->bottom;
-                                        rectTmp.right = prect->left + wd - xCurrentScroll;
-                                        FillRect(ps.hdc, &rectTmp, (HBRUSH)(COLOR_WINDOW + 1));
+                                        PRECT prect;
+                                        prect = &ps.rcPaint;
+                                        if (prect->left < wd - 1) // Possible issue when form is sized small horizontally
+                                        {
+                                            rectTmp.left = prect->left;
+                                            rectTmp.top = prect->top;
+                                            rectTmp.bottom = prect->bottom;
+                                            rectTmp.right = prect->left + wd - xCurrentScroll;
+                                            FillRect(ps.hdc, &rectTmp, (HBRUSH)(COLOR_WINDOW + 1));
+                                        }
                                     }
                                 }
+                                //UpdateWindow(hWnd);
                             }
-                            //UpdateWindow(hWnd);
                         }
 
                     }
@@ -1092,6 +1114,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 ReportErr(L"AdjustImage detected a problem with the image!");
             isSizing = FALSE;
             fScroll = 0;
+            timDragWindow = 0;
             toolTipOn = IsAllFormInWindow(hWnd, toolTipOn);
         }
         break;
@@ -1166,6 +1189,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                             ReportErr(L"AdjustImage detected a problem with the image!");
                         xCurrentScroll ? fScroll = 1 : fScroll = -1; //initialise for ScrollInfo below
                         szFile[0] = L'X';
+                        timDragWindow = 0;
                         if (!scrollStat)
                             fScroll = 0;
                         // CallDeprecatedSetScrollPos(hWnd, scrollStat); // not requ'd
@@ -1277,6 +1301,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
                 toolTipOn = IsAllFormInWindow(hWnd, toolTipOn);
                 scrShtOrBmpLoad = 1;
+                timDragWindow = 0;
                 isSizing = FALSE;
                 if ((xNewSize >= bmpWidth + wd) && (yNewSize >= bmpHeight))
                     fScroll = 0;
@@ -1341,6 +1366,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             xCurrentScroll ? fScroll = 1 : fScroll = -1;
             if (!scrollStat)
                 fScroll = 0;
+            timDragWindow = 0;
             // CallDeprecatedSetScrollPos(hWnd, scrollStat); // not requ'd
             EnableWindow(hWndChk, FALSE);
             SendMessageW(hWndChk, BM_SETCHECK, BST_UNCHECKED, 0);
@@ -1571,7 +1597,7 @@ void ReportErr(const wchar_t* szTypes, ...)
     len = lenTotal = 0;
     // Order of function parameters must match order in szTypes
     // or outBuf will print garbage or swprintf will seg fault.
-    if (wcscmp(szTypes, L"wisi") && wcscmp(szTypes, L"sisi"))
+    if (wcscmp(szTypes, L"wisi") && wcscmp(szTypes, L"si") && wcscmp(szTypes, L"sisi"))
     {
         if (szTypes)
         {
