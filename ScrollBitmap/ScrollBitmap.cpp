@@ -483,7 +483,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 timDragWindow = (int)SetTimer(hWnd,             // handle to main window 
                     IDT_DRAGWINDOW,                   // timer identifier 
                     timPaintDelay,                           // millisecond interval 
-                    // For larger values of timPaintDelay WM_SIZE is 
+                    // Reduced WM_SIZE processing for larger values of timPaintDelay
                     (TIMERPROC)NULL);               // no timer callback 
 
                 if (timDragWindow == 0)
@@ -2398,7 +2398,8 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
 {
     int optHt = newHt;
     optHt = (buddyHWnd) ? optHt : optHt / 2;
-    static int yOldScroll = 0;
+    static int yOldScroll = 0, ctrlCt = 0;
+    static int restoreArray[6] = { 0 };
     if (newPic)
     {
         rectOpt.top -= yCurrentScroll;
@@ -2412,7 +2413,7 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
             if (oldOptTop && (oldResizeType != SIZE_MINIMIZED))
             {
                 if (oldResizeType == SIZE_MAXIMIZED)
-                    rectOpt.top = oldOptTop + yOldScroll - yCurrentScroll;
+                    rectOpt.top = restoreArray[ctrlCt] - yCurrentScroll;
                 else
                 {
                     if (oldResizeType != START_SIZE_MOVE) // sizing
@@ -2438,11 +2439,19 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
             {
                 if (resizeType == SIZE_MAXIMIZED)
                 {
-                    yOldScroll = yScrollBefNew;
-                    // No requirement to store previous SIZE_RESTORED dims.
+                    // restoreArray will store previous SIZE_RESTORED dims.
                     // SIZE_MINIMIZED not stored so oldResizeType can be SIZE_MAXIMIZED successively
-                    oldOptTop = rectOpt.top;
+
+                    if (oldResizeType == SIZE_MAXIMIZED)
+                        oldOptTop += yOldScroll;
+                    else
+                    {
+                        restoreArray[ctrlCt] = rectOpt.top + yScrollBefNew;
+                        oldOptTop = rectOpt.top;
+                    }
+                    yOldScroll = yScrollBefNew;
                 }
+
                 //rectOpt.top = scaleY * (rectOpt.top - oldOptTop + yCurrentScroll);
                 //The following may not preserve vertical scale for rectOpt.top after SIZE_MAXIMIZED, so want update
                 rectOpt.top = scaleY * (rectOpt.top + yOldScroll) - yCurrentScroll;
@@ -2489,6 +2498,10 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
             }
         }
     }
+    if (buddyHWnd)
+        ctrlCt = 0;
+    else
+        ctrlCt += 1;
     if (resizeType == SIZE_RESTORED || (resizeType == END_SIZE_MOVE && (oldResizeType != START_SIZE_MOVE))) // curious case of oldResizeType as  START_SIZE_MOVE on a border click
         return rectOpt.top;
     else
