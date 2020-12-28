@@ -1,6 +1,6 @@
 //{{NO_DEPENDENCIES}}
 // Microsoft Visual C++ generated include file.
-// Used by ScrollBitmap.rc
+// Used by Scrollcall.rc
 
 #define IDS_APP_TITLE			150
 
@@ -21,13 +21,13 @@
 
 #define IDT_DRAGWINDOW	100
 #define IDT_PAINTBITMAP	101
-#define IDD_SCROLLBITMAP_DIALOG	102
+#define IDD_SCROLLCALL_DIALOG	102
 #define IDD_ABOUTBOX			103
 #define IDM_ABOUT				104
 #define IDM_EXIT				105
-#define IDI_SCROLLBITMAP			107
+#define IDI_SCROLLCALL			107
 #define IDI_SMALL				108
-#define IDC_SCROLLBITMAP			109
+#define IDC_SCROLLCALL			109
 #define IDM_RUN_UPDOWN	83
 #define IDD_UPDOWN_BUDDY			82
 #define IDD_UPDOWN			81

@@ -1,4 +1,4 @@
-#include "ScrollBitmap.h"
+#include "Scrollcall.h"
 RECT RectCl::rectOut1 = {};
 RECT RectCl::rectOut2 = {};
 RECT RectCl::rectOut3 = {};
@@ -77,7 +77,6 @@ wchar_t* FileOpener(HWND hWnd);
 void ReportErr(const wchar_t* szTypes, ...);
 void PrintTheWindow(HWND hWnd, HBITMAP hBmp, HBITMAP hBitmapScroll);
 void DoMonInfo(HWND hWnd);
-char* VecToArr(std::vector<std::vector<unsigned>> vec);
 BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hdefBitmap, HGDIOBJ &hdefBitmapScroll, BITMAP bmp, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcMemScroll, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, int xNewSize, int yNewSize, int resizePic = 0, int minMaxRestore = 0, BOOL newPic = FALSE);
 void GetDims(HWND hWnd, int resizeType = 0, int oldResizeType = 0);
 void SizeControls(int bmpHeight, HWND hWnd, int &yOldScroll, int resizeType = -1, int curFmWd = 0, int curFmHt = 0, BOOL newPic = FALSE);
@@ -94,6 +93,7 @@ void ResetControlPos(HWND hWnd);
 wchar_t* ReallocateMem(wchar_t* aSource, int Size);
 //This space for "Functions for later use"
 //
+char* VecToArr(std::vector<std::vector<unsigned>> vec);
 
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -109,7 +109,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     GdiplusInit gdiplusinit;
     // Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
-    LoadStringW(hInstance, IDC_SCROLLBITMAP, szWindowClass, MAX_LOADSTRING);
+    LoadStringW(hInstance, IDC_SCROLLCALL, szWindowClass, MAX_LOADSTRING);
     MyRegisterClass(hInstance);
 
     // Perform application initialization:
@@ -118,7 +118,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 
 
-    HACCEL hAccelTable = LoadAcceleratorsW(hInstance, MAKEINTRESOURCEW(IDC_SCROLLBITMAP));
+    HACCEL hAccelTable = LoadAcceleratorsW(hInstance, MAKEINTRESOURCEW(IDC_SCROLLCALL));
 
     MSG msg;
     BOOL a;
@@ -156,10 +156,10 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.cbClsExtra = 0;
     wcex.cbWndExtra = 0;
     wcex.hInstance = hInstance;
-    wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCEW(IDI_SCROLLBITMAP));
+    wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCEW(IDI_SCROLLCALL));
     wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
     wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-    wcex.lpszMenuName = MAKEINTRESOURCEW(IDC_SCROLLBITMAP);
+    wcex.lpszMenuName = MAKEINTRESOURCEW(IDC_SCROLLCALL);
     wcex.lpszClassName = szWindowClass;
     wcex.hIconSm = LoadIcon(wcex.hInstance, MAKEINTRESOURCEW(IDI_SMALL));
 
@@ -656,8 +656,11 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     ReportErr(L"AdjustImage detected a problem with the image!");
             }
         }
-        dragTick = (int)GetTickCount() - dragTickInit;
-        ReportErr(L"sisi", L"Number of paints: ", paintCount, L"Number of sizes: ", sizeCount);
+        if (timPaintDelay)
+        {
+            dragTick = (int)GetTickCount() - dragTickInit;
+            ReportErr(L"sisi", L"Number of paints: ", paintCount, L"Number of sizes: ", sizeCount);
+        }
         }
         return (LRESULT)FALSE;
     }
@@ -706,9 +709,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     // scroll value remains within the horizontal scrolling range. 
                     if (isSizing)
                     {
-                        dragTick = (int)GetTickCount() - dragTickInit;
-                        sizeCount += 1;
-                        ReportErr(L"si", L"Time elapsed: ", dragTick);
+                        if (timPaintDelay)
+                        {
+                            dragTick = (int)GetTickCount() - dragTickInit;
+                            sizeCount += 1;
+                            ReportErr(L"si", L"In Size: Time elapsed: ", dragTick);
+                        }
                     }
                     else
                     {
@@ -786,12 +792,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             }   // fScroll = 0;
             else
             {
-                if (isSizing)
-                {
-                    paintTick = (int)GetTickCount() - dragTickInit;
-                    paintCount += 1;
-                    ReportErr(L"si", L"In Paint: Time elapsed: ", paintTick);
-                }
+
                 if (timPaintDelay)
                 {
                     /*
@@ -802,6 +803,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                         }
                         else
                       */
+                    if (isSizing)
+                    {
+                        paintTick = (int)GetTickCount() - dragTickInit;
+                        paintCount += 1;
+                        ReportErr(L"si", L"In Paint: Time elapsed: ", paintTick);
+                    }
                     if (!scrShtOrBmpLoad)
                         toolTipOn = IsAllFormInWindow(hWnd, toolTipOn, isMaximized);
                 }
@@ -811,39 +818,31 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     {
                         if (!capCallFrmResize)
                             fSize = FALSE;
-                        if (isSizing)
+       
+                        if (!isSizing && !(isMaximized || lastSizeMax) && hdcWinCl)
                         {
-                            paintTick = (int)GetTickCount() - dragTickInit;
-                            paintCount += 1;
-                            ReportErr(L"si", L"In Paint: Time elapsed: ", paintTick);
-                        }
-                        else
-                        {
-                            if (!(isMaximized || lastSizeMax) && hdcWinCl)
-                            {
-                                if (!BitBlt(ps.hdc,
-                                    -xCurrentScroll, -yCurrentScroll,
-                                    bmpWidth, bmpHeight,
-                                    hdcWinCl,
-                                    0, 0,
-                                    SRCCOPY))
-                                    ReportErr(L"BitBlt failed!");
+                            if (!BitBlt(ps.hdc,
+                                -xCurrentScroll, -yCurrentScroll,
+                                bmpWidth, bmpHeight,
+                                hdcWinCl,
+                                0, 0,
+                                SRCCOPY))
+                                ReportErr(L"BitBlt failed!");
 
-                                if (!groupboxFlag)
+                            if (!groupboxFlag)
+                            {
+                                // Paint sections
+                                if (xCurrentScroll < wd)
                                 {
-                                    // Paint sections
-                                    if (xCurrentScroll < wd)
+                                    PRECT prect;
+                                    prect = &ps.rcPaint;
+                                    if (prect->left < wd - 1) // Possible issue when form is sized small horizontally
                                     {
-                                        PRECT prect;
-                                        prect = &ps.rcPaint;
-                                        if (prect->left < wd - 1) // Possible issue when form is sized small horizontally
-                                        {
-                                            rectTmp.left = prect->left;
-                                            rectTmp.top = prect->top;
-                                            rectTmp.bottom = prect->bottom;
-                                            rectTmp.right = prect->left + wd - xCurrentScroll;
-                                            FillRect(ps.hdc, &rectTmp, (HBRUSH)(COLOR_WINDOW + 1));
-                                        }
+                                        rectTmp.left = prect->left;
+                                        rectTmp.top = prect->top;
+                                        rectTmp.bottom = prect->bottom;
+                                        rectTmp.right = prect->left + wd - xCurrentScroll;
+                                        FillRect(ps.hdc, &rectTmp, (HBRUSH)(COLOR_WINDOW + 1));
                                     }
                                 }
                                 //UpdateWindow(hWnd);
@@ -2521,7 +2520,7 @@ void ScaleFont(HWND hWnd, int contSize, BOOL isUpDown)
 
     if (sizeForUpDown)
     {
-        lf.lfHeight = floor(3 * contSize / 5);
+        lf.lfHeight = floor(4 * contSize / 7);
         HFONT hFontNew = CreateFontIndirectW(&lf);
         if (hFontNew)
             DeleteObject(hFont);
