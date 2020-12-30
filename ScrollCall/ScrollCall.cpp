@@ -151,7 +151,9 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.cbSize = sizeof(WNDCLASSEX);
 
     // Double click for Print Window
-    wcex.style = CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
+    wcex.style = CS_DBLCLKS;
+    // CS_HREDRAW | CS_VREDRAW are nice as defaults, but cause invalidation
+    // with positive values of timPaintDelay (Paint Mult), so use SetWindowLongPtr
     wcex.lpfnWndProc = MyBitmapWindowProc;
     wcex.cbClsExtra = 0;
     wcex.cbWndExtra = 0;
@@ -520,7 +522,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 /*
                 // The following is duplicated in WM_SIZE, thus not used:
                 SizeControls(bmp, hWnd, xCurrentScroll, yCurrentScroll, START_SIZE_MOVE, xNewSize, yNewSize);
-                if (!AdjustImage(hWnd, hBitmap, bmp, hdcMem, hdcMemIn, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, ((stretchChk) ? 2 : ((scrShtOrBmpLoad == 2) ? 1 : 0)), SIZE_MAXIMIZED))
+                SizeControls(bmpHeight, hWnd, yOldScroll, START_SIZE_MOVE, xNewSize, yNewSize);
+                if (!(AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, ((stretchChk) ? 2 : 1)), SIZE_MAXIMIZED))
                     ReportErr(L"AdjustImage detected a problem with the image!");
                 */
                 capCallFrmResize = 0;
@@ -650,9 +653,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             }
             else
             {
-                // The following produces extra flicker on the paint if the !scrollStat condition is omitted (for
-                //  timPaintBitmap set) but in that case the paint might not be unreliable, depending on scroll position.
-                if (!AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, ((stretchChk) ? 2 : 1)))
+                if (!(AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, ((stretchChk) ? 2 : 1), END_SIZE_MOVE)))
                     ReportErr(L"AdjustImage detected a problem with the image!");
             }
         }
@@ -816,39 +817,11 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 {
                     if (fSize)
                     {
+                        // Getting here just validates the window
+                        // All the painting is done performed at the size.
                         if (!capCallFrmResize)
                             fSize = FALSE;
-       
-                        if (!isSizing && !(isMaximized || lastSizeMax) && hdcWinCl)
-                        {
-                            if (!BitBlt(ps.hdc,
-                                -xCurrentScroll, -yCurrentScroll,
-                                bmpWidth, bmpHeight,
-                                hdcWinCl,
-                                0, 0,
-                                SRCCOPY))
-                                ReportErr(L"BitBlt failed!");
-
-                            if (!groupboxFlag)
-                            {
-                                // Paint sections
-                                if (xCurrentScroll < wd)
-                                {
-                                    PRECT prect;
-                                    prect = &ps.rcPaint;
-                                    if (prect->left < wd - 1) // Possible issue when form is sized small horizontally
-                                    {
-                                        rectTmp.left = prect->left;
-                                        rectTmp.top = prect->top;
-                                        rectTmp.bottom = prect->bottom;
-                                        rectTmp.right = prect->left + wd - xCurrentScroll;
-                                        FillRect(ps.hdc, &rectTmp, (HBRUSH)(COLOR_WINDOW + 1));
-                                    }
-                                }
                                 //UpdateWindow(hWnd);
-                            }
-                        }
-
                     }
                     else
                     {
@@ -1194,6 +1167,9 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                         // CallDeprecatedSetScrollPos(hWnd, scrollStat); // not requ'd
                         // UpdateWindow(hWnd);
                         EnableWindow(hWndChk, TRUE);
+                        // Remove invalidation, specifically on positive timPaintDelay
+                        SetWindowLongPtr(hWnd, GWL_STYLE, GetWindowLongPtr(hWnd, GWL_STYLE) & ~CS_HREDRAW);
+                        SetWindowLongPtr(hWnd, GWL_STYLE, GetWindowLongPtr(hWnd, GWL_STYLE) & ~CS_VREDRAW);
                         toolTipOn = IsAllFormInWindow(hWnd, toolTipOn);
                     }
                     else
@@ -1298,6 +1274,9 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 SendMessageW(hWndChk, BM_SETCHECK, BST_UNCHECKED, 0);
                 stretchChk = 0;
 
+                // Prefer redraw on size
+                SetWindowLongPtr(hWnd, GWL_STYLE, GetWindowLongPtr(hWnd, GWL_STYLE) | CS_HREDRAW);
+                SetWindowLongPtr(hWnd, GWL_STYLE, GetWindowLongPtr(hWnd, GWL_STYLE) | CS_VREDRAW);
                 toolTipOn = IsAllFormInWindow(hWnd, toolTipOn);
                 scrShtOrBmpLoad = 1;
                 timDragWindow = 0;
@@ -1372,6 +1351,9 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             stretchChk = 0;
 
             //SetWindowOrgEx(hdcWinCl, xCurrentScroll, yCurrentScroll, NULL);
+            SetWindowLongPtr(hWnd, GWL_STYLE, GetWindowLongPtr(hWnd, GWL_STYLE) | CS_HREDRAW);
+            SetWindowLongPtr(hWnd, GWL_STYLE, GetWindowLongPtr(hWnd, GWL_STYLE) | CS_VREDRAW);
+
             toolTipOn = IsAllFormInWindow(hWnd, toolTipOn);
         }
         else
@@ -1850,7 +1832,7 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hd
             HBITMAP hBmp = 0;
             //SetBkColor(hdcWinCl, COLOR_WINDOW + 1) causes flickering in the scrolling
 
-            if (!timPaintDelay && !(retVal = (BOOL)FillRect(hdcWinCl, &imgRect, (HBRUSH)(COLOR_WINDOW + 1))))
+            if ((!timPaintDelay && minMaxRestore != END_SIZE_MOVE) && !(retVal = (BOOL)FillRect(hdcWinCl, &imgRect, (HBRUSH)(COLOR_WINDOW + 1))))
                 ReportErr(L"FillRect: Paint failed!");
             hBmp = CreateCompatibleBitmap(hdcWinCl, bmpWidth + wd, bmpHeight);
             retVal = (UINT64)SelectObject(hdcMem, hBmp);
