@@ -239,6 +239,10 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     static BOOL fSize;          // TRUE if WM_SIZE 
     static int scrollStat;      // 0: None, 1: SB_HORZ, 2: SB_VERT, 3: SB_BOTH
     static BOOL isMaximized;
+    static int maxHorzSize = 0;
+    static int maxVertSize = 0;
+    static BOOL snapHORZ = FALSE;
+    static BOOL snapVERT = FALSE;
 
 
     // DC's & handles
@@ -548,11 +552,13 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 else
                 {
                     // Else if called in ExitSizeMove, the controls will not always show
-                    if (groupboxFlag)
+                    if ((snapHORZ || snapVERT) || groupboxFlag)
                         SizeControls(bmpHeight, hWnd, yOldScroll, END_SIZE_MOVE, xNewSize, yNewSize);
 
-                    if ((groupboxFlag || scrollChanged) && !AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, ((stretchChk) ? 2 : ((scrShtOrBmpLoad == 2) ? 1 : 0)), SIZE_MAXIMIZED))
+                    if (((snapHORZ || snapVERT) || groupboxFlag || scrollChanged) && !AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, ((stretchChk) ? 2 : ((scrShtOrBmpLoad == 2) ? 1 : 0)), SIZE_MAXIMIZED))
                         ReportErr(L"AdjustImage detected a problem with the image!");
+                    snapHORZ = FALSE;
+                    snapVERT = FALSE;
 
                 }
             }
@@ -593,7 +599,6 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         dragTickInit = (int)GetTickCount();
         sizeCount = 0;
         paintCount = 0;
-
         timDragWindow = (int)SetTimer(hWnd,
             IDT_DRAGWINDOW,
             ((timPaintDelay) ? timPaintDelay : 10),
@@ -608,6 +613,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         //InvalidateRect(hWnd, 0, TRUE);
         KillTimer(hWnd, IDT_DRAGWINDOW);
         toolTipOn = IsAllFormInWindow(hWnd, toolTipOn);
+
         if (windowMoved && !lastSizeMax && !isMaximized)
         {
             windowMoved = FALSE;
@@ -683,7 +689,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             yNewSize = HIWORD(lParam);
             if (lastSizeMax || isMaximized) // lastSizeMax on the rare occasion the Maximize broaches screen boundaries.
                 toolTipOn = IsAllFormInWindow(hWnd, toolTipOn, isMaximized);
-            
+
             SizeControls(bmpHeight, hWnd, yOldScroll, (int)wParam, xNewSize, yNewSize);
 
             if (scrShtOrBmpLoad)
@@ -863,9 +869,17 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     }
     break;
     case WM_GETMINMAXINFO:
-    {        // prevent the window from becoming too small
-        ((MINMAXINFO*)lParam)->ptMinTrackSize.x = 200;
-        ((MINMAXINFO*)lParam)->ptMinTrackSize.y = 200;
+    { 
+        if (!maxHorzSize && !isLoading)
+        {
+            // Code does not listen for resolution or monitor changes
+            MINMAXINFO* mmi = (MINMAXINFO*)lParam;
+            maxHorzSize = mmi->ptMaxSize.x;
+            maxVertSize = mmi->ptMaxSize.y;
+            // prevent the window from becoming too small
+            ((MINMAXINFO*)lParam)->ptMinTrackSize.x = 2 * wd;
+            ((MINMAXINFO*)lParam)->ptMinTrackSize.y = 2 * ht;
+        }
     }
     break;
     case WM_NOTIFY:
@@ -1003,6 +1017,42 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             iAccumDelta += iDeltaPerLine;
         }
         return (LRESULT)FALSE;
+    }
+    break;
+    case WM_NCLBUTTONDBLCLK:
+        // The posted notification is too slow,
+        // so implement our own aerosnap.
+    {
+
+        if (wParam == HTLEFT || wParam == HTRIGHT)
+        {
+            snapHORZ = TRUE;
+            rectTmp = RectCl().RectCl(0, hWnd, 0);
+            xNewSize = maxHorzSize;
+            MoveWindow(hWnd, 0, rectTmp.top, xNewSize, RectCl().height(1), FALSE);
+            if (!(timPaintBitmap = (int)SetTimer(hWnd,
+                IDT_PAINTBITMAP,
+                6,
+                (TIMERPROC)NULL)))
+                ReportErr(L"No timer is available.");
+        }
+        else
+        {
+            if (wParam == HTBOTTOM)
+            {
+                snapVERT = TRUE;
+                rectTmp = RectCl().RectCl(0, hWnd, 0);
+                yNewSize = maxVertSize;
+                MoveWindow(hWnd, rectTmp.left, 0, RectCl().width(1), yNewSize, FALSE);
+                if (!(timPaintBitmap = (int)SetTimer(hWnd,
+                    IDT_PAINTBITMAP,
+                    6,
+                    (TIMERPROC)NULL)))
+                    ReportErr(L"No timer is available.");
+            }
+
+        }
+
     }
     break;
     case WM_COMMAND: // WM_PARENTNOTIFY if hWndGroupBox is parent to controls (not the case here)
@@ -1906,12 +1956,18 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hd
         }
         else
         {
+            // Compare this with the section for the Screenshot:
+            // oldWd & oldCurFmWd not required
             if (minMaxRestore == SIZE_RESTORED)
             {
+                // The groupbox only covers some of the blank space during the sizing.
+                if (xCurrentScroll <= wd)
+                {
                     rectTmp = imgRect;
-                    (xCurrentScroll > wd) ? rectTmp.right = 0 : rectTmp.right = wd - xCurrentScroll;
+                    rectTmp.right = wd - xCurrentScroll;
                     if (!(retVal = (BOOL)FillRect(hdcWinCl, &rectTmp, (HBRUSH)(COLOR_WINDOW + 1))))
                         ReportErr(L"FillRect: Paint failed!");
+                }
                 retVal = (BOOL)BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth + newPicWd, bmpHeight, hdcMem, newPicWd, 0, SRCCOPY);
             }
             else // SIZE_MINIMIZED or not used
