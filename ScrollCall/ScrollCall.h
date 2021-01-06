@@ -1,5 +1,5 @@
 #pragma once
-#define _WIN32_WINNT 0x0600 // (Post Vista)
+//#define _WIN32_WINNT 0x0600 // (Post Vista)
 // C4005: The SDK uses the latest (included in framework.h) and redefines it anyhow
 
 #include "framework.h"
@@ -100,6 +100,17 @@ typedef struct tagRectCl
         GetClientRect(ownerHwnd, &rectInCl);
         // Also menu bar height
         return (rectIn.bottom - rectIn.top) - (rectInCl.bottom - rectInCl.top) - GetSystemMetrics(SM_CYMENU);
+    }
+    int HorzNCl(HWND ownHwnd)
+    {
+        // Get usable client height
+        RECT rectIn = {};
+        RECT rectInCl = {};
+        GetWindowRect(ownerHwnd, &rectIn);
+        GetClientRect(ownerHwnd, &rectInCl);
+        // Also menu bar height
+        int retVal = (rectIn.right - rectIn.left) - (rectInCl.right - rectInCl.left);
+        return retVal;
     }
 
     RECT RectCl(int ctrlIndex)
