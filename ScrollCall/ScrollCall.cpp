@@ -1800,7 +1800,9 @@ void DoMonInfo(HWND hWnd)
 }
 BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hdefBitmap, HGDIOBJ &hdefBitmapScroll, BITMAP bmp, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcMemScroll, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, int curFmWd, int curFmHt, int resizePic, int minMaxRestore, BOOL newPic)
 {
-    static int newPicWd = 0, oldWd = 0, oldCurFmWd = 0, sizingChangeDir = 0;
+    // oldWdMin & oldWdMax not the best descriptions, as they are
+    // used in mousedown screenshot drag-in and drag-out visuals
+    static int newPicWd = 0, oldWdMin = 0, oldWdMax = 0, oldCurFmWd = 0, sizingChangeDir = 0;
     static RECT imgRect = {};
     static BOOL baseDCBltd = FALSE;
     
@@ -1881,6 +1883,7 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hd
                     ReportErr(L"BitBlt from ScreenCompat failed!");
                 baseDCBltd = TRUE;
                 sizingChangeDir = 0;
+                oldWdMin = wd;
           }
             else
                 ReportErr(L"StretchBlt from ScreenCompat failed!");
@@ -1904,7 +1907,8 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hd
                     if (sizingChangeDir == 2)
                         retVal = (BOOL)BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcScreenCompat, newPicWd, 0, SRCCOPY);
                     else
-                        retVal = (BOOL)BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcScreenCompat, oldWd, 0, SRCCOPY);
+                        retVal = (BOOL)BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcScreenCompat, oldWdMax, 0, SRCCOPY);
+
                 }
                 else
                 {
@@ -1918,11 +1922,11 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hd
                     if (!(retVal = (BOOL)FillRect(hdcWinCl, &rectTmp, (HBRUSH)(COLOR_WINDOW + 1))))
                         ReportErr(L"FillRect: Paint failed!");
                     if (sizingChangeDir == 1)
-                        retVal = (BOOL)BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcScreenCompat, oldWd, 0, SRCCOPY);
+                        retVal = (BOOL)BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcScreenCompat, oldWdMin, 0, SRCCOPY);
                     else
                         retVal = (BOOL)BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcScreenCompat, newPicWd, 0, SRCCOPY);
 
-                    oldWd = wd;
+                    oldWdMax = wd;
                 }
                 oldCurFmWd = curFmWd;
             }
