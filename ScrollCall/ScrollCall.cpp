@@ -1367,31 +1367,6 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         if (hdcWinCl = GetDCEx(hWnd, (HRGN)NULL, DCX_CACHE | DCX_CLIPCHILDREN))
         {
 
-            //SizeControls(bmp, hWnd, defFmWd, defFmHt, -1);
-
-            /*
-            ScrollWindowEx(hWnd, -xCurrentScroll, -yCurrentScroll, (CONST RECT*) NULL,
-                (CONST RECT*) NULL, (HRGN)NULL, (PRECT)NULL, SW_SCROLLCHILDREN | SW_INVALIDATE); // SMOOTHSCROLL_FLAG fails
-            tmp = GetLastError();
-            SetViewportOrgEx(hdcScreenCompat, xCurrentScroll, yCurrentScroll, NULL);
-            SetWindowOrgEx(hdcScreenCompat, xCurrentScroll, yCurrentScroll, NULL);
-
-            si.cbSize = sizeof(si);
-            si.nPos = xCurrentScroll;
-            tmp = SetScrollInfo(hWnd, SB_HORZ, &si, TRUE);
-
-            // The vertical scrolling range is defined by
-            // (bitmap_height) - (client_height). The current vertical
-            // scroll value remains within the vertical scrolling range.
-            yCurrentScroll = 0;
-            si.cbSize = sizeof(si);
-            si.nPos = yCurrentScroll;
-            tmp = SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
-
-            if (scrShtOrBmpLoad == 3)
-                if (!SetWindowOrgEx(hdcWinCl, -xCurrentScroll, yCurrentScroll, NULL))
-                    ReportErr(L"SetWindowOrgEx failed!");
-            */
             scrShtOrBmpLoad = 2;
             // Adjust old scroll co-ords to new setting
             ResetControlPos(hWnd);
@@ -1401,7 +1376,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
             SizeControls(bmp.bmHeight, hWnd, yCurrentScroll, ((isMaximized) ? SIZE_MAXIMIZED : SIZE_RESTORED), xNewSize, yNewSize, TRUE);
  
-            // For the first load: Has to be invoked twice, even though GetDims() has it.
+            // For the first load of image: Has to be invoked twice, even though GetDims() has it.
             InitWindowDims(hWnd, xNewSize, yNewSize);
             if (!AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, 1, FALSE, TRUE))
                 ReportErr(L"AdjustImage detected a problem with the image!");
@@ -1821,8 +1796,8 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hd
         if (hBmpObj && GetObject(hBmpObj, sizeof(BITMAP), &bm)) //bm => BITMAP structure
         {
             //bm.biBitCount = 32;
-            bmpWidth = (scrShtOrBmpLoad == 2) ? bmp.bmWidth - wd : bmpWidth;
-            bmpHeight = (scrShtOrBmpLoad == 2) ? bmp.bmHeight: bmpHeight;
+            bmpWidth = (scrShtOrBmpLoad == 2) ? bmp.bmWidth - wd - RectCl().HorzNCl(hWnd) : bmpWidth;
+            bmpHeight = (scrShtOrBmpLoad == 2) ? bmp.bmHeight - RectCl().ClMenuandTitle(hWnd) : bmpHeight;
         }
         else
             ReportErr(L"AdjustImage: Unable to size bitmap!");
