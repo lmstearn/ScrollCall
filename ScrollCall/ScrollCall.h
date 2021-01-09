@@ -103,12 +103,12 @@ typedef struct tagRectCl
     }
     int HorzNCl(HWND ownHwnd)
     {
-        // Get usable client height
+        // Get usable client width
         RECT rectIn = {};
         RECT rectInCl = {};
         GetWindowRect(ownerHwnd, &rectIn);
         GetClientRect(ownerHwnd, &rectInCl);
-        // Also menu bar height
+
         int retVal = (rectIn.right - rectIn.left) - (rectInCl.right - rectInCl.left);
         return retVal;
     }

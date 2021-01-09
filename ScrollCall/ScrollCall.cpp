@@ -266,8 +266,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     static UINT bmpWidth = 0;
     static UINT bmpHeight = 0;
     static int yOldScroll; // required to update control positions
-    static int xNewSize; // updates on WM_SIZE
-    static int yNewSize;
+    static int xNewSize, xSnapSize, xSnapPos; // updates on WM_SIZE
+    static int yNewSize, ySnapSize, ySnapPos;
 
 
     //For UpDown
@@ -562,7 +562,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 else
                 {
                     // Else if called in ExitSizeMove, the controls will not always show
-                    if ((snapHORZ || snapVERT) || groupboxFlag)
+                    if ((snapHORZ || snapVERT) || (groupboxFlag && !((scrShtOrBmpLoad == 2) && isMaximized)))
                         SizeControls(bmpHeight, hWnd, yOldScroll, END_SIZE_MOVE, xNewSize, yNewSize);
 
                     if (((snapHORZ || snapVERT) || groupboxFlag || scrollChanged) && !AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, ((stretchChk) ? 2 : ((scrShtOrBmpLoad == 2) ? 1 : 0)), SIZE_MAXIMIZED))
@@ -877,19 +877,21 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     break;
     case WM_GETMINMAXINFO:
     { 
+        MINMAXINFO* mmi = (MINMAXINFO*)lParam;
         if (!maxHorzSize && !isLoading)
         {
             // Code does not listen for resolution or monitor changes
-            MINMAXINFO* mmi = (MINMAXINFO*)lParam;
             maxHorzSize = mmi->ptMaxSize.x;
             if (scrDims.cx > maxHorzSize)
                 ReportErr(L"Work width should not exceed monitor width!");
             if (scrDims.cy > mmi->ptMaxSize.y)
                 ReportErr(L"Work height should not exceed monitor height!");
-            // prevent the window from becoming too small
-            ((MINMAXINFO*)lParam)->ptMinTrackSize.x = 2 * wd;
-            ((MINMAXINFO*)lParam)->ptMinTrackSize.y = 2 * ht;
         }
+        // The structure gets continually pumped with the same values.
+        // This is dynamic, another option is to handle it manually.
+            mmi->ptMinTrackSize.x = 2 * wd;
+            mmi->ptMinTrackSize.y = 2 * ht;
+
     }
     break;
     case WM_NOTIFY:
@@ -1038,8 +1040,20 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
             snapHORZ = TRUE;
             rectTmp = RectCl().RectCl(0, hWnd, 0);
-            xNewSize = scrDims.cx;
-            MoveWindow(hWnd, 0, rectTmp.top, xNewSize, RectCl().height(1), FALSE);
+            if (rectTmp.right - rectTmp.left == scrDims.cx)
+            {
+                rectTmp.left = xSnapPos;
+                xNewSize = xSnapSize;
+            }
+            else
+            {
+                xSnapPos = rectTmp.left;
+                xSnapSize = rectTmp.right - rectTmp.left;
+                rectTmp.left = scrEdge.cx;
+                xNewSize = scrDims.cx;
+            }
+
+            MoveWindow(hWnd, rectTmp.left, rectTmp.top, xNewSize, RectCl().height(1), FALSE);
             if (!(timPaintBitmap = (int)SetTimer(hWnd,
                 IDT_PAINTBITMAP,
                 6,
@@ -1052,8 +1066,21 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             {
                 snapVERT = TRUE;
                 rectTmp = RectCl().RectCl(0, hWnd, 0);
-                yNewSize = scrDims.cy;
-                MoveWindow(hWnd, rectTmp.left, 0, RectCl().width(1), yNewSize, FALSE);
+                // Don't trust yNewSize!
+                if (rectTmp.bottom - rectTmp.top == scrDims.cy)
+                {
+                    rectTmp.top = ySnapPos;
+                    yNewSize = ySnapSize;
+                }
+                else
+                {
+                    ySnapPos = rectTmp.top;
+                    ySnapSize = rectTmp.bottom - rectTmp.top;
+                    rectTmp.top = scrEdge.cy;
+                     yNewSize = scrDims.cy;
+                }
+
+                MoveWindow(hWnd, rectTmp.left, rectTmp.top, RectCl().width(1), yNewSize, FALSE);
                 if (!(timPaintBitmap = (int)SetTimer(hWnd,
                     IDT_PAINTBITMAP,
                     6,
@@ -1460,7 +1487,6 @@ LRESULT CALLBACK staticSubClass(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
                 if (!(BOOL)FillRect(hdc, prect, (HBRUSH)(COLOR_WINDOW + 1)))
                     ReportErr(L"FillRect: Groupbox paint failed!");
 
-                FillRect(hdc, prect, (HBRUSH)(COLOR_WINDOW + 1));
                 EndPaint(hWnd, &ps);
                 //fScroll = savefScroll;
             }
@@ -1773,9 +1799,9 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hd
     // The names oldWdIn & oldWdOut may not be the best descriptors,-
     // they are used in mousedown screenshot drag-in and drag-out visuals,
     // all because the screenshot is stretched inward to fit in with the controls
-    static int newPicWd = 0,oldWdIn = 0, oldWdOut = 0, oldCurFmWd = 0, defCurFmWd = 0, sizingChangeDir = 0;
+    static int newPicWd = 0, oldWdIn = 0, oldWdOut = wd, oldCurFmWd = 0, defCurFmWd = 0, sizingChangeDir = 0;
     static RECT imgRect = {};
-    static BOOL baseDCBltd = FALSE;
+    static BOOL baseDCBltd = FALSE, firstDragAfternewPic = FALSE;
     
     BOOL retVal = FALSE;
     //if (timPaintDelay)
@@ -1826,6 +1852,7 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hd
         newPicWd = wd;
 
         defCurFmWd = oldCurFmWd = curFmWd;
+        firstDragAfternewPic = TRUE;
     }
 
     if (scrShtOrBmpLoad == 2)
@@ -1836,9 +1863,11 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hd
             //SetBkColor(hdcWinCl, COLOR_WINDOW + 1); // causes flickering in the scrolling
             if (!(retVal = (BOOL)FillRect(hdcScreenCompat, &imgRect, (HBRUSH)(COLOR_WINDOW + 1))))
                 ReportErr(L"FillRect: Paint failed!");
-            if (!(retVal = (BOOL)FillRect(hdcWinCl, &imgRect, (HBRUSH)(COLOR_WINDOW + 1))))
-                ReportErr(L"FillRect: Paint failed!");
-
+            if (!(groupboxFlag && (minMaxRestore == SIZE_MAXIMIZED)))
+            {
+                if (!(retVal = (BOOL)FillRect(hdcWinCl, &imgRect, (HBRUSH)(COLOR_WINDOW + 1))))
+                    ReportErr(L"FillRect: Paint failed!");
+            }
             //HBITMAP hBmp = CreateCompatibleBitmap(hdcWinCl, bmpWidth + wd, bmpHeight);
             // Going this way can increase ScrollCall's memory usage considerably
 
@@ -1868,45 +1897,54 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hd
 
             if (minMaxRestore == SIZE_RESTORED)
             {
-                if (curFmWd <= oldCurFmWd) // reducing width: this avoids the image "jump" to the right
+                if (curFmWd == oldCurFmWd) // reducing width: this avoids the image "jump" to the right
                 {
                     if (baseDCBltd)
                     {
-                        sizingChangeDir = 1;
-                        baseDCBltd = FALSE;
+                        if (firstDragAfternewPic)
+                        {
+                            firstDragAfternewPic = FALSE;
+                            oldWdOut = wd;
+                            retVal = 1;
+                        }
+                        else
+                            retVal = (BOOL)BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcScreenCompat, wd, 0, SRCCOPY);
                     }
-                    if (sizingChangeDir == 2)
-                        retVal = (BOOL)BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcScreenCompat, newPicWd, 0, SRCCOPY);
-                    else
-                        retVal = (BOOL)BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcScreenCompat, oldWdOut, 0, SRCCOPY);
-
+                    else // Avoids jitter on the diagonal drag
+                        retVal = 1;
                 }
                 else
                 {
-                    if (baseDCBltd)
+                    if (curFmWd < oldCurFmWd)
                     {
-                        sizingChangeDir = 2;
-                        baseDCBltd = FALSE;
-                    }
-                    rectTmp = imgRect;
-                    (xCurrentScroll > wd) ? rectTmp.right = 0 : rectTmp.right = wd - xCurrentScroll;
-                    if (!(retVal = (BOOL)FillRect(hdcWinCl, &rectTmp, (HBRUSH)(COLOR_WINDOW + 1))))
-                        ReportErr(L"FillRect: Paint failed!");
-                    if (sizingChangeDir == 1)
-                    {
-                        if (curFmWd < defCurFmWd)
+                        if (baseDCBltd)
                         {
-                            baseDCBltd = TRUE;
-                            retVal = StretchBlt(hdcScreenCompat, newPicWd, 0, bmpWidth, bmpHeight, hdcScreen, 0, 0, tmp + wd, bmpHeight, SRCCOPY);
-                            retVal = (BOOL)BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcScreenCompat, newPicWd, 0, SRCCOPY);
+                            sizingChangeDir = 1;
+                            baseDCBltd = FALSE;
                         }
-                        else
+                        if (sizingChangeDir == 2)
                             retVal = (BOOL)BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcScreenCompat, newPicWd, 0, SRCCOPY);
+                        else
+                            retVal = (BOOL)BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcScreenCompat, oldWdOut, 0, SRCCOPY);
                     }
                     else
-                        retVal = (BOOL)BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcScreenCompat, newPicWd, 0, SRCCOPY);
+                    {
+                        if (baseDCBltd)
+                        {
+                            sizingChangeDir = 2;
+                            baseDCBltd = FALSE;
+                        }
+                        rectTmp = imgRect;
+                        (xCurrentScroll > wd) ? rectTmp.right = 0 : rectTmp.right = wd - xCurrentScroll;
+                        if (!(retVal = (BOOL)FillRect(hdcWinCl, &rectTmp, (HBRUSH)(COLOR_WINDOW + 1))))
+                            ReportErr(L"FillRect: Paint failed!");
+                        if (sizingChangeDir == 1)
+                            retVal = (BOOL)BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcScreenCompat, oldWdIn, 0, SRCCOPY);
+                        else
+                            retVal = (BOOL)BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcScreenCompat, newPicWd, 0, SRCCOPY);
 
-                    oldWdOut = wd;
+                        oldWdOut = wd;
+                    }
                 }
                 oldCurFmWd = curFmWd;
             }
@@ -2853,8 +2891,8 @@ int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xN
                         if (IsThemeActive()) //SetWindowTheme reveals the hidden HORZ scrollbar if called twice.
                             setWindowThemeRunFlag = (SetWindowTheme(hWnd, NULL, _T("Scrollbar")) == S_OK);
                         // For some reason yet to be determined, SetWindowTheme
-                        // also removes the painted bitmap on SIZE_MAXIMIZED
-                        // thus a timer is required to repaint it.
+                        // also removes the painted bitmap (or the low right  section of)
+                        //  on SIZE_MAXIMIZED thus a timer is required to repaint it.
                         // Curious, as after this function returns, WM_PAINT is actually
                         // sent by the system to repaint, with no effect!
                         // Also, SetWindowPos in SizeControls occasionally blanks
