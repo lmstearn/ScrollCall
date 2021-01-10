@@ -227,6 +227,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 //
 LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+// note UxTheme messages WM_UAH*
 
     HDC hDC; // for WM_PAINT
     
@@ -472,7 +473,29 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     }
     break;
     // This not used
+    case WM_GETMINMAXINFO:
+    {
+        MINMAXINFO* mmi = reinterpret_cast<MINMAXINFO*>(lParam);
+        static POINT defDims;
+        if (!maxHorzSize && !isLoading)
+        {
+            // Code does not listen for resolution or monitor changes
+            maxHorzSize = mmi->ptMaxSize.x;
+            if (scrDims.cx > maxHorzSize)
+                ReportErr(L"Work width should not exceed monitor width!");
+            if (scrDims.cy > mmi->ptMaxSize.y)
+                ReportErr(L"Work height should not exceed monitor height!");
+            defDims.x = 2 * wd;
+            defDims.y = 2 * ht;
+        }
+        // The structure gets continually pumped with the same values.
+        // This is dynamic, another option is to handle it manually.
+        mmi->ptMinTrackSize = defDims;
+        return (LRESULT)FALSE;
+    }
+    break;
     case WM_GETDLGCODE:
+    {
         if (lParam)
         {
             MSG* pMsg = reinterpret_cast<MSG*>(lParam);
@@ -481,7 +504,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 return DLGC_WANTMESSAGE;
             }
         }
-        break;
+    }
+    break;
     case WM_SIZING:
     {
         isSizing = TRUE;
@@ -869,29 +893,10 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     break;
     case WM_PRINTCLIENT:
     {
+ 
         if (scrShtOrBmpLoad == 1)
-        {
             SendMessageW(hWnd, WM_PAINT, wParam, lParam);
-        }
-    }
-    break;
-    case WM_GETMINMAXINFO:
-    { 
-        MINMAXINFO* mmi = (MINMAXINFO*)lParam;
-        if (!maxHorzSize && !isLoading)
-        {
-            // Code does not listen for resolution or monitor changes
-            maxHorzSize = mmi->ptMaxSize.x;
-            if (scrDims.cx > maxHorzSize)
-                ReportErr(L"Work width should not exceed monitor width!");
-            if (scrDims.cy > mmi->ptMaxSize.y)
-                ReportErr(L"Work height should not exceed monitor height!");
-        }
-        // The structure gets continually pumped with the same values.
-        // This is dynamic, another option is to handle it manually.
-            mmi->ptMinTrackSize.x = 2 * wd;
-            mmi->ptMinTrackSize.y = 2 * ht;
-
+        return 0;
     }
     break;
     case WM_NOTIFY:

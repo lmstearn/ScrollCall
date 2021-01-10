@@ -72,8 +72,6 @@ private:
     ULONG_PTR token_;
 }gdiplusInit;
 
-
-
 // for dimensions
 typedef struct tagRectCl
 {
