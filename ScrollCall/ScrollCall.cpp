@@ -585,11 +585,16 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 }
                 else
                 {
+                    // If isMaximized allowed, all the window shows up blank
+                    // as the groupbox (and controls) is painted after the snapshot.
+                    // As it is, the paint is "messed up."
+                    if (groupboxFlag && !isMaximized)
+                        InvalidateRect(hWnd, NULL, TRUE);
                     // Else if called in ExitSizeMove, the controls will not always show
                     if ((snapHORZ || snapVERT) || (groupboxFlag && !((scrShtOrBmpLoad == 2) && isMaximized)))
                         SizeControls(bmpHeight, hWnd, yOldScroll, END_SIZE_MOVE, xNewSize, yNewSize);
 
-                    if (((snapHORZ || snapVERT) || groupboxFlag || scrollChanged) && !AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, ((stretchChk) ? 2 : ((scrShtOrBmpLoad == 2) ? 1 : 0)), SIZE_MAXIMIZED))
+                    if (((snapHORZ || snapVERT) || groupboxFlag || scrollChanged) && !AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, ((stretchChk) ? 2 : ((scrShtOrBmpLoad == 2) ? 1 : 0)), SIZE_MAXIMIZED, TRUE))
                         ReportErr(L"AdjustImage detected a problem with the image!");
                     snapHORZ = FALSE;
                     snapVERT = FALSE;
