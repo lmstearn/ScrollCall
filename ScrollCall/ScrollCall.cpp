@@ -91,7 +91,7 @@ BOOL IsAllFormInWindow(HWND hWnd, BOOL toolTipOn, BOOL isMaximized = FALSE);
 HWND UpDownCreate(HWND hWndParent, BOOL ctrlType = 0);
 BOOL SetDragFullWindow(BOOL dragFullWindow = FALSE, BOOL restoreDef = FALSE);
 void ResetControlPos(HWND hWnd, BOOL setToEdge = FALSE);
-void InitWindowDims(HWND hWnd, int& xNewSize, int& yNewSize);
+void InitWindowDims(HWND hWnd, int scrollStat, int& xNewSize, int& yNewSize, UINT bmpWidth = 0, UINT bmpHeight = 0);
 void ChangeRedrawStyle(HWND hWnd, BOOL removeStyle = FALSE);
 wchar_t* ReallocateMem(wchar_t* aSource, int Size);
 //This space for "Functions for later use"
@@ -236,7 +236,6 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
     // For Aerosnap
     int winArrangeParms[9] = {};
-    static BOOL snapSizingEnabled = FALSE;
     static BOOL snapHORZ = FALSE;
     static BOOL snapVERT = FALSE;
 
@@ -307,7 +306,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
         // Init window dimensions
         GetDims(hWnd);
-        InitWindowDims(hWnd, xNewSize, yNewSize);
+        InitWindowDims(hWnd, scrollStat, xNewSize, yNewSize);
 
         // Init controls: all control dimensions based on wd & ht
         if (groupboxFlag)
@@ -436,12 +435,6 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         else
             ReportErr(L"SPI_GETWHEELSCROLLLINES: Cannot get info.");
 
-
-        // Aerosnap sizing turned on?
-        if (SystemParametersInfoW(SPI_GETWINARRANGING, 0, (PVOID) &winArrangeParms, 0))
-            snapSizingEnabled = winArrangeParms[0]; // Not exactly in the current documentation
-        else
-            ReportErr(L"SPI_GETWINARRANGING: Cannot get info.");
 
         // Subclass groupbox
         if (groupboxFlag)
@@ -1026,64 +1019,73 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     }
     break;
     case WM_NCLBUTTONDBLCLK:
-        // The posted notification is too slow,
-        // so implement our own aerosnap.
+        // The posted notification of the snap is too slow,
+        // so implement our own "boiled down" aerosnap.
     {
-
-        if (wParam == HTLEFT || wParam == HTRIGHT)
-        {
-            snapHORZ = TRUE;
-            rectTmp = RectCl().RectCl(0, hWnd, 0);
-            if (rectTmp.right - rectTmp.left == scrDims.cx)
-            {
-                rectTmp.left = xSnapPos;
-                xNewSize = xSnapSize;
-            }
-            else
-            {
-                xSnapPos = rectTmp.left;
-                xSnapSize = rectTmp.right - rectTmp.left;
-                rectTmp.left = scrEdge.cx;
-                xNewSize = scrDims.cx;
-            }
-
-            MoveWindow(hWnd, rectTmp.left, rectTmp.top, xNewSize, RectCl().height(1), FALSE);
-            if (!(timPaintBitmap = (int)SetTimer(hWnd,
-                IDT_PAINTBITMAP,
-                6,
-                (TIMERPROC)NULL)))
-                ReportErr(L"No timer is available.");
-        }
+        // Aerosnap sizing turned on?
+        BOOL snapSizingEnabled = FALSE;
+        if (SystemParametersInfoW(SPI_GETWINARRANGING, 0, (PVOID)&winArrangeParms, 0))
+            snapSizingEnabled = winArrangeParms[0]; // Not exactly in the current documentation
         else
+            ReportErr(L"SPI_GETWINARRANGING: Cannot get info.");
+
+        if (snapSizingEnabled)
         {
-            if (wParam == HTBOTTOM)
+            if (wParam == HTLEFT || wParam == HTRIGHT)
             {
-                snapVERT = TRUE;
+                snapHORZ = TRUE;
                 rectTmp = RectCl().RectCl(0, hWnd, 0);
-                // Don't trust yNewSize!
-                if (rectTmp.bottom - rectTmp.top == scrDims.cy)
+                if (rectTmp.right - rectTmp.left == scrDims.cx)
                 {
-                    rectTmp.top = ySnapPos;
-                    yNewSize = ySnapSize;
+                    rectTmp.left = xSnapPos;
+                    xNewSize = xSnapSize;
                 }
                 else
                 {
-                    ySnapPos = rectTmp.top;
-                    ySnapSize = rectTmp.bottom - rectTmp.top;
-                    rectTmp.top = scrEdge.cy;
-                     yNewSize = scrDims.cy;
+                    xSnapPos = rectTmp.left;
+                    xSnapSize = rectTmp.right - rectTmp.left;
+                    rectTmp.left = scrEdge.cx;
+                    xNewSize = scrDims.cx;
                 }
 
-                MoveWindow(hWnd, rectTmp.left, rectTmp.top, RectCl().width(1), yNewSize, FALSE);
+                MoveWindow(hWnd, rectTmp.left, rectTmp.top, xNewSize, RectCl().height(1), FALSE);
                 if (!(timPaintBitmap = (int)SetTimer(hWnd,
                     IDT_PAINTBITMAP,
                     6,
                     (TIMERPROC)NULL)))
                     ReportErr(L"No timer is available.");
             }
+            else
+            {
+                if (wParam == HTBOTTOM)
+                {
+                    snapVERT = TRUE;
+                    rectTmp = RectCl().RectCl(0, hWnd, 0);
+                    // Don't trust yNewSize!
+                    if (rectTmp.bottom - rectTmp.top == scrDims.cy)
+                    {
+                        rectTmp.top = ySnapPos;
+                        yNewSize = ySnapSize;
+                    }
+                    else
+                    {
+                        ySnapPos = rectTmp.top;
+                        ySnapSize = rectTmp.bottom - rectTmp.top;
+                        rectTmp.top = scrEdge.cy;
+                        yNewSize = scrDims.cy;
+                    }
 
+                    MoveWindow(hWnd, rectTmp.left, rectTmp.top, RectCl().width(1), yNewSize, FALSE);
+                    if (!(timPaintBitmap = (int)SetTimer(hWnd,
+                        IDT_PAINTBITMAP,
+                        6,
+                        (TIMERPROC)NULL)))
+                        ReportErr(L"No timer is available.");
+                }
+
+            }
         }
-
+        return (LRESULT)FALSE;
     }
     break;
     case WM_COMMAND: // WM_PARENTNOTIFY if hWndGroupBox is parent to controls (not the case here)
@@ -1225,23 +1227,23 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                         szFile[0] = L'*'; // Set to deal with WM_SIZE issues
 
                         // Get bmpWidth, bmpHeight only
-                        AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, 0, 0, 1, FALSE, TRUE);
+                        AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, 0, 0, 1, 0, TRUE);
 
-
-                        if (xCurrentScroll || yCurrentScroll)
+                        if (scrShtOrBmpLoad != 1 && (xCurrentScroll || yCurrentScroll))
                         {
                             //SetWindowOrgEx(hdcWinCl, xCurrentScroll, yCurrentScroll, NULL);
                             ResetControlPos(hWnd);
                         }
 
-                        // Flag new pic
-                        scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE);
                         yOldScroll = yCurrentScroll;
-                        SizeControls(bmpHeight, hWnd, yOldScroll, ((isMaximized) ? SIZE_MAXIMIZED : SIZE_RESTORED), xNewSize, yNewSize, TRUE);
+                        SizeControls(bmpHeight, hWnd, yCurrentScroll, ((isMaximized) ? SIZE_MAXIMIZED : SIZE_RESTORED), xNewSize, yNewSize, TRUE);
 
                         // Update size- essential if just after loading
-                        InitWindowDims(hWnd, xNewSize, yNewSize);
-                        if (!AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, 1, FALSE, TRUE))
+                        InitWindowDims(hWnd, scrollStat, xNewSize, yNewSize, bmpWidth, bmpHeight);
+                        // Flag new pic
+                        scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE);
+
+                        if (!AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, 1, 0, TRUE))
                             ReportErr(L"AdjustImage detected a problem with the image!");
 
 
@@ -1334,7 +1336,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 if (xCurrentScroll || yCurrentScroll)
                 {
                     //Controls must be returned to 0
-                    if (scrShtOrBmpLoad == 2)
+                    if (scrShtOrBmpLoad > 1)
                     {
                         xCurrentScroll = 0;
                         yCurrentScroll = 0;
@@ -1348,7 +1350,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 SizeControls(bmpHeight, hWnd, yOldScroll, ((isMaximized) ? SIZE_MAXIMIZED : END_SIZE_MOVE), xNewSize, yNewSize, TRUE);
                 // can exclude RectCl().ClMenuandTitle(hWnd)
 
-                InitWindowDims(hWnd, xNewSize, yNewSize);
+                InitWindowDims(hWnd, scrollStat, xNewSize, yNewSize, bmpWidth, bmpHeight);
 
                 //BitBlt to wd from hdcMem
                 if (!(BOOL)BitBlt(hdcMemScroll, wd, 0, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
@@ -1392,18 +1394,21 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         if (hdcWinCl = GetDCEx(hWnd, (HRGN)NULL, DCX_CACHE | DCX_CLIPCHILDREN))
         {
 
-            scrShtOrBmpLoad = 2;
             // Adjust old scroll co-ords to new setting
+            if (scrShtOrBmpLoad != 1)
             ResetControlPos(hWnd);
 
-            scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmp.bmWidth - wd, bmp.bmHeight, TRUE);
+            scrShtOrBmpLoad = 2;
             yOldScroll = yCurrentScroll;
 
             SizeControls(bmp.bmHeight, hWnd, yCurrentScroll, ((isMaximized) ? SIZE_MAXIMIZED : SIZE_RESTORED), xNewSize, yNewSize, TRUE);
  
             // For the first load of image: Has to be invoked twice, even though GetDims() has it.
-            InitWindowDims(hWnd, xNewSize, yNewSize);
-            if (!AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, 1, FALSE, TRUE))
+            InitWindowDims(hWnd, scrollStat, xNewSize, yNewSize, bmp.bmWidth - wd, bmp.bmHeight);
+
+            scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmp.bmWidth - wd, bmp.bmHeight, TRUE);
+
+            if (!AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, 1, 0, TRUE))
                 ReportErr(L"AdjustImage detected a problem with the image!");
 
             fScroll = FALSE;
@@ -1744,7 +1749,7 @@ void PrintTheWindow(HWND hWnd, HBITMAP hBitmap, HBITMAP hBitmapScroll)
 {
     HDC hDCMem = CreateCompatibleDC(NULL);
     HDC hDCMemScroll = CreateCompatibleDC(NULL);
-    //HGDIOBJ hOld = GetCurrentObject(hDCMem, OBJ_BITMAP); //hBmpObj =>handle to bitmap (HBITMAP)
+
     if (hDCMem && hDCMemScroll)
     {
         SelectObject(hDCMem, hBitmap);
@@ -1822,8 +1827,8 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hd
         if (hBmpObj && GetObject(hBmpObj, sizeof(BITMAP), &bm)) //bm => BITMAP structure
         {
             //bm.biBitCount = 32;
-            bmpWidth = (scrShtOrBmpLoad == 2) ? bmp.bmWidth - wd : bmpWidth; //  - RectCl().HorzNCl(hWnd)
-            bmpHeight = (scrShtOrBmpLoad == 2) ? bmp.bmHeight : bmpHeight; // - RectCl().ClMenuandTitle(hWnd)
+            bmpWidth = (scrShtOrBmpLoad == 2) ? bmp.bmWidth - wd : bmpWidth;
+            bmpHeight = (scrShtOrBmpLoad == 2) ? bmp.bmHeight : bmpHeight;
         }
         else
             ReportErr(L"AdjustImage: Unable to size bitmap!");
@@ -2126,7 +2131,7 @@ void GetDims(HWND hWnd, int resizeType, int oldResizeType)
             //For button
             if (!isLoading)
             {
-                InitWindowDims(hWnd, xNewSize, yNewSize);
+                InitWindowDims(hWnd, 3, xNewSize, yNewSize);
                 wd = (int)(xNewSize) / CTRL_PROPORTION_OF_FORM;
                 ht = (int)(yNewSize) / CTRL_PROPORTION_OF_FORM;
             }
@@ -2602,7 +2607,6 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
     if (newPic)
     {
         rectOpt.top -= yCurrentScroll;
-        rectOpt.bottom -= yCurrentScroll;
     }
     else
     {
@@ -3260,18 +3264,45 @@ void ResetControlPos(HWND hWnd, BOOL setToEdge)
         rectTmp = RectCl().RectCl(ctrlArray[tmp], hWnd, 2);
         if (setToEdge) // For the printed DC
             rectTmp.left = 0; 
-        SetWindowPos(ctrlArray[tmp], NULL, rectTmp.left + xCurrentScroll, rectTmp.top + yCurrentScroll, rectTmp.right - rectTmp.left, rectTmp.bottom - rectTmp.top, NULL);
+        SetWindowPos(ctrlArray[tmp], NULL, rectTmp.left + xCurrentScroll, rectTmp.top + yCurrentScroll, rectTmp.right - rectTmp.left, rectTmp.bottom - rectTmp.top, SWP_NOSENDCHANGING);
     }
 }
-void InitWindowDims(HWND hWnd, int& xNewSize, int& yNewSize)
+void InitWindowDims(HWND hWnd, int scrollStat, int& xNewSize, int& yNewSize, UINT bmpWidth, UINT bmpHeight)
 {
     // RectCl can always be initialised in WM_CREATE, however, the first notification
     // of WM_SIZE after WM_CREATE produces "wrong" values of xNewSize and yNewSize.
     // It's not until the scrollbars are initialised this will provide the required values.
     rectTmp = RectCl().RectCl(0, hWnd, 0);
     // RectCl().width(0) is factored for wd etc.
-    xNewSize = rectTmp.right - rectTmp.left - RectCl().HorzNCl(hWnd);
-    yNewSize = rectTmp.bottom - rectTmp.top;
+    if (bmpWidth)
+    {
+        // These conditions are duplicated in ScrollInfo
+        if (bmpWidth > xNewSize && bmpHeight > yNewSize)
+            scrollStat = 3;
+        else
+        {
+            if (bmpWidth > xNewSize)
+                scrollStat = 1;
+            if (bmpHeight > yNewSize)
+                scrollStat = 2;
+        }
+    }
+
+    if (scrollStat == 3)
+    {
+        xNewSize = rectTmp.right - rectTmp.left - RectCl().HorzNCl(hWnd) - GetSystemMetrics(SM_CXVSCROLL);
+        yNewSize = rectTmp.bottom - rectTmp.top - RectCl().ClMenuandTitle(hWnd) - GetSystemMetrics(SM_CXHSCROLL);
+    }
+    else
+    {
+        if (scrollStat == 1)
+            xNewSize = rectTmp.right - rectTmp.left - RectCl().HorzNCl(hWnd);
+        else
+        {
+            if (scrollStat == 2)
+                yNewSize = rectTmp.bottom - rectTmp.top - RectCl().ClMenuandTitle(hWnd);
+        }
+    }
 }
 // https://docs.microsoft.com/en-us/cpp/cpp/lambda-expressions-in-cpp
 auto conditionalOp = [](bool useOr, auto a, auto b)
