@@ -919,9 +919,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         fSize = FALSE;
         if (scrShtOrBmpLoad == 1)
         {
-            RECT rectControls = {0};
-            rectControls.left = wd;
-            if (!ScrollDC(hdcWinCl, -xDelta, 0, &rectControls, (CONST RECT*) NULL, (HRGN)NULL, (RECT*) NULL))
+            RECT rectControls = {wd - xCurrentScroll, -yCurrentScroll, xNewSize - xCurrentScroll, yNewSize - yCurrentScroll };
+            if (!ScrollDC(hdcWinCl, -xDelta, 0, (CONST RECT*) &rectControls, (CONST RECT*) &rectControls, (HRGN)NULL, (RECT*) &rectControls))
                 ReportErr(L"HORZ_SCROLL: ScrollWindow Failed!");
             // WM_PAINT not automatically sent
             InvalidateRect(hWnd, NULL, FALSE);
@@ -969,10 +968,10 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             fSize = FALSE;
             if (scrShtOrBmpLoad == 1)
             {
-                RECT rectControls = { 0 };
-                rectControls.left = wd;
-                if (!ScrollDC(hdcWinCl, 0, -yDelta, &rectControls, (CONST RECT*) NULL, (HRGN)NULL, (RECT*)NULL))
-                    ReportErr(L"VERT_SCROLL: ScrollWindow Failed!");
+             RECT rectControls = {wd - xCurrentScroll, -yCurrentScroll, xNewSize - xCurrentScroll, yNewSize - yCurrentScroll };
+
+            if (!ScrollDC(hdcWinCl, 0, -yDelta, (CONST RECT*) &rectControls, (CONST RECT*) &rectControls, (HRGN)NULL, (RECT*)NULL))
+                ReportErr(L"VERT_SCROLL: ScrollWindow Failed!");
 
                 InvalidateRect(hWnd, NULL, FALSE);
             }
@@ -1336,17 +1335,15 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 if (xCurrentScroll || yCurrentScroll)
                 {
                     //Controls must be returned to 0
-                    if (scrShtOrBmpLoad > 1)
-                    {
-                        xCurrentScroll = 0;
-                        yCurrentScroll = 0;
-                    }
+                    xCurrentScroll = 0;
+                    yCurrentScroll = 0;
 
                     //SetWindowOrgEx(hdcWinCl, xCurrentScroll, yCurrentScroll, NULL);
                     ResetControlPos(hWnd);
                 }
-                scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE);
                 yOldScroll = yCurrentScroll;
+                scrollStat = ScrollInfo(hWnd, 0, 0, 0, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE);
+
                 SizeControls(bmpHeight, hWnd, yOldScroll, ((isMaximized) ? SIZE_MAXIMIZED : END_SIZE_MOVE), xNewSize, yNewSize, TRUE);
                 // can exclude RectCl().ClMenuandTitle(hWnd)
 
@@ -2367,6 +2364,9 @@ void SizeControls(int bmpHeight, HWND hWnd, int &yOldScroll, int resizeType, int
         btnHt = startSizeBtnBottom - startSizeBtnTop;
         btnWd = startSizeBtnRight - startSizeBtnLeft;
 
+
+        if (startFmHt == defFmHt && curFmHt < startFmHt)
+            curFmHt = startFmHt;
         if (startFmHt != curFmHt)
         {
             rectBtn.top = startSizeBtnTop + yScrollBefSizing - yCurrentScroll;
@@ -2398,7 +2398,11 @@ void SizeControls(int bmpHeight, HWND hWnd, int &yOldScroll, int resizeType, int
                 oldLblTop = rectLbl.top;
                 oldUpDnTop = rectUpDn.top;
             }
-            startSizeBtnTop = -yCurrentScroll;
+            if (scrShtOrBmpLoad == 1)
+                rectBtn.top = startSizeBtnTop = 0;
+            else
+                startSizeBtnTop = -yCurrentScroll;
+
             startSizeBtnBottom = startSizeBtnTop + (rectBtn.bottom - rectBtn.top);
             startSizeOpt1Top = ((float)curFmHt / (float)defFmHt) * defOpt1Top - yCurrentScroll;
             // If height of form was small, controls will not move
@@ -2422,11 +2426,16 @@ void SizeControls(int bmpHeight, HWND hWnd, int &yOldScroll, int resizeType, int
             // buddy position adjusted by system
 
             if (scrShtOrBmpLoad == 1)  // Buttons not moved
-                startSizeBtnLeft = 0;
+            {
+                startSizeBtnLeft = rectBtn.left = 0;
+                startSizeBtnRight = rectBtn.left + wd;
+            }
             else
+            {
                 startSizeBtnLeft = rectBtn.left;
-
-            startSizeBtnRight = rectBtn.right;
+                startSizeBtnRight = rectBtn.right;
+            }
+            
 
 
             // Establish absolute minimum size of controls
@@ -2502,7 +2511,7 @@ void SizeControls(int bmpHeight, HWND hWnd, int &yOldScroll, int resizeType, int
                 else
                 {
                     if (scrShtOrBmpLoad == 1)
-                    SetWindowPos(hWndButton, NULL, 0, -yCurrentScroll,
+                    SetWindowPos(hWndButton, NULL, 0, 0,
                         newWd, newHt, NULL);
                     else
                     SetWindowPos(hWndButton, NULL, -xCurrentScroll, -yCurrentScroll,
