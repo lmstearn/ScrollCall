@@ -230,8 +230,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
     HDC hDCPaint; // for WM_PAINT
 
-    // for WM_PRINTCLIENT
-    static HDC hDCPrint = 0; // for WM_PRINTCLIENT
+    // static HDC hDCPrint = 0; // for WM_PRINTCLIENT
 
 
     // For Aerosnap
@@ -919,12 +918,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         fSize = FALSE;
         if (scrShtOrBmpLoad == 1)
         {
-            RECT rectControls = {wd - xCurrentScroll, -yCurrentScroll, xNewSize - xCurrentScroll, yNewSize - yCurrentScroll };
+            RECT rectControls = {wd + xCurrentScroll, yCurrentScroll, xNewSize + xCurrentScroll, yNewSize + yCurrentScroll};
             if (!ScrollDC(hdcWinCl, -xDelta, 0, (CONST RECT*) &rectControls, (CONST RECT*) &rectControls, (HRGN)NULL, (RECT*) &rectControls))
                 ReportErr(L"HORZ_SCROLL: ScrollWindow Failed!");
             // WM_PAINT not automatically sent
-            InvalidateRect(hWnd, NULL, FALSE);
-
+            RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE);
+            //InvalidateRect(hWnd, NULL, FALSE);
         }
         else
         {
@@ -968,12 +967,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             fSize = FALSE;
             if (scrShtOrBmpLoad == 1)
             {
-             RECT rectControls = {wd - xCurrentScroll, -yCurrentScroll, xNewSize - xCurrentScroll, yNewSize - yCurrentScroll };
+             RECT rectControls = {wd + xCurrentScroll, yCurrentScroll, xNewSize + xCurrentScroll, yNewSize + yCurrentScroll};
 
             if (!ScrollDC(hdcWinCl, 0, -yDelta, (CONST RECT*) &rectControls, (CONST RECT*) &rectControls, (HRGN)NULL, (RECT*)NULL))
                 ReportErr(L"VERT_SCROLL: ScrollWindow Failed!");
 
-                InvalidateRect(hWnd, NULL, FALSE);
+            RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE);
             }
             else
             {
@@ -2049,26 +2048,43 @@ void PaintPrinted(PAINTSTRUCT *ps, HDC hdcWinCl, HDC hdcMem, int xNewSize, int y
 
     if (ps)
     {
+        //if (scrShtOrBmpLoad == 1) return;
         rectTmp = ps->rcPaint;
-        if (!BitBlt(ps->hdc,
-            //prect->left + (isScreenshot ? (fScroll == 1 ? 0 : wd) : (((fScroll == 1) && (xCurrentScroll > wd)) ? 0 : wd)),
-            rectTmp.left,
-            rectTmp.top,
-            (rectTmp.right - rectTmp.left),
-            (rectTmp.bottom - rectTmp.top),
-            hdcMem,
-            rectTmp.left + xCurrentScroll,
-            rectTmp.top + yCurrentScroll,
-            SRCCOPY))
-            ReportErr(L"Bad BitBlt from hdcMem!");
-
+        if (scrShtOrBmpLoad == 1)
+        {
+            if (!BitBlt(ps->hdc,
+                //prect->left + (isScreenshot ? (fScroll == 1 ? 0 : wd) : (((fScroll == 1) && (xCurrentScroll > wd)) ? 0 : wd)),
+                wd,
+                rectTmp.top,
+                xNewSize,
+                (rectTmp.bottom - rectTmp.top),
+                hdcMem,
+                wd + xCurrentScroll,
+                yCurrentScroll,
+                SRCCOPY))
+                ReportErr(L"Bad BitBlt from hdcMem!");
+        }
+        else
+        {
+            if (!BitBlt(ps->hdc,
+                //prect->left + (isScreenshot ? (fScroll == 1 ? 0 : wd) : (((fScroll == 1) && (xCurrentScroll > wd)) ? 0 : wd)),
+                rectTmp.left,
+                rectTmp.top,
+                (rectTmp.right - rectTmp.left),
+                (rectTmp.bottom - rectTmp.top),
+                hdcMem,
+                rectTmp.left + xCurrentScroll,
+                rectTmp.top + yCurrentScroll,
+                SRCCOPY))
+                ReportErr(L"Bad BitBlt from hdcMem!");
+        }
         if (!groupboxFlag && !printCl)
         {
             // Paint sections
             // consider test like RectCl().width(1) - prect->left > wd
             if (!rectTmp.left)
             {
-                rectTmp.right = rectTmp.left + wd - xCurrentScroll;
+                rectTmp.right = wd - ((scrShtOrBmpLoad == 1) ? 0: xCurrentScroll);
                 if (!(tmp = (BOOL)FillRect(ps->hdc, &rectTmp, (HBRUSH)(COLOR_WINDOW + 1))))
                     ReportErr(L"FillRect for PaintPrinted failed!");
             }
@@ -2501,21 +2517,21 @@ void SizeControls(int bmpHeight, HWND hWnd, int &yOldScroll, int resizeType, int
             if (resizeType == SIZE_MAXIMIZED)
             {
                 SetWindowPos(hWndButton, NULL, -xCurrentScroll, -yCurrentScroll,
-                    newWd, newHt, NULL);
+                    newWd, newHt, SWP_NOSENDCHANGING);
             }
             else
             {
                 if (oldResizeType == SIZE_MAXIMIZED)
                     SetWindowPos(hWndButton, NULL, rectBtn.left, -yCurrentScroll,
-                        newWd, newHt, NULL);
+                        newWd, newHt, SWP_NOSENDCHANGING);
                 else
                 {
                     if (scrShtOrBmpLoad == 1)
                     SetWindowPos(hWndButton, NULL, 0, 0,
-                        newWd, newHt, NULL);
+                        newWd, newHt, SWP_NOSENDCHANGING);
                     else
                     SetWindowPos(hWndButton, NULL, -xCurrentScroll, -yCurrentScroll,
-                        newWd, newHt, NULL);
+                        newWd, newHt, SWP_NOSENDCHANGING);
                     if (!isLoading && isSizing)
                     {
                         // Useless linear method of propagating size increments
@@ -2573,7 +2589,7 @@ void SizeControls(int bmpHeight, HWND hWnd, int &yOldScroll, int resizeType, int
         {
             // Too much flicker due to the repaint in sizing
             SetWindowPos(hWndGroupBox, NULL, -xCurrentScroll, -yCurrentScroll,
-                newWd, max(curFmHt, bmpHeight), SWP_SHOWWINDOW);
+                newWd, max(curFmHt, bmpHeight), SWP_NOSENDCHANGING || SWP_SHOWWINDOW);
         }
     }
     else // Following redundant on !isLoading as btnWd is always > minWd
@@ -2581,18 +2597,18 @@ void SizeControls(int bmpHeight, HWND hWnd, int &yOldScroll, int resizeType, int
         if (btnWd < minWd)
         {
             if (resizeType == END_SIZE_MOVE)
-                SetWindowPos(hWndButton, NULL, rectBtn.left, rectBtn.top, minWd, rectBtn.bottom - rectBtn.top, NULL);
+                SetWindowPos(hWndButton, NULL, rectBtn.left, rectBtn.top, minWd, rectBtn.bottom - rectBtn.top, SWP_NOSENDCHANGING);
             else
                 SetWindowPos(hWndButton, NULL, scaleX * rectBtn.left + xCurrentScroll, scaleY * rectBtn.top + yCurrentScroll,
-                    minWd, rectBtn.bottom - rectBtn.top, NULL);
+                    minWd, rectBtn.bottom - rectBtn.top, SWP_NOSENDCHANGING);
         }
         if (btnHt < minHt)
         {
             if (resizeType == END_SIZE_MOVE)
-                SetWindowPos(hWndButton, NULL, rectBtn.left, rectBtn.top, rectBtn.right - rectBtn.left, minHt, NULL);
+                SetWindowPos(hWndButton, NULL, rectBtn.left, rectBtn.top, rectBtn.right - rectBtn.left, minHt, SWP_NOSENDCHANGING);
             else
                 SetWindowPos(hWndButton, NULL, scaleX * rectBtn.left + xCurrentScroll, scaleY * rectBtn.top + yCurrentScroll,
-                    rectBtn.right - rectBtn.left, minHt, NULL);
+                    rectBtn.right - rectBtn.left, minHt, SWP_NOSENDCHANGING);
         }
     }
 
@@ -2690,31 +2706,31 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
     {
         if (resizeType == SIZE_MAXIMIZED)
         {
-            SetWindowPos(hWndOpt, NULL, -xCurrentScroll, rectOpt.top, newWd, optHt, NULL);
+            SetWindowPos(hWndOpt, NULL, -xCurrentScroll, rectOpt.top, newWd, optHt, SWP_NOSENDCHANGING);
             if (buddyHWnd)
-                SetWindowPos(buddyHWnd, NULL, -xCurrentScroll + newWd, rectOpt.top, newWd, optHt, NULL);
+                SetWindowPos(buddyHWnd, NULL, -xCurrentScroll + newWd, rectOpt.top, newWd, optHt, SWP_NOSENDCHANGING);
         }
         else
         {
             if (oldResizeType == SIZE_MAXIMIZED)
             {
-                SetWindowPos(hWndOpt, NULL, rectOpt.left, rectOpt.top, newWd, optHt, NULL);
+                SetWindowPos(hWndOpt, NULL, rectOpt.left, rectOpt.top, newWd, optHt, SWP_NOSENDCHANGING);
                 if (buddyHWnd)
-                    SetWindowPos(buddyHWnd, NULL, rectOpt.left + newWd, rectOpt.top, newWd, optHt, NULL);
+                    SetWindowPos(buddyHWnd, NULL, rectOpt.left + newWd, rectOpt.top, newWd, optHt, SWP_NOSENDCHANGING);
             }
             else
             {
                 if (scrShtOrBmpLoad == 1)
                 {
-                    SetWindowPos(hWndOpt, NULL, 0, rectOpt.top, newWd, optHt, NULL);
+                    SetWindowPos(hWndOpt, NULL, 0, rectOpt.top, newWd, optHt, SWP_NOSENDCHANGING);
                     if (buddyHWnd)
-                        SetWindowPos(buddyHWnd, NULL, newWd, rectOpt.top, newWd, optHt, NULL);
+                        SetWindowPos(buddyHWnd, NULL, newWd, rectOpt.top, newWd, optHt, SWP_NOSENDCHANGING);
                 }
                 else
                 {
-                    SetWindowPos(hWndOpt, NULL, -xCurrentScroll, rectOpt.top, newWd, optHt, NULL);
+                    SetWindowPos(hWndOpt, NULL, -xCurrentScroll, rectOpt.top, newWd, optHt, SWP_NOSENDCHANGING);
                     if (buddyHWnd)
-                        SetWindowPos(buddyHWnd, NULL, -xCurrentScroll + newWd, rectOpt.top, newWd, optHt, NULL);
+                        SetWindowPos(buddyHWnd, NULL, -xCurrentScroll + newWd, rectOpt.top, newWd, optHt, SWP_NOSENDCHANGING);
                 }
             }
         }
@@ -3167,6 +3183,7 @@ BOOL CreateToolTipForRect(HWND hwndParent, int toolType)
     // that was offscreen, and the first tooltip pops up, only to 
     // remove itself when resized again within the primary monitor.
     // Never happens if the window is moved off-screen, initially.
+    // SWP_NOSENDCHANGING seems to have some effect on it.
     static HWND hwndTT = 0;
     wchar_t off[1] = { L'\0' };
     wchar_t offScreen[55] = { L'f', L'S', L'i', L'z', L'e', L' ', L'n', L'o', L't', L' ', L's', L'e', L't', L':', L' ', L'P',  L'a',  L'r',  L't',  L' ',  L'o',  L'f',  L' ',  L'w',  L'i',  L'n',  L'd',  L'o',  L'w',  L' ', L'n', L'o',  L't', L' ', L'p', L'a', L'i', L'n', L't', L'e', L'd', L'.', L' ', L'O', L'f', L'f', L' ', L'S', L'c', L'r', L'e', L'e', L'n', L'?', L'\0' };
@@ -3178,7 +3195,7 @@ BOOL CreateToolTipForRect(HWND hwndParent, int toolType)
             hwndParent, NULL, hInst, NULL);
 
     SetWindowPos(hwndTT, HWND_TOPMOST, 0, 0, 0, 0,
-        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+        SWP_NOSENDCHANGING || SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 
     // Set up "tool" information. In this case, the "tool" is the entire parent window.
 
