@@ -1,2 +1,2 @@
 ## [ScrollCall](../../wiki) ##
-Delving into Windows Forms and Controls, Scrolled
+Delving into Windows Forms and Controls, Sized and Scrolled
