@@ -2051,7 +2051,7 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hd
 }
 void PaintScrolledorPrinted(PAINTSTRUCT *ps, HDC hdcWinCl, HDC hdcMem, int xNewSize, int yNewSize, UINT bmpWidth, UINT  bmpHeight, BOOL printCl, BOOL noFill)
 {
-
+    static int oldWd = wd;
     if (ps)
     {
         rectTmp = ps->rcPaint;
@@ -2064,7 +2064,7 @@ void PaintScrolledorPrinted(PAINTSTRUCT *ps, HDC hdcWinCl, HDC hdcMem, int xNewS
                 xNewSize,
                 (rectTmp.bottom - rectTmp.top),
                 hdcMem,
-                wd + xCurrentScroll,
+                oldWd + xCurrentScroll,
                 yCurrentScroll,
                 SRCCOPY))
                 ReportErr(L"Bad BitBlt from hdcMem!");
@@ -2099,15 +2099,6 @@ void PaintScrolledorPrinted(PAINTSTRUCT *ps, HDC hdcWinCl, HDC hdcMem, int xNewS
     else
     { // Only printCl here
         rectTmp.top = 0;
-        if (!groupboxFlag && !noFill)
-        {
-            // Client co-ords for HDC
-            rectTmp.left = 0;
-            rectTmp.right = xNewSize;
-            rectTmp.bottom = yNewSize;
-            if (!(tmp = (BOOL)FillRect(hdcWinCl, &rectTmp, (HBRUSH)(COLOR_WINDOW + 1))))
-                ReportErr(L"FillRect for PaintScrolledorPrinted failed!");
-        }
 
         if (groupboxFlag)
         {
@@ -2121,21 +2112,44 @@ void PaintScrolledorPrinted(PAINTSTRUCT *ps, HDC hdcWinCl, HDC hdcMem, int xNewS
 
             // new image
             if (timTracker == IDT_TIMER_LARGE)
+            {
                 tmp = 0;
+                oldWd = wd;
+                timTracker = 0;
+            }
             else
                 tmp = xCurrentScroll;
         }
         else
         {
-            if (isSizing)
+            if (!noFill)
             {
-                rectTmp.top = -yCurrentScroll;
-                rectTmp.left = wd - xCurrentScroll;
-                if (rectTmp.left < 0)
-                    rectTmp.left = -wd;
+                // Client co-ords for HDC
+                rectTmp.left = 0;
+                rectTmp.right = xNewSize;
+                rectTmp.bottom = yNewSize;
+                if (!(tmp = (BOOL)FillRect(hdcWinCl, &rectTmp, (HBRUSH)(COLOR_WINDOW + 1))))
+                    ReportErr(L"FillRect for PaintScrolledorPrinted failed!");
+            }
+
+            if (timTracker == IDT_TIMER_LARGE)
+            {
+                oldWd = wd;
+                tmp = 0;
+                rectTmp.left = wd;
+                timTracker = 0;
             }
             else
-                rectTmp.left = wd - xCurrentScroll;
+            {
+                tmp = xCurrentScroll;
+                if (isSizing)
+                {
+                    rectTmp.top = -yCurrentScroll;
+                    rectTmp.left = wd;
+                }
+                else
+                   rectTmp.left = wd;
+            }
         }
 
         if (!BitBlt(hdcWinCl,
