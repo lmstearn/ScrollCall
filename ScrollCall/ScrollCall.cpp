@@ -2051,7 +2051,7 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hd
 }
 void PaintScrolledorPrinted(PAINTSTRUCT *ps, HDC hdcWinCl, HDC hdcMem, int xNewSize, int yNewSize, UINT bmpWidth, UINT  bmpHeight, BOOL printCl, BOOL noFill)
 {
-    static int oldWd = wd;
+    static int oldWd = wd, startWd = 0;
     if (ps)
     {
         rectTmp = ps->rcPaint;
@@ -2118,7 +2118,11 @@ void PaintScrolledorPrinted(PAINTSTRUCT *ps, HDC hdcWinCl, HDC hdcMem, int xNewS
                 timTracker = 0;
             }
             else
+            {
+                if (!isSizing)
+                    startWd = wd;
                 tmp = xCurrentScroll;
+            }
         }
         else
         {
@@ -2148,7 +2152,10 @@ void PaintScrolledorPrinted(PAINTSTRUCT *ps, HDC hdcWinCl, HDC hdcMem, int xNewS
                     rectTmp.left = wd;
                 }
                 else
-                   rectTmp.left = wd;
+                {
+                    startWd = wd;
+                    rectTmp.left = wd;
+                }
             }
         }
 
@@ -2164,6 +2171,19 @@ void PaintScrolledorPrinted(PAINTSTRUCT *ps, HDC hdcWinCl, HDC hdcMem, int xNewS
             SRCCOPY))
             ReportErr(L"Bad BitBlt from hdcMem!");
 
+        if (!xCurrentScroll && isSizing)
+        {
+            // Prevents artifacts forming in the "growth" zone
+            if (wd > startWd)
+            {
+                rectTmp.left = startWd;
+                rectTmp.right = wd;
+                if (!(tmp = (BOOL)FillRect(hdcWinCl, &rectTmp, (HBRUSH)(COLOR_WINDOW + 1))))
+                    ReportErr(L"FillRect for PaintScrolledorPrinted failed!");
+            }
+            else
+                startWd = 0;
+        }
     }
 
 }
@@ -2575,6 +2595,7 @@ void SizeControls(int bmpHeight, HWND hWnd, int &yOldScroll, int resizeType, int
                     else
                     SetWindowPos(hWndButton, NULL, -xCurrentScroll, -yCurrentScroll,
                         newWd, newHt, SWP_NOSENDCHANGING);
+
                     if (!isLoading && isSizing)
                     {
                         // Useless linear method of propagating size increments
@@ -2680,8 +2701,27 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
     {
         if (scrShtOrBmpLoad == 1)
         {
-            if (oldOptTop && (oldResizeType != SIZE_MINIMIZED))
-            rectOpt.top = scaleY * rectOpt.top;
+            if (resizeType == SIZE_RESTORED)
+            {
+                if (oldOptTop && (oldResizeType != SIZE_MINIMIZED))
+                {
+                    if (oldResizeType == SIZE_MAXIMIZED)
+                        rectOpt.top = restoreArray[ctrlCt] - yCurrentScroll;
+                    else
+                    rectOpt.top += scaleY * (rectOpt.top - oldOptTop + newCtrlSizeTriggerHt);
+                }
+            }
+            else
+            {
+                if (resizeType != END_SIZE_MOVE)
+                {
+                    if (oldResizeType != SIZE_MAXIMIZED)
+                        restoreArray[ctrlCt] = rectOpt.top;
+
+                    rectOpt.top = scaleY * rectOpt.top;
+                    oldOptTop = rectOpt.top;
+                }
+            }
         }
         else
         {
@@ -2697,6 +2737,7 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
                         if (oldResizeType != START_SIZE_MOVE) // sizing
                             rectOpt.top += scaleY * (rectOpt.top - oldOptTop + newCtrlSizeTriggerHt);
 
+                        // Borderland
                         if (!rectOpt.top)
                         {
                             if (oldOptTop < 0)
@@ -2743,6 +2784,7 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
 
     if (rectOpt.top < defOptTop - yCurrentScroll)
         rectOpt.top = defOptTop - yCurrentScroll;
+
 
     if (resizeType == END_SIZE_MOVE)
     {
