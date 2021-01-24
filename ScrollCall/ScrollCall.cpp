@@ -2113,14 +2113,17 @@ void PaintScrolledorPrinted(PAINTSTRUCT *ps, HDC hdcWinCl, HDC hdcMem, int xNewS
         {
             rectTmp.top = -yCurrentScroll;
             rectTmp.left = wd;
+            
+            // tmp is set so nothing is painted "behind" the groupbox.
+            // The groupbox is not transparent, and the parent does not
+            // have the WS_CLIPCHILDREN style, so the groupbox,
+            // along with its sibling controls are readily painted over.
+
+            // new image
             if (timTracker == IDT_TIMER_LARGE)
-            tmp = 0;
-            else
-            {
-                tmp = xCurrentScroll;
-                if (tmp < wd)
                 tmp = 0;
-            }
+            else
+                tmp = xCurrentScroll;
         }
         else
         {
@@ -2134,7 +2137,7 @@ void PaintScrolledorPrinted(PAINTSTRUCT *ps, HDC hdcWinCl, HDC hdcMem, int xNewS
             else
                 rectTmp.left = wd - xCurrentScroll;
         }
-//timTracker == IDT_TIMER_LARGE;
+
         if (!BitBlt(hdcWinCl,
             //prect->left + (isScreenshot ? (fScroll == 1 ? 0 : wd) : (((fScroll == 1) && (xCurrentScroll > wd)) ? 0 : wd)),
             rectTmp.left,
