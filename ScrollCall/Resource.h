@@ -18,9 +18,14 @@
 #define UPDATE_VERTSCROLLSIZE	97
 
 
+//Timer parms
+#define IDT_DRAGWINDOW	200
+#define IDT_PAINTBITMAP		201
+#define IDT_TIMER_SMALL		6
+#define IDT_TIMER_LARGE		15
 
-#define IDT_DRAGWINDOW	100
-#define IDT_PAINTBITMAP	101
+
+
 #define IDD_SCROLLCALL_DIALOG	102
 #define IDD_ABOUTBOX			103
 #define IDM_ABOUT				104
@@ -47,6 +52,14 @@
 #ifndef IDC_STATIC
 #define IDC_STATIC				-1
 #endif
+
+// Monitor Dims
+#define FOURTHREEVID					12
+#define WIDESCREENVID				16
+#define UNIVISIUM						18 // e.g. Galaxy Tabs
+#define ULTRAWIDEVID					21
+#define DESIGNSCRX						1360
+#define DESIGNSCRY						768
 
 
 // Next default values for new objects

@@ -9,14 +9,6 @@ HWND RectCl::ownerHwnd = 0;
 RECT RectCl::initRectOwnerHwnd = {};
 RECT RectCl::rectOwnerHwnd = {};
 
-// Monitor Dims
-#define FOURTHREEVID					12
-#define WIDESCREENVID				16
-#define UNIVISIUM						18 // e.g. Galaxy Tabs
-#define ULTRAWIDEVID					21
-#define DESIGNSCRX						1360
-#define DESIGNSCRY						768
-
 using namespace Gdiplus;
 using namespace Gdiplus::DllExports;
 
@@ -58,14 +50,17 @@ BOOL lastSizeMax = FALSE; // last size was maximised: N/A for PrintTheWindow
 int timDragWindow = 1, timPaintBitmap = 0; // positive value indicates timer running
 // timDragWindow initialised for dragging without image loaded
 int timPaintDelay = 0, capCallFrmResize = 0;
+int timTracker = 0;
 
 //  UpDown variables
+//------------------------------------
 // Range of values for controls.
 const UINT valMin = 0, valMax = 50;
 // Handles to the controls.
 HWND hLblUpDown = NULL, hwndUpDnEdtBdy = NULL, hwndUpDnCtl = NULL;
-
 HWND ctrlArray[9] = { 0 };
+
+
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -78,7 +73,7 @@ void ReportErr(const wchar_t* szTypes, ...);
 void PrintTheWindow(HWND hWnd, HBITMAP hBmp, HBITMAP hBitmapScroll);
 void DoMonInfo(HWND hWnd);
 BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hdefBitmap, HGDIOBJ &hdefBitmapScroll, BITMAP bmp, HDC& hdcMem, HDC& hdcMemIn, HDC& hdcMemScroll, HDC hdcScreen, HDC hdcScreenCompat, HDC hdcWinCl, UINT& bmpWidth, UINT& bmpHeight, int xNewSize, int yNewSize, int resizePic = 0, int minMaxRestore = 0, BOOL newPic = FALSE);
-void PaintPrinted(PAINTSTRUCT *ps, HDC hdcWinCl, HDC hdcMem, int xNewSize, int yNewSize, UINT bmpWidth, UINT  bmpHeight, BOOL printCl = FALSE, BOOL noFill = FALSE);
+void PaintScrolledorPrinted(PAINTSTRUCT *ps, HDC hdcWinCl, HDC hdcMem, int xNewSize, int yNewSize, UINT bmpWidth, UINT  bmpHeight, BOOL printCl = FALSE, BOOL noFill = FALSE);
 void GetDims(HWND hWnd, int resizeType = 0, int oldResizeType = 0);
 void SizeControls(int bmpHeight, HWND hWnd, int &yOldScroll, int resizeType = -1, int curFmWd = 0, int curFmHt = 0, BOOL newPic = FALSE);
 int ScrollIt(HWND hWnd, int scrollType, int scrollDrag, int currentScroll, int minScroll, int maxScroll, int trackPos);
@@ -516,7 +511,10 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     capCallFrmResize++;
                 }
                 else
+                {
+                    timTracker = 0;
                     capCallFrmResize = 0;
+                }
             }
             else
             {
@@ -550,6 +548,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 */
                 capCallFrmResize = 0;
             }
+            else
+                ReportErr(L"IDT_DRAGWINDOW: Problem with timer termination.");
         }
         break;
         case IDT_PAINTBITMAP:
@@ -563,8 +563,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             {
                 if (scrShtOrBmpLoad == 1)
                 {
-                    if (!BitBlt(hdcWinCl, wd - xCurrentScroll, -yCurrentScroll, bmpWidth, bmpHeight, hdcMem, 0, 0, SRCCOPY))
-                        ReportErr(L"Print: Bad BitBlt from hdcMem!");
+                    PaintScrolledorPrinted(NULL, hdcWinCl, hdcMem, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE);
                 }
                 else
                 {
@@ -585,13 +584,13 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 }
             }
             }
+            else
+                ReportErr(L"IDT_PAINTBITMAP: Problem with timer termination.");
         }
-        break;
+            break;
         default:
             break;
         }
-            if (!tmp) // Watch use of tmp in SizeControls etc. !
-            ReportErr(L"Problem with timer termination.");
         return (LRESULT)FALSE;
     }
     break;
@@ -621,11 +620,13 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         dragTickInit = (int)GetTickCount();
         sizeCount = 0;
         paintCount = 0;
-        timDragWindow = (int)SetTimer(hWnd,
+        if (timDragWindow = (int)SetTimer(hWnd,
             IDT_DRAGWINDOW,
             ((timPaintDelay) ? timPaintDelay : 10),
-            (TIMERPROC)NULL);
-
+            (TIMERPROC)NULL))
+            timTracker = 0;
+        else
+            ReportErr(L"No timer is available.");
         return (LRESULT)FALSE;
     }
     break;
@@ -665,10 +666,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             // Unable to "double buffer" the groupbox here so call SizeControls from the timer
             if (scrShtOrBmpLoad)
             {
-                if (!(timPaintBitmap = (int)SetTimer(hWnd,
+                if (timPaintBitmap = (int)SetTimer(hWnd,
                     IDT_PAINTBITMAP,
-                    6,
-                    (TIMERPROC)NULL)))
+                    IDT_TIMER_SMALL,
+                    (TIMERPROC)NULL))
+                    timTracker = IDT_TIMER_SMALL;
+                else
                     ReportErr(L"No timer is available.");
             }
         }
@@ -676,7 +679,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
             // The following may cause flicker, (and clip controls?) in certain circumstances
             if (scrShtOrBmpLoad == 1)
-                PaintPrinted(NULL, hdcWinCl, hdcMem, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE);
+                PaintScrolledorPrinted(NULL, hdcWinCl, hdcMem, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE);
             else
             {
                 if (!(AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, ((stretchChk) ? 2 : 1), END_SIZE_MOVE)))
@@ -716,9 +719,9 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 //  Move image along with the size a bit.
                 if (scrShtOrBmpLoad == 1)
                     //hDCPrint can lose scope fairly quickly:
-                    PaintPrinted(NULL, hdcWinCl, hdcMem, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE, TRUE);
+                    PaintScrolledorPrinted(NULL, hdcWinCl, hdcMem, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE, TRUE);
                 else
-                 {
+                {
                     if (!AdjustImage(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, bmp, hdcMem, hdcMemIn, hdcMemScroll, hdcScreen, hdcScreenCompat, hdcWinCl, bmpWidth, bmpHeight, xNewSize, yNewSize, ((stretchChk) ? 2 : 0), (int)wParam))
                         ReportErr(L"AdjustImage detected a problem with the image!");
                 }
@@ -775,9 +778,9 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             if (fScroll)
             {
                 if (scrShtOrBmpLoad == 1)
-                    PaintPrinted(&ps, NULL, hdcMemScroll, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE, TRUE);
+                    PaintScrolledorPrinted(&ps, NULL, hdcMemScroll, xNewSize, yNewSize, bmpWidth, bmpHeight, TRUE, TRUE);
                 else
-                    PaintPrinted(&ps, NULL, (scrShtOrBmpLoad == 2) ? hdcScreenCompat : hdcMemScroll, xNewSize, yNewSize, bmpWidth, bmpHeight);
+                    PaintScrolledorPrinted(&ps, NULL, (scrShtOrBmpLoad == 2) ? hdcScreenCompat : hdcMemScroll, xNewSize, yNewSize, bmpWidth, bmpHeight);
             }   // fScroll = 0;
             else
             {
@@ -1035,10 +1038,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 }
 
                 MoveWindow(hWnd, rectTmp.left, rectTmp.top, xNewSize, RectCl().height(1), FALSE);
-                if (!(timPaintBitmap = (int)SetTimer(hWnd,
+                if (timPaintBitmap = (int)SetTimer(hWnd,
                     IDT_PAINTBITMAP,
-                    6,
-                    (TIMERPROC)NULL)))
+                    IDT_TIMER_SMALL,
+                    (TIMERPROC)NULL))
+                    timTracker = IDT_TIMER_SMALL;
+                else
                     ReportErr(L"No timer is available.");
             }
             else
@@ -1062,10 +1067,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     }
 
                     MoveWindow(hWnd, rectTmp.left, rectTmp.top, RectCl().width(1), yNewSize, FALSE);
-                    if (!(timPaintBitmap = (int)SetTimer(hWnd,
+                    if (timPaintBitmap = (int)SetTimer(hWnd,
                         IDT_PAINTBITMAP,
-                        6,
-                        (TIMERPROC)NULL)))
+                        IDT_TIMER_SMALL,
+                        (TIMERPROC)NULL))
+                        timTracker = IDT_TIMER_SMALL;
+                    else
                         ReportErr(L"No timer is available.");
                 }
 
@@ -1348,10 +1355,12 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                 ChangeRedrawStyle(hWnd, TRUE);
                 toolTipOn = IsAllFormInWindow(hWnd, toolTipOn);
                 scrShtOrBmpLoad = 1;
-                if (!(timPaintBitmap = (int)SetTimer(hWnd,
+                if (timPaintBitmap = (int)SetTimer(hWnd,
                     IDT_PAINTBITMAP,
-                    15,
-                    (TIMERPROC)NULL)))
+                    IDT_TIMER_LARGE,
+                    (TIMERPROC)NULL))
+                    timTracker = IDT_TIMER_LARGE;
+                else
                     ReportErr(L"No timer is available.");
                 timDragWindow = 0;
                 isSizing = FALSE;
@@ -1444,7 +1453,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 LRESULT CALLBACK staticSubClass(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
 {
     UNUSED(dwRefData);
-    static int savefScroll = 0;
+   // static int savefScroll = 0;
 
     switch (uMsg) // instead of LPNMHDR  lpnmh = (LPNMHDR) lParam above;
     {
@@ -1453,24 +1462,26 @@ LRESULT CALLBACK staticSubClass(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
         //"If wParam is non-NULL, the common control may assume the value is an HDC and paints using that device context."
         if (wParam == 0)
         {
-            //if (isSizing)
-            /*// Supposed to "halve" the flickering in scrolling. No perceivable difference.
 
+            // Supposed to "halve" the flickering in scrolling. No perceivable difference.
+            /*
             if (fScroll)
             {
                 savefScroll = fScroll;
                 fScroll = 0;
             }
-            else
             */
+            if (!isSizing)
             {
                 PAINTSTRUCT ps;
                 HDC hdc = BeginPaint(hWnd, &ps);
-                PRECT prect;
-                prect = &ps.rcPaint;
-                if (!(BOOL)FillRect(hdc, prect, (HBRUSH)(COLOR_WINDOW + 1)))
-                    ReportErr(L"FillRect: Groupbox paint failed!");
-
+                if (scrShtOrBmpLoad != 1)
+                {
+                    PRECT prect;
+                    prect = &ps.rcPaint;
+                    if (!(BOOL)FillRect(hdc, prect, (HBRUSH)(COLOR_WINDOW + 1)))
+                        ReportErr(L"FillRect: Groupbox paint failed!");
+                }
                 EndPaint(hWnd, &ps);
                 //fScroll = savefScroll;
             }
@@ -2038,12 +2049,11 @@ BOOL AdjustImage(HWND hWnd, HBITMAP hBitmap, HBITMAP &hBitmapScroll, HGDIOBJ &hd
 
     return retVal;
 }
-void PaintPrinted(PAINTSTRUCT *ps, HDC hdcWinCl, HDC hdcMem, int xNewSize, int yNewSize, UINT bmpWidth, UINT  bmpHeight, BOOL printCl, BOOL noFill)
+void PaintScrolledorPrinted(PAINTSTRUCT *ps, HDC hdcWinCl, HDC hdcMem, int xNewSize, int yNewSize, UINT bmpWidth, UINT  bmpHeight, BOOL printCl, BOOL noFill)
 {
 
     if (ps)
     {
-        //if (scrShtOrBmpLoad == 1) return;
         rectTmp = ps->rcPaint;
         if (scrShtOrBmpLoad == 1)
         {
@@ -2081,39 +2091,62 @@ void PaintPrinted(PAINTSTRUCT *ps, HDC hdcWinCl, HDC hdcMem, int xNewSize, int y
             {
                 rectTmp.right = wd - ((scrShtOrBmpLoad == 1) ? 0: xCurrentScroll);
                 if (!(tmp = (BOOL)FillRect(ps->hdc, &rectTmp, (HBRUSH)(COLOR_WINDOW + 1))))
-                    ReportErr(L"FillRect for PaintPrinted failed!");
+                    ReportErr(L"FillRect for PaintScrolledorPrinted failed!");
             }
             //UpdateWindow(hWnd);
         }
     }
     else
-    {
-        if (printCl && !noFill)
+    { // Only printCl here
+        rectTmp.top = 0;
+        if (!groupboxFlag && !noFill)
         {
             // Client co-ords for HDC
             rectTmp.left = 0;
-            rectTmp.top = 0;
             rectTmp.right = xNewSize;
             rectTmp.bottom = yNewSize;
             if (!(tmp = (BOOL)FillRect(hdcWinCl, &rectTmp, (HBRUSH)(COLOR_WINDOW + 1))))
-                ReportErr(L"FillRect for PaintPrinted failed!");
+                ReportErr(L"FillRect for PaintScrolledorPrinted failed!");
         }
-        rectTmp.left = -xCurrentScroll;
-        rectTmp.top = -yCurrentScroll;
-        rectTmp.right = rectTmp.left + bmpWidth;
-        rectTmp.bottom = rectTmp.top + bmpHeight;
 
+        if (groupboxFlag)
+        {
+            rectTmp.top = -yCurrentScroll;
+            rectTmp.left = wd;
+            if (timTracker == IDT_TIMER_LARGE)
+            tmp = 0;
+            else
+            {
+                tmp = xCurrentScroll;
+                if (tmp < wd)
+                tmp = 0;
+            }
+        }
+        else
+        {
+            if (isSizing)
+            {
+                rectTmp.top = -yCurrentScroll;
+                rectTmp.left = wd - xCurrentScroll;
+                if (rectTmp.left < 0)
+                    rectTmp.left = -wd;
+            }
+            else
+                rectTmp.left = wd - xCurrentScroll;
+        }
+//timTracker == IDT_TIMER_LARGE;
         if (!BitBlt(hdcWinCl,
             //prect->left + (isScreenshot ? (fScroll == 1 ? 0 : wd) : (((fScroll == 1) && (xCurrentScroll > wd)) ? 0 : wd)),
-            rectTmp.left + wd,
+            rectTmp.left,
             rectTmp.top,
-            (rectTmp.right - rectTmp.left),
-            (rectTmp.bottom - rectTmp.top),
+            bmpWidth,
+            bmpHeight,
             hdcMem,
-            rectTmp.left + xCurrentScroll,
-            rectTmp.top + yCurrentScroll,
+            tmp,
+            0,
             SRCCOPY))
             ReportErr(L"Bad BitBlt from hdcMem!");
+
     }
 
 }
@@ -2409,10 +2442,8 @@ void SizeControls(int bmpHeight, HWND hWnd, int &yOldScroll, int resizeType, int
                 oldLblTop = rectLbl.top;
                 oldUpDnTop = rectUpDn.top;
             }
-            if (scrShtOrBmpLoad == 1)
-                rectBtn.top = startSizeBtnTop = 0;
-            else
-                startSizeBtnTop = -yCurrentScroll;
+
+            startSizeBtnTop = -yCurrentScroll;
 
             startSizeBtnBottom = startSizeBtnTop + (rectBtn.bottom - rectBtn.top);
             startSizeOpt1Top = ((float)curFmHt / (float)defFmHt) * defOpt1Top - yCurrentScroll;
@@ -2438,8 +2469,8 @@ void SizeControls(int bmpHeight, HWND hWnd, int &yOldScroll, int resizeType, int
 
             if (scrShtOrBmpLoad == 1)  // Buttons not moved
             {
-                startSizeBtnLeft = rectBtn.left = 0;
-                startSizeBtnRight = rectBtn.left + wd;
+                startSizeBtnLeft = rectBtn.left = xCurrentScroll;
+                startSizeBtnRight = xCurrentScroll + wd;
             }
             else
             {
@@ -2630,58 +2661,65 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
     }
     else
     {
-        if (resizeType == SIZE_RESTORED)
+        if (scrShtOrBmpLoad == 1)
         {
-            // Must be adjusted with scroll offsets
             if (oldOptTop && (oldResizeType != SIZE_MINIMIZED))
-            {
-                if (oldResizeType == SIZE_MAXIMIZED)
-                    rectOpt.top = restoreArray[ctrlCt] - yCurrentScroll;
-                else
-                {
-                    if (oldResizeType != START_SIZE_MOVE) // sizing
-                        rectOpt.top += scaleY * (rectOpt.top - oldOptTop + newCtrlSizeTriggerHt);
-
-                    if (!rectOpt.top)
-                    {
-                        if (oldOptTop < 0)
-                            rectOpt.top = 1;
-                        else
-                            rectOpt.top = -1;
-                    }
-                }
-            }
-            //if (curFmHt >= defFmHt)
-            //     rectOpt.top += ((oldResizeType == SIZE_RESTORED)? scaleY: 1) * (rectOpt.top - oldOptTop);
-            //else
-            //    rectOpt.top += ((oldResizeType == SIZE_RESTORED) ? scaleY : 1) * (rectOpt.top - oldOptTop);
+            rectOpt.top = scaleY * rectOpt.top;
         }
         else
         {
-            if (resizeType != END_SIZE_MOVE)
+            if (resizeType == SIZE_RESTORED)
             {
-                if (resizeType == SIZE_MAXIMIZED)
+                // Must be adjusted with scroll offsets
+                if (oldOptTop && (oldResizeType != SIZE_MINIMIZED))
                 {
-                    // restoreArray will store previous SIZE_RESTORED dims.
-                    // SIZE_MINIMIZED not stored so oldResizeType can be SIZE_MAXIMIZED successively
-
                     if (oldResizeType == SIZE_MAXIMIZED)
-                        oldOptTop += yOldScroll;
+                        rectOpt.top = restoreArray[ctrlCt] - yCurrentScroll;
                     else
                     {
-                        restoreArray[ctrlCt] = rectOpt.top + yScrollBefNew;
-                        oldOptTop = rectOpt.top;
+                        if (oldResizeType != START_SIZE_MOVE) // sizing
+                            rectOpt.top += scaleY * (rectOpt.top - oldOptTop + newCtrlSizeTriggerHt);
+
+                        if (!rectOpt.top)
+                        {
+                            if (oldOptTop < 0)
+                                rectOpt.top = 1;
+                            else
+                                rectOpt.top = -1;
+                        }
                     }
-                    yOldScroll = yScrollBefNew;
                 }
+                //if (curFmHt >= defFmHt)
+                //     rectOpt.top += ((oldResizeType == SIZE_RESTORED)? scaleY: 1) * (rectOpt.top - oldOptTop);
+                //else
+                //    rectOpt.top += ((oldResizeType == SIZE_RESTORED) ? scaleY : 1) * (rectOpt.top - oldOptTop);
+            }
+            else
+            {
+                if (resizeType != END_SIZE_MOVE)
+                {
+                    if (resizeType == SIZE_MAXIMIZED)
+                    {
+                        // restoreArray will store previous SIZE_RESTORED dims.
+                        // SIZE_MINIMIZED not stored so oldResizeType can be SIZE_MAXIMIZED successively
 
-                //rectOpt.top = scaleY * (rectOpt.top - oldOptTop + yCurrentScroll);
-                //The following may not preserve vertical scale for rectOpt.top after SIZE_MAXIMIZED, so want update
-                rectOpt.top = scaleY * (rectOpt.top + yOldScroll) - yCurrentScroll;
+                        if (oldResizeType == SIZE_MAXIMIZED)
+                            oldOptTop += yOldScroll;
+                        else
+                        {
+                            restoreArray[ctrlCt] = rectOpt.top + yScrollBefNew;
+                            oldOptTop = rectOpt.top;
+                        }
+                        yOldScroll = yScrollBefNew;
+                    }
 
+                    //rectOpt.top = scaleY * (rectOpt.top - oldOptTop + yCurrentScroll);
+                    //The following may not preserve vertical scale for rectOpt.top after SIZE_MAXIMIZED, so want update
+                    rectOpt.top = scaleY * (rectOpt.top + yOldScroll) - yCurrentScroll;
+                }
             }
         }
-        }
+    }
 
     if (optHt < minHt / 2)
         optHt = minHt / 2;
@@ -2699,27 +2737,27 @@ int delegateSizeControl(RECT rectOpt, HWND hWndOpt, int oldOptTop, int resizeTyp
     }
     else
     {
-        if (resizeType == SIZE_MAXIMIZED)
+        if (scrShtOrBmpLoad == 1)
         {
-            SetWindowPos(hWndOpt, NULL, -xCurrentScroll, rectOpt.top, newWd, optHt, SWP_NOSENDCHANGING);
+            SetWindowPos(hWndOpt, NULL, 0, rectOpt.top, newWd, optHt, SWP_NOSENDCHANGING);
             if (buddyHWnd)
-                SetWindowPos(buddyHWnd, NULL, -xCurrentScroll + newWd, rectOpt.top, newWd, optHt, SWP_NOSENDCHANGING);
+                SetWindowPos(buddyHWnd, NULL, newWd, rectOpt.top, newWd, optHt, SWP_NOSENDCHANGING);
         }
         else
         {
-            if (oldResizeType == SIZE_MAXIMIZED)
+            if (resizeType == SIZE_MAXIMIZED)
             {
-                SetWindowPos(hWndOpt, NULL, rectOpt.left, rectOpt.top, newWd, optHt, SWP_NOSENDCHANGING);
+                SetWindowPos(hWndOpt, NULL, -xCurrentScroll, rectOpt.top, newWd, optHt, SWP_NOSENDCHANGING);
                 if (buddyHWnd)
-                    SetWindowPos(buddyHWnd, NULL, rectOpt.left + newWd, rectOpt.top, newWd, optHt, SWP_NOSENDCHANGING);
+                    SetWindowPos(buddyHWnd, NULL, -xCurrentScroll + newWd, rectOpt.top, newWd, optHt, SWP_NOSENDCHANGING);
             }
             else
             {
-                if (scrShtOrBmpLoad == 1)
+                if (oldResizeType == SIZE_MAXIMIZED)
                 {
-                    SetWindowPos(hWndOpt, NULL, 0, rectOpt.top, newWd, optHt, SWP_NOSENDCHANGING);
+                    SetWindowPos(hWndOpt, NULL, rectOpt.left, rectOpt.top, newWd, optHt, SWP_NOSENDCHANGING);
                     if (buddyHWnd)
-                        SetWindowPos(buddyHWnd, NULL, newWd, rectOpt.top, newWd, optHt, SWP_NOSENDCHANGING);
+                        SetWindowPos(buddyHWnd, NULL, rectOpt.left + newWd, rectOpt.top, newWd, optHt, SWP_NOSENDCHANGING);
                 }
                 else
                 {
@@ -3079,10 +3117,12 @@ int ScrollInfo(HWND hWnd, int scrollXorY, int scrollType, int scrollDrag, int xN
         // Although the effects of not calling this function during sizing can differ, there is no improvementt.
         if (!timPaintBitmap && scrollChanged)
         {
-            if (!(timPaintBitmap = (int)SetTimer(hWnd,
+            if (timPaintBitmap = (int)SetTimer(hWnd,
                 IDT_PAINTBITMAP,
-                6,
-                (TIMERPROC)NULL)))
+                IDT_TIMER_SMALL,
+                (TIMERPROC)NULL))
+                timTracker = IDT_TIMER_SMALL;
+            else
                 ReportErr(L"No timer is available.");
         }
     }
