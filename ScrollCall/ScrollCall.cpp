@@ -476,7 +476,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
             if (scrDims.cy > mmi->ptMaxSize.y)
                 ReportErr(L"Work height should not exceed monitor height!");
             defDims.x = 5 * wd;
-            defDims.y = 3 * ht;
+            defDims.y = 5 * ht;
         }
         // The structure gets continually pumped with the same values.
         // This is dynamic, another option is to handle it manually.
@@ -1739,7 +1739,6 @@ void ReportErr(const wchar_t* szTypes, ...)
                     lenTotal += len + 2;
                     wcscat_s(outBuf, lenTotal, L"\n");
 
-                    //wcscat_s(buf, len, L"\0");
                     wcscat_s(outBuf, lenTotal, buf);
                     free(buf);
                 }
@@ -1747,7 +1746,10 @@ void ReportErr(const wchar_t* szTypes, ...)
         }
 
         if (TRUE)
+        {
             OutputDebugStringW(outBuf);
+            OutputDebugStringW(L"\n");
+        }
         else
             MessageBoxW(m_hWnd, buf, L"Error", MB_ICONINFORMATION);
     }
