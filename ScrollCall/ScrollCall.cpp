@@ -456,6 +456,9 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         */
 
         // Final initialisations
+        SetDragFullWindow();  //store default
+        SetDragFullWindow(TRUE);
+
         scrShtOrBmpLoad = 0;
         toolTipOn = FALSE;
         windowMoved = FALSE;
@@ -620,6 +623,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         dragTickInit = (int)GetTickCount();
         sizeCount = 0;
         paintCount = 0;
+
         if (timDragWindow = (int)SetTimer(hWnd,
             IDT_DRAGWINDOW,
             ((timPaintDelay) ? timPaintDelay : 10),
@@ -1129,14 +1133,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
             if (wmEvent == BN_CLICKED)
                 stretchChk = (SendMessageW((HWND)lParam, BM_GETCHECK, 0, 0) == BST_CHECKED);
-            if (stretchChk)
-            {
-                SetDragFullWindow();  //store default
-                SetDragFullWindow(TRUE);
-            }
-            else
-                SetDragFullWindow(TRUE, TRUE);  //restore default
-            // Also BST_INDETERMINATE, BST_UNCHECKED
+
             rectTmp.left = 0;
             rectTmp.top = 0;
             rectTmp.right = max(bmpWidth, xNewSize);
@@ -1290,8 +1287,8 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         break;
         case IDM_EXIT:
         {
-            Kleenup(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, hbmpCompat, pgpbm, hdcMem, hdcMemIn, hdcMemScroll, hdcWinCl);
-           // _CrtDumpMemoryLeaks();
+            DestroyWindow(hWnd);
+            // _CrtDumpMemoryLeaks();
         }
         break;
         default:
@@ -1445,8 +1442,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
         {
         case VK_ESCAPE:
         {
-            Kleenup(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, hbmpCompat, pgpbm, hdcMem, hdcMemIn, hdcMemScroll, hdcWinCl);
-            PostQuitMessage(0);
+            DestroyWindow(hWnd);
         }
         break;
         default:
@@ -1456,6 +1452,7 @@ LRESULT CALLBACK MyBitmapWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
     break;
     case WM_DESTROY:
     {
+        // Invoked again from the internals- no big deal.
         Kleenup(hWnd, hBitmap, hBitmapScroll, hdefBitmap, hdefBitmapScroll, hbmpCompat, pgpbm, hdcMem, hdcMemIn, hdcMemScroll, hdcWinCl);
         PostQuitMessage(0);
     }
@@ -3358,16 +3355,26 @@ BOOL SetDragFullWindow(BOOL dragFullWindow, BOOL restoreDef)
 
     if (restoreDef)
     {
-        if (defDragFullWindow > -1)
+        if (!defDragFullWindow)
         {
-            if (SystemParametersInfoW(SPI_SETDRAGFULLWINDOWS,
-                defDragFullWindow,
-                NULL,
-                NULL))
-                SendNotifyMessageW(HWND_BROADCAST, WM_SETTINGCHANGE,
-                    SPI_GETDRAGFULLWINDOWS, 0);
-            else
-                ReportErr(L"SPI_SETDRAGFULLWINDOWS: Cannot restore.");
+            if (!SystemParametersInfoW(SPI_GETDRAGFULLWINDOWS,
+                NULL, &tmp, 0))
+            {
+                defDragFullWindow = 0;
+                ReportErr(L"SPI_SETDRAGFULLWINDOWS: Cannot get info.");
+            }
+            if (tmp)
+            {
+                if (SystemParametersInfoW(SPI_SETDRAGFULLWINDOWS,
+                    defDragFullWindow,
+                    NULL,
+                    NULL))
+                    SendNotifyMessageW(HWND_BROADCAST, WM_SETTINGCHANGE,
+                        SPI_GETDRAGFULLWINDOWS, 0);
+                else
+                    ReportErr(L"SPI_SETDRAGFULLWINDOWS: Cannot restore.");
+            }
+            // else user turned it off while ScrollCall was active
         }
     }
     else
@@ -3384,7 +3391,7 @@ BOOL SetDragFullWindow(BOOL dragFullWindow, BOOL restoreDef)
         else
         {
             // Only turns on if default is off, else does nothing
-            if (dragFullWindow)
+            if (dragFullWindow && !defDragFullWindow)
             {
                 if (SystemParametersInfoW(SPI_SETDRAGFULLWINDOWS,
                     dragFullWindow,
